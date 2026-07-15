@@ -1,0 +1,31 @@
+# dependencies and builds
+node_modules/
+.pnpm-store/
+.turbo/
+.next/
+.open-next/
+dist/
+coverage/
+playwright-report/
+test-results/
+.lighthouseci/
+*.tsbuildinfo
+
+# local runtime state
+.env
+.env.*
+!.env.example
+supabase/.branches/
+supabase/.temp/
+.wrangler/
+
+# editors and operating systems
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# logs
+*.log
+pnpm-debug.log*

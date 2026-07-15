@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" role="img" aria-labelledby="title description">
+  <title id="title">An open learning orbit</title>
+  <desc id="description">Soft abstract rings surround an open card, ready for new material.</desc>
+  <rect width="360" height="240" rx="32" fill="#f0efff"/>
+  <ellipse cx="180" cy="120" rx="128" ry="72" fill="none" stroke="#b8afea" stroke-width="3" stroke-dasharray="8 11"/>
+  <ellipse cx="180" cy="120" rx="78" ry="110" fill="none" stroke="#83cbb7" stroke-width="3"/>
+  <g transform="translate(116 68)">
+    <rect width="128" height="104" rx="18" fill="#fff" stroke="#5b4ce0" stroke-width="4"/>
+    <path d="M28 34h72M28 54h54M28 74h38" stroke="#8882aa" stroke-width="7" stroke-linecap="round"/>
+  </g>
+  <circle cx="72" cy="73" r="10" fill="#ffd77a"/>
+  <circle cx="294" cy="173" r="13" fill="#5b4ce0"/>
+</svg>

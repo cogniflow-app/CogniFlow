@@ -1,0 +1,50 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    ".env",
+    ".env.local",
+    ".env.test",
+    "apps/web/.env",
+    "apps/web/.env.local",
+    "apps/web/.env.production",
+    "apps/web/.env.test"
+  ],
+  "globalEnv": [
+    "APP_ENCRYPTION_KEY",
+    "DATABASE_URL",
+    "DEPLOYMENT_PROFILE",
+    "ENABLE_CHILD_PROFILES",
+    "ENABLE_FREE_TEXT_GAME_CHAT",
+    "ENABLE_PUBLIC_CHILD_CONTENT",
+    "GUEST_TOKEN_SIGNING_KEY",
+    "NEXT_PUBLIC_APP_NAME",
+    "NEXT_PUBLIC_APP_URL",
+    "NEXT_PUBLIC_BUILD_VERSION",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+    "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY",
+    "SUPABASE_SECRET_KEY",
+    "VERCEL_ENV"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", ".open-next/**", "dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "test": {
+      "dependsOn": ["^test"],
+      "outputs": ["coverage/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": ["*.tsbuildinfo"]
+    }
+  }
+}

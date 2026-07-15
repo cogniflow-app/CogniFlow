@@ -1,0 +1,52 @@
+{
+  "name": "@lumen/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/server.ts",
+    "./src/route.ts",
+    "./src/test.ts"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./browser": {
+      "types": "./src/browser.ts",
+      "default": "./src/browser.ts"
+    },
+    "./server": {
+      "types": "./src/server.ts",
+      "default": "./src/server.ts"
+    },
+    "./route": {
+      "types": "./src/route.ts",
+      "default": "./src/route.ts"
+    },
+    "./test": {
+      "types": "./src/test.ts",
+      "default": "./src/test.ts"
+    },
+    "./types": {
+      "types": "./src/database.types.ts",
+      "default": "./src/database.types.ts"
+    }
+  },
+  "scripts": {
+    "generate:types": "pnpm --dir ../.. db:types",
+    "lint": "eslint src tests --max-warnings=0",
+    "test": "vitest run",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@lumen/config": "workspace:*",
+    "@supabase/ssr": "0.12.3",
+    "@supabase/supabase-js": "2.110.5",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@lumen/test-utils": "workspace:*"
+  }
+}

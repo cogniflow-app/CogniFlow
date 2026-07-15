@@ -1,0 +1,15 @@
+.next
+.open-next
+.turbo
+coverage
+node_modules
+playwright-report
+test-results
+pnpm-lock.yaml
+ALL_CODEX_PROMPTS.md
+QUEUE_COMMANDS.md
+README.md
+SHA256SUMS.txt
+codex-prompts/**
+docs/PRODUCT_BLUEPRINT.md
+docs/RESEARCH_BASIS.md
