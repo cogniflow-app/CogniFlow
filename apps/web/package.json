@@ -1,0 +1,36 @@
+{
+  "name": "@lumen/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "analyze": "ANALYZE=true next build",
+    "build": "next build",
+    "build:portable": "opennextjs-cloudflare build",
+    "dev": "next dev --hostname 127.0.0.1 --port 3100",
+    "lint": "eslint app components lib tests --max-warnings=0",
+    "preview:portable": "opennextjs-cloudflare preview",
+    "start": "next start --hostname 127.0.0.1 --port 3100",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "5.2.8",
+    "@fontsource-variable/newsreader": "5.2.10",
+    "@lumen/config": "workspace:*",
+    "@lumen/database": "workspace:*",
+    "@lumen/domain": "workspace:*",
+    "@lumen/ui": "workspace:*",
+    "next": "16.2.10",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@lumen/test-utils": "workspace:*",
+    "@opennextjs/cloudflare": "1.20.1",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "rclone.js": "0.6.6",
+    "typescript": "6.0.3",
+    "wrangler": "4.110.0"
+  }
+}

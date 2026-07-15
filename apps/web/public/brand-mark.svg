@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title description">
+  <title id="title">Learning orbit mark</title>
+  <desc id="description">Three rounded paths orbit a central spark.</desc>
+  <rect width="64" height="64" rx="20" fill="#5b4ce0"/>
+  <path d="M17 24c7-10 25-11 31-2 5 8-3 20-16 25" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <path d="M18 41c-4-7 1-18 11-23" fill="none" stroke="#c9f5df" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="33" cy="31" r="5" fill="#ffd77a"/>
+</svg>

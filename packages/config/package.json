@@ -1,0 +1,52 @@
+{
+  "name": "@lumen/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/server-env.ts",
+    "./src/server-capabilities.ts"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./brand": {
+      "types": "./src/brand.ts",
+      "default": "./src/brand.ts"
+    },
+    "./public-env": {
+      "types": "./src/public-env.ts",
+      "default": "./src/public-env.ts"
+    },
+    "./server-env": {
+      "types": "./src/server-env.ts",
+      "default": "./src/server-env.ts"
+    },
+    "./server-environment-parser": {
+      "types": "./src/server-environment-parser.ts",
+      "default": "./src/server-environment-parser.ts"
+    },
+    "./capabilities": {
+      "types": "./src/capabilities.ts",
+      "default": "./src/capabilities.ts"
+    },
+    "./server-capabilities": {
+      "types": "./src/server-capabilities.ts",
+      "default": "./src/server-capabilities.ts"
+    }
+  },
+  "scripts": {
+    "lint": "eslint src tests --max-warnings=0",
+    "test": "vitest run",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "server-only": "0.0.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@lumen/test-utils": "workspace:*"
+  }
+}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title description">
+  <title id="title">Protected learning space</title>
+  <desc id="description">A shield holding a simple closed study card</desc>
+  <path d="M80 15 26 35v42c0 31 19 55 54 69 35-14 54-38 54-69V35L80 15Z" fill="#EEECFF" stroke="#6757D8" stroke-width="5"/>
+  <rect x="51" y="55" width="58" height="48" rx="9" fill="#fff" stroke="#6757D8" stroke-width="4"/>
+  <path d="M64 72h32M64 84h21" stroke="#6757D8" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="98" cy="94" r="9" fill="#4D9C88"/>
+  <path d="m94 94 3 3 5-6" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

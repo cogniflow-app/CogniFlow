@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title description">
+  <title id="title">Lumen brand mark</title>
+  <desc id="description">Three folded study cards forming a rising beam</desc>
+  <defs>
+    <linearGradient id="beam" x1="18" y1="78" x2="79" y2="17" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4B3CC4"/>
+      <stop offset="1" stop-color="#8A78F3"/>
+    </linearGradient>
+  </defs>
+  <path d="M17 28c0-6.1 4.9-11 11-11h39c6.1 0 11 4.9 11 11v39c0 6.1-4.9 11-11 11H28c-6.1 0-11-4.9-11-11V28Z" fill="#F2F0FF"/>
+  <path d="M30 64.5 46.3 31c.7-1.5 2.8-1.5 3.6 0l16.2 33.5c.8 1.7-.9 3.5-2.6 2.7L48.9 60a2 2 0 0 0-1.8 0l-14.6 7.2c-1.7.8-3.3-1-2.5-2.7Z" fill="url(#beam)"/>
+  <path d="m39 51 9-18 9 18-9-4.2L39 51Z" fill="#fff" fill-opacity=".9"/>
+</svg>

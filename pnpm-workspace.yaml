@@ -1,0 +1,24 @@
+packages:
+  - apps/*
+  - packages/*
+
+sharedWorkspaceLockfile: true
+
+minimumReleaseAgeExclude:
+  - "@supabase/auth-js@2.110.5"
+  - "@supabase/functions-js@2.110.5"
+  - "@supabase/postgrest-js@2.110.5"
+  - "@supabase/realtime-js@2.110.5"
+  - "@supabase/ssr@0.12.3"
+  - "@supabase/storage-js@2.110.5"
+  - "@supabase/supabase-js@2.110.5"
+
+allowBuilds:
+  "@parcel/watcher": true
+  "@sentry/cli": true
+  esbuild: true
+  rclone.js: true
+  sharp: true
+  supabase: true
+  unrs-resolver: true
+  workerd: true
