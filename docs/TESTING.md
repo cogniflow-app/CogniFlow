@@ -171,21 +171,35 @@ The Playwright `webServer` configuration owns starting/stopping an isolated app 
 
 Current public browser coverage opens at least:
 
-- `/` at desktop and mobile widths;
+- `/` at the exact 1920×1080, 1536×1024, 1440×900, 1280×800, 1024×768,
+  768×1024, 430×932, 390×844, 360×800, and 320×568 acceptance matrix;
+- the public header, hero, principles, and footer with computed shared-container alignment, bounded
+  hero wrapping, contained actions/illustration, practical touch targets, and no page-level
+  horizontal overflow;
+- the landing page at a 125% browser-zoom equivalent and at 200% text enlargement with deliberately
+  long translated-style navigation labels;
+- every public/Auth status surface at 320 px with 200% text enlargement, including the signed-out
+  onboarding redirect and not-found route;
 - `/join/[code]` and confirms the form never reports a joined nonexistent room;
 - a protected settings route and onboarding while signed out, preserving only the safe return destination;
 - the under-13 guardian path without sending an Auth mutation or revealing account credential/provider fields;
 - one desktop local-email path through signed age-gated signup provisioning, onboarding, dashboard access, and locked child-profile settings;
 - `/dev/design-system` with production indexing disabled;
 - reduced-motion behavior;
-- responsive navigation exposing only implemented destinations;
+- responsive navigation exposing only implemented destinations, with keyboard activation, Escape
+  closure, and focus restoration for the compact disclosure;
 - implemented preference controls and representative widget keyboard flows.
 
 Traces, screenshots, and video are diagnostic artifacts, not assertions. CI uploads Playwright reports/test results only after a failure and retains them briefly.
 
 ## Accessibility
 
-`pnpm test:a11y` runs axe against the landing, Auth entry/status, onboarding, guest join, privacy, terms, safety, copyright, and design-system routes and fails on serious or critical violations. The live local signup smoke also checks the authenticated onboarding surface. Automated axe checks complement, but do not replace:
+`pnpm test:a11y` runs axe against the landing, Auth entry/status, onboarding, guest join, privacy,
+terms, safety, copyright, and design-system routes and fails on serious or critical violations. It
+also checks the landing page in explicit light and dark themes, serious mode, operating-system
+reduced motion, and with the compact navigation open; keyboard assertions verify skip-link focus,
+visible primary-action focus, and compact-navigation behavior. The live local signup smoke also
+checks the authenticated onboarding surface. Automated axe checks complement, but do not replace:
 
 - complete keyboard traversal and escape behavior;
 - visible focus and sensible focus restoration;

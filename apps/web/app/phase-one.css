@@ -10,7 +10,7 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 .phase-one-surface {
-  min-height: calc(100dvh - 9rem);
+  min-height: 100%;
   background:
     radial-gradient(
       circle at 78% 5%,
@@ -22,8 +22,15 @@
 
 .auth-grid {
   display: grid;
-  min-height: calc(100dvh - 9rem);
-  grid-template-columns: minmax(0, 0.85fr) minmax(24rem, 1.15fr);
+  min-height: 100%;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+}
+
+.auth-grid > *,
+.join-shell > *,
+.workspace-frame > *,
+.settings-grid > * {
+  min-width: 0;
 }
 
 .auth-story {
@@ -36,17 +43,22 @@
     color-mix(in srgb, var(--color-brand) 13%, var(--color-surface)),
     var(--color-surface)
   );
-  padding: clamp(2rem, 6vw, 5rem);
+  padding-block: clamp(2rem, 6vw, 5rem);
+  padding-inline: var(--page-container-gutter);
+  padding-inline-start: max(var(--page-container-gutter), env(safe-area-inset-left, 0px));
+  padding-inline-end: max(var(--page-container-gutter), env(safe-area-inset-right, 0px));
 }
 
 .auth-story h1 {
   max-width: 11ch;
   margin: 1rem 0;
   font-family: var(--font-reading);
-  font-size: clamp(2.8rem, 6vw, 5.6rem);
+  font-size: clamp(2.5rem, 5vw, 4.75rem);
   font-weight: 540;
-  letter-spacing: -0.05em;
-  line-height: 0.96;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .auth-story p {
@@ -58,12 +70,18 @@
 
 .auth-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
-  padding: clamp(1.25rem, 5vw, 5rem);
+  padding-block: clamp(1.5rem, 5vw, 5rem);
+  padding-inline: var(--page-container-gutter);
+  padding-inline-start: max(var(--page-container-gutter), env(safe-area-inset-left, 0px));
+  padding-inline-end: max(var(--page-container-gutter), env(safe-area-inset-right, 0px));
 }
 
 .auth-card {
-  width: min(100%, 34rem);
+  width: 100%;
+  max-width: 34rem;
+  min-width: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   background: var(--color-surface-raised);
@@ -75,6 +93,7 @@
   margin: 0;
   font-size: 1.75rem;
   letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
 }
 
 .auth-card__intro {
@@ -108,7 +127,7 @@
 
 .workspace-frame {
   display: grid;
-  min-height: calc(100dvh - 9rem);
+  min-height: 100%;
   grid-template-columns: 17rem minmax(0, 1fr);
 }
 
@@ -177,13 +196,24 @@
 
 .join-shell {
   display: grid;
-  min-height: calc(100dvh - 9rem);
-  grid-template-columns: minmax(0, 1.05fr) minmax(24rem, 0.95fr);
+  min-height: 100%;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
 }
 
 .join-story,
 .join-panel {
-  padding: clamp(1.5rem, 6vw, 5rem);
+  padding-block: clamp(1.5rem, 6vw, 5rem);
+  padding-inline: var(--page-container-gutter);
+}
+
+.join-story {
+  padding-inline-start: max(var(--page-container-gutter), env(safe-area-inset-left, 0px));
+  padding-inline-end: max(var(--page-container-gutter), env(safe-area-inset-right, 0px));
+}
+
+.join-panel {
+  padding-inline-start: max(var(--page-container-gutter), env(safe-area-inset-left, 0px));
+  padding-inline-end: max(var(--page-container-gutter), env(safe-area-inset-right, 0px));
 }
 
 .join-story {
@@ -204,10 +234,12 @@
   max-width: 10ch;
   margin: 1rem 0;
   font-family: var(--font-reading);
-  font-size: clamp(3rem, 7vw, 6.5rem);
+  font-size: clamp(2.65rem, 5.25vw, 5rem);
   font-weight: 540;
-  letter-spacing: -0.055em;
-  line-height: 0.94;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .join-story > p {
@@ -242,11 +274,14 @@
 
 .join-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
 }
 
 .join-card {
-  width: min(100%, 34rem);
+  width: 100%;
+  max-width: 34rem;
+  min-width: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   background: var(--color-surface-raised);
@@ -258,6 +293,7 @@
   margin: 0;
   font-size: 1.75rem;
   letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
 }
 
 .join-code-input {
@@ -284,7 +320,7 @@
   .join-shell,
   .workspace-frame,
   .settings-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .auth-story {

@@ -2,29 +2,50 @@ import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "../lib/cn";
 
-export interface PageShellProps extends HTMLAttributes<HTMLDivElement> {
+export type PageContainerWidth = "reading" | "content" | "site" | "wide";
+
+export interface PageContainerProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
-  width?: "reading" | "content" | "wide";
+  width?: PageContainerWidth;
 }
 
-const widths = {
-  reading: "max-w-3xl",
-  content: "max-w-6xl",
-  wide: "max-w-[90rem]",
+const containerWidthClasses: Record<PageContainerWidth, string> = {
+  reading: "lumen-page-container--reading",
+  content: "lumen-page-container--content",
+  site: "lumen-page-container--site",
+  wide: "lumen-page-container--wide",
 } as const;
+
+/**
+ * A neutral horizontal layout boundary shared by public and application
+ * surfaces. Its raw CSS intentionally does not depend on Tailwind so public
+ * routes can use it without loading the complete component utility bundle.
+ */
+export const PageContainer = forwardRef<HTMLDivElement, PageContainerProps>(function PageContainer(
+  { children, className, width = "site", ...props },
+  ref,
+) {
+  return (
+    <div
+      ref={ref}
+      className={cn("lumen-page-container", containerWidthClasses[width], className)}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+});
+
+export type PageShellProps = PageContainerProps;
 
 export const PageShell = forwardRef<HTMLDivElement, PageShellProps>(function PageShell(
   { children, className, width = "content", ...props },
   ref,
 ) {
   return (
-    <div
-      ref={ref}
-      className={cn("mx-auto w-full px-4 py-8 sm:px-6 lg:px-8 lg:py-12", widths[width], className)}
-      {...props}
-    >
+    <PageContainer ref={ref} className={cn("py-8 lg:py-12", className)} width={width} {...props}>
       {children}
-    </div>
+    </PageContainer>
   );
 });
 

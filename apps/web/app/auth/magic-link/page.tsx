@@ -15,8 +15,8 @@ export default async function MagicLinkPage({
   return (
     <AuthShell
       eyebrow="Passwordless access"
-      story="A short-lived sign-in link goes only to the email address on the account. The response never reveals whether an address is registered."
-      title="One link. One safe return."
+      story="We will email a short-lived sign-in link. For privacy, the response does not reveal whether the address is registered."
+      title="Sign in with a secure email link."
     >
       <div className="auth-card">
         <h2>Email me a sign-in link</h2>

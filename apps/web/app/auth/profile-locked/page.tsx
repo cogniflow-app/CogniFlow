@@ -8,15 +8,15 @@ export const metadata: Metadata = { title: "Learner profile locked" };
 export default function ProfileLockedPage() {
   return (
     <AuthShell
-      eyebrow="Managed learner boundary"
-      story="The learner study window ended or its local token no longer matches. Account controls stay closed until a guardian verifies their credential."
+      eyebrow="Learner session ended"
+      story="Your managed learner session ended. Account settings remain locked until a guardian confirms their password."
       title="Guardian controls remain locked."
     >
       <section className="auth-card" aria-labelledby="profile-locked-heading">
         <h2 id="profile-locked-heading">Guardian verification required</h2>
         <p className="auth-card__intro">
-          Enter the guardian account password to end managed-learner mode. Reloading, waiting, or
-          changing a browser token cannot reopen account settings.
+          Enter the guardian account password to leave the learner profile and return to account
+          settings.
         </p>
         <GuardianExitAction />
       </section>

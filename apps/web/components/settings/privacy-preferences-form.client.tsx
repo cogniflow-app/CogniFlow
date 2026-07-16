@@ -1,5 +1,6 @@
 "use client";
 
+import { brandConfig } from "@lumen/config/brand";
 import { Button, Switch } from "@lumen/ui";
 import { useState } from "react";
 
@@ -60,7 +61,7 @@ export function PrivacyPreferencesForm({ initial }: { readonly initial: PrivacyP
       </div>
       <Switch
         checked={preferences.defaultContentPrivate}
-        description="New study material starts private unless you deliberately share it later."
+        description="This preference is stored, but study-content creation and sharing are not available in this beta."
         label="Private by default"
         onCheckedChange={(checked) =>
           setPreferences((current) => ({ ...current, defaultContentPrivate: checked }))
@@ -68,7 +69,7 @@ export function PrivacyPreferencesForm({ initial }: { readonly initial: PrivacyP
       />
       <Switch
         checked={preferences.allowSocialInteractions}
-        description="Keeps future social interaction surfaces disabled when off. Child profiles cannot override guardian safety controls."
+        description="This preference is stored, but social interaction features are not available in this beta."
         label="Allow social interactions"
         onCheckedChange={(checked) =>
           setPreferences((current) => ({ ...current, allowSocialInteractions: checked }))
@@ -76,7 +77,7 @@ export function PrivacyPreferencesForm({ initial }: { readonly initial: PrivacyP
       />
       <Switch
         checked={preferences.firstPartyAnalytics}
-        description="Share limited first-party product signals. Turn this off for essential operational telemetry only."
+        description="Store whether limited first-party product analytics may be used if enabled. Turning this off permits essential operational telemetry only."
         label="First-party product analytics"
         onCheckedChange={(checked) =>
           setPreferences((current) => ({ ...current, firstPartyAnalytics: checked }))
@@ -84,7 +85,7 @@ export function PrivacyPreferencesForm({ initial }: { readonly initial: PrivacyP
       />
       <Switch
         checked={preferences.allowProductUpdates}
-        description="Store whether Lumen may send optional product announcements. Transactional security mail is unaffected."
+        description={`Store whether ${brandConfig.name} may send optional product announcements. Transactional security mail is unaffected.`}
         label="Product updates"
         onCheckedChange={(checked) =>
           setPreferences((current) => ({ ...current, allowProductUpdates: checked }))

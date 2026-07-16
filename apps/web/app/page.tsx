@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageContainer } from "@lumen/ui/shells";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -15,7 +16,7 @@ const principles = [
     number: "02",
     title: "Child access stays gated",
     description:
-      "The public beta is 13+. Guardian-managed profiles are local/test-only until child browsers have an independent identity boundary and every launch gate is complete.",
+      "This beta is for people age 13 and older. Child profiles are not currently available.",
   },
   {
     number: "03",
@@ -36,7 +37,7 @@ const foundations = [
     tag: "Learner context",
     title: "Know who is learning",
     description:
-      "Every eligible account receives one self learner profile. Guardian-managed behavior is fully tested but cannot be activated in a production runtime.",
+      "Every eligible account receives a private self learner profile, kept separate from account settings.",
   },
   {
     tag: "Account control",
@@ -50,7 +51,7 @@ export default function LandingPage() {
   return (
     <main id="main-content" tabIndex={-1}>
       <section className="hero">
-        <div className="site-container hero__grid">
+        <PageContainer className="hero__grid" width="site">
           <div>
             <span className="eyebrow">A trustworthy place to begin</span>
             <h1>
@@ -58,8 +59,8 @@ export default function LandingPage() {
             </h1>
             <p className="hero__lead">
               Set up secure account access, choose the right learner context, and manage privacy
-              before study history enters the picture. Durable recall, adaptive practice, and
-              purposeful play build on these boundaries in later phases.
+              preferences in one place. This beta focuses on the account controls that protect your
+              learning data.
             </p>
             <div className="hero__actions">
               <a className="hero-action hero-action--primary" href="/auth/sign-up">
@@ -73,38 +74,48 @@ export default function LandingPage() {
           <div
             aria-label="Authentication, learner profiles, and privacy surround one account"
             className="memory-map"
+            role="img"
           >
             <span className="memory-map__core">Account</span>
             <span className="memory-map__node memory-map__node--recall">Access</span>
             <span className="memory-map__node memory-map__node--practice">Profiles</span>
             <span className="memory-map__node memory-map__node--play">Privacy</span>
           </div>
-        </div>
+        </PageContainer>
       </section>
 
       <section aria-labelledby="principles-heading" className="principles">
-        <h2 className="sr-only" id="principles-heading">
-          Product principles
-        </h2>
-        <div className="site-container principles__grid">
-          {principles.map((principle) => (
-            <article className="principle" key={principle.number}>
-              <span className="principle__number">{principle.number}</span>
-              <h2>{principle.title}</h2>
-              <p>{principle.description}</p>
-            </article>
-          ))}
-        </div>
+        <PageContainer width="site">
+          <header className="principles__heading">
+            <div>
+              <span className="eyebrow">Designed with care</span>
+              <h2 id="principles-heading">Product principles</h2>
+            </div>
+            <p>
+              Clear identity, age, and privacy boundaries shape every account interaction in the
+              beta.
+            </p>
+          </header>
+          <div className="principles__grid">
+            {principles.map((principle) => (
+              <article className="principle" key={principle.number}>
+                <span className="principle__number">{principle.number}</span>
+                <h3>{principle.title}</h3>
+                <p>{principle.description}</p>
+              </article>
+            ))}
+          </div>
+        </PageContainer>
       </section>
 
       <section aria-labelledby="foundation-heading" className="foundation-section">
-        <div className="site-container">
+        <PageContainer width="site">
           <div className="section-heading">
             <h2 id="foundation-heading">Trust comes before study data.</h2>
             <p>
-              Phase 01 establishes the identity, authorization, and privacy boundaries that later
-              notes, reviews, classes, sharing, and games must respect. The controls below describe
-              implemented account behavior, not sample metrics or promised study results.
+              Secure identity, learner context, and privacy controls come first. The account
+              features below are available now; study sets, reviews, classes, sharing, and live
+              games are not part of this beta.
             </p>
           </div>
           <div className="foundation-grid">
@@ -116,7 +127,7 @@ export default function LandingPage() {
               </article>
             ))}
           </div>
-        </div>
+        </PageContainer>
       </section>
     </main>
   );

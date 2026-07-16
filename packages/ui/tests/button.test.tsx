@@ -30,6 +30,21 @@ describe("buttons", () => {
     expect(screen.getByRole("button", { name: "Shuffle cards" })).toBeVisible();
   });
 
+  it("allows long labels to wrap safely while remaining centered", () => {
+    render(<Button>Continue with a deliberately long translated action label</Button>);
+
+    const button = screen.getByRole("button", {
+      name: "Continue with a deliberately long translated action label",
+    });
+    expect(button).toHaveClass("max-w-full", "min-w-0", "text-center", "whitespace-normal");
+    expect(button).not.toHaveClass("whitespace-nowrap");
+    expect(button.firstElementChild).toHaveClass(
+      "min-w-0",
+      "text-center",
+      "[overflow-wrap:anywhere]",
+    );
+  });
+
   it("removes disabled links from keyboard navigation", async () => {
     const user = userEvent.setup();
     const onClick = vi.fn();

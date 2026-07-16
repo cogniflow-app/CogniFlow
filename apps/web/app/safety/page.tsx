@@ -5,7 +5,7 @@ import { PublicInformationPage } from "@/components/public-information-page";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/safety" },
-  description: `Safety boundaries for accounts, learner profiles, and future game guests on ${brandConfig.name}.`,
+  description: `Safety boundaries for accounts, learner profiles, and room-code guest access on ${brandConfig.name}.`,
   title: "Safety",
 };
 
@@ -16,24 +16,21 @@ export default function SafetyPage() {
       eyebrow="Safety center"
       notice={
         <p>
-          The current phase has no public study-set publishing, open chat, direct messages, or live
-          game rooms. Those surfaces must pass their own moderation and child-safety gates before
-          they are enabled.
+          This beta does not publish study sets or provide open chat, direct messages, or public
+          live game rooms.
         </p>
       }
-      summary={`Safety on ${brandConfig.name} begins with clear learner boundaries, minimal data, and server-enforced permissions.`}
+      summary={`Safety on ${brandConfig.name} begins with clear learner boundaries, minimal data, and protected account access.`}
       title="Learning should feel focused, not exposed."
     >
       <section aria-labelledby="safety-now" id="protections">
-        <h2 id="safety-now">Protections built into the account foundation</h2>
+        <h2 id="safety-now">Account protections</h2>
         <ul>
           <li>Age bands are used instead of collecting exact birthdays by default.</li>
-          <li>Under-13 learners cannot create independent accounts.</li>
+          <li>Under-13 accounts and child profiles are unavailable in this beta.</li>
           <li>
-            Child access is guardian-scoped, explicit, time-limited where appropriate, and
-            revocable.
+            Profile PINs, guest reconnect tokens, and profile-session tokens are stored as hashes.
           </li>
-          <li>Profile PINs, reconnect credentials, and session tokens are stored as hashes.</li>
           <li>
             Sensitive actions use server authorization, rate limits, re-authentication, and audit
             events.
@@ -45,31 +42,28 @@ export default function SafetyPage() {
       <section aria-labelledby="safety-children" id="child-safety">
         <h2 id="safety-children">Child-profile boundaries</h2>
         <p>
-          Child profiles have no child email requirement and cannot access the guardian&apos;s
-          email, provider connections, devices, privacy requests, or other account administration.
-          The product does not provide unrestricted child chat, direct messages, public child
-          biographies, external links, or child global leaderboards.
+          The service does not currently create child accounts or guardian-managed child profiles.
+          It does not provide unrestricted child chat, direct messages, public child biographies,
+          external links, or child global leaderboards.
         </p>
         <p>
-          Child profiles stay disabled in every production runtime—even if a browser request or
-          environment value tampers with a feature flag. Re-enabling them requires an independent,
-          opaque child-facing identity plus the provider, consent, privacy, retention, incident
-          response, and legal launch gates. Portability alone is not permission to launch.
+          This private beta is for people age 13 or older. Child profiles cannot be enabled until
+          appropriate identity, consent, privacy, retention, incident-response, provider, and legal
+          safeguards are complete.
         </p>
       </section>
 
       <section aria-labelledby="safety-guests" id="game-guests">
         <h2 id="safety-guests">Game guests and nicknames</h2>
         <p>
-          When live games are introduced, joining without an account will require a valid room code.
-          Guest records will use filtered or generated nicknames, short expirations, hashed
-          reconnect tokens, and rate limits without invasive fingerprinting. Guests will not gain
-          persistent XP or become searchable profiles.
+          The room-code flow requires a valid, active room before it creates temporary guest access.
+          Guest identities use filtered or generated nicknames, short expirations, hashed reconnect
+          tokens, and rate limits without invasive fingerprinting. Guests do not gain persistent XP
+          or become searchable profiles.
         </p>
         <p>
-          The current join surface validates readiness and does not pretend that a nonexistent room
-          is available. Future hosts must receive moderation controls before public game rooms are
-          enabled.
+          Public live game rooms are not available in this beta. A code for a missing, closed, or
+          guest-restricted room is rejected.
         </p>
       </section>
 
@@ -86,14 +80,14 @@ export default function SafetyPage() {
             Revoke an unfamiliar device or session from account settings and change the password.
           </li>
           <li>
-            Use the reporting channel published by the deployment operator; never include a
+            Use the operator&apos;s reporting channel when one is published; never include a
             password, PIN, or recovery link.
           </li>
         </ol>
         <p>
           If anyone is in immediate danger, contact local emergency services. This site is not an
-          emergency service. A production operator must publish a staffed safety and security
-          contact before enabling public content or live rooms.
+          emergency service. A staffed safety and security contact has not yet been published and is
+          required before public content or live rooms are offered.
         </p>
       </section>
 
@@ -101,8 +95,8 @@ export default function SafetyPage() {
         <h2 id="safety-privacy">Privacy and wellbeing</h2>
         <p>
           Do not place private contact details, school locations, passwords, health information, or
-          other sensitive data in a display name, handle, nickname, or future shared study content.
-          Learners should use real breaks, accessible settings, and serious mode whenever motion,
+          other sensitive data in a display name, handle, nickname, or shared content. Learners
+          should use real breaks, accessible settings, and serious mode whenever motion,
           competition, or visual density makes study harder rather than better.
         </p>
       </section>

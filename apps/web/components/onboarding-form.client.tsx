@@ -95,8 +95,8 @@ export function OnboardingForm({
             Your study identity
           </h2>
           <p className="mt-2 mb-0 text-sm text-[var(--color-text-muted)]">
-            Use a name you are comfortable seeing while you study. Public creator details remain off
-            until you choose otherwise in a later publishing flow.
+            Use a name you are comfortable seeing in your account. Display names and handles are
+            private in this beta.
           </p>
         </div>
         <div className="grid gap-5 md:grid-cols-2">
@@ -196,7 +196,7 @@ export function OnboardingForm({
             Learning goals
           </h2>
           <p className="mt-2 mb-0 text-sm text-[var(--color-text-muted)]">
-            Optional. These guide recommendations without limiting what you can do.
+            Optional. Record what you want to focus on; these choices do not limit your account.
           </p>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
@@ -270,7 +270,7 @@ export function OnboardingForm({
           render={({ field }) => (
             <Switch
               checked={field.value}
-              description="Suppress celebrations, game effects, and sound."
+              description="Reduce decorative effects and sound on supported surfaces."
               label="Serious mode"
               onCheckedChange={field.onChange}
             />

@@ -1,11 +1,89 @@
 # Implementation status
 
-**Current phase:** Post-Phase 01 custom-domain and hosted-auth finalization  
-**Status:** Complete; provider, deployment, and final aggregate validation recorded below  
+**Current phase:** Post-Phase 01 landing and public-surface UI polish  
+**Status:** Implementation/local acceptance complete; Preview is READY; hosted smoke is blocked by the unavailable protection-bypass credential  
 **Evidence date:** 2026-07-16 UTC  
 **Next phase:** Phase 02 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
+
+## Completed Phase 01 landing and public-surface UI polish
+
+- Started from a clean `main` exactly matching freshly fetched `origin/main`, then created only
+  `codex/phase-01-landing-ui-polish` for this task.
+- Replaced the competing public `.site-container` and utility-only page-width conventions with one
+  exported `PageContainer` primitive. Its reading, content, site, and wide variants share bounded
+  widths, centered placement, responsive pixel gutters that remain stable during text enlargement,
+  and safe-area-aware inline padding. `PageShell` now composes the same primitive.
+- Moved the visible “Product principles” heading inside the same site-width container as its grid.
+  The defect existed because the heading sat outside the old container and depended on an `sr-only`
+  utility that was absent from the public route stylesheet, so it rendered as a full-width box at
+  the viewport origin.
+- Removed the fixed `20rem` root minimum and hardened grid/flex intrinsic sizing, heading and button
+  wrapping, Auth/join cards, policy/not-found layouts, illustration containment, footer targets,
+  and safe-area padding. This prevents long labels and 200% text from forcing document-level
+  horizontal scroll.
+- Rebalanced the editorial hero with a bounded fluid reading-font scale, a three-line ordinary
+  desktop target, shorter vertical rhythm, a contained responsive illustration, and aligned
+  actions. Header, hero, principle heading/grid, foundation content, and footer now share the same
+  content edges.
+- Added a compact navigation disclosure without removing destinations or Appearance controls. It
+  supports keyboard activation, Escape closure, focus restoration, 44 px controls, long-label
+  wrapping, and nested Appearance Escape behavior.
+- Corrected the landing, header/footer, join, Auth entry/status, public policy/safety/copyright,
+  onboarding, privacy-setting, error, global-error, and not-found copy. Public wording now describes
+  secure account access, learner-profile boundaries, privacy controls, and room-code checking
+  without internal phase language or claims that decks, study modes, AI, imports, or live games are
+  available.
+- Kept visible branding sourced from `brandConfig`. The configured and visible name remains
+  **Lumen**, while the public domain is `recallflash.com` and provider/repository identifiers retain
+  the historical `cogniflow` name. No undocumented rename was made.
+- Added semantic/component assertions for the contained principle heading and heading hierarchy;
+  computed-layout Playwright coverage for the exact responsive matrix, shared edges, hero wrapping,
+  illustration/actions, practical target sizes, 125% zoom, 200% text, long translated labels, every
+  public/Auth route, and compact-navigation keyboard behavior; and expanded axe coverage for all
+  Auth status pages, light/dark themes, serious mode, reduced motion, visible focus, and open mobile
+  navigation.
+
+Local responsive acceptance passed at 1920×1080, 1536×1024, 1440×900, 1280×800, 1024×768,
+768×1024, 430×932, 390×844, 360×800, and 320×568. Light and dark themes, serious mode,
+operating-system reduced motion, 100% layout, a 125% browser-zoom equivalent, 200% text enlargement,
+long translated-style navigation labels, keyboard-only traversal, and mobile Escape/focus
+restoration also passed. Final visual inspection covered the 1920×1080 and full 1440px light
+landing pages plus the full 390px dark serious-mode landing page.
+
+| Command                                                  | Result                                                                                                                                                                             |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`                                      | Exit 0 after formatting the changed source, tests, and documentation                                                                                                               |
+| `pnpm secret:scan`                                       | Exit 0; no credential finding                                                                                                                                                      |
+| `pnpm lint`                                              | Exit 0; ESLint and dependency boundaries pass                                                                                                                                      |
+| `pnpm typecheck`                                         | Exit 0; 7/7 strict TypeScript projects pass                                                                                                                                        |
+| `pnpm test`                                              | Exit 0; 47 files / 265 tests pass; statements `84.62%`, branches `68.12%`, functions `77.65%`, lines `85.97%`                                                                      |
+| `pnpm db:reset` / `pnpm test:db` / `pnpm db:types:check` | Exit 0; the empty 21-migration chain resets, 10 files / 362 pgTAP assertions pass, and generated types remain current                                                              |
+| `pnpm build:verify`                                      | Exit 0; the deterministic optimized Next.js production build generates 53 routes                                                                                                   |
+| verification-wrapped `pnpm build:portable`               | Exit 0; OpenNext/Cloudflare emits `.open-next/worker.js`. A direct developer-environment attempt correctly rejected its HTTP application origin before this deterministic run      |
+| `pnpm test:e2e`                                          | Exit 0; 22 Playwright checks pass and 14 intentional cross-project repetitions skip                                                                                                |
+| `pnpm test:a11y`                                         | Exit 0; 26/26 route, theme, motion, focus, keyboard, and axe checks pass with no serious/critical violations                                                                       |
+| `pnpm test:lighthouse`                                   | Exit 0; performance `99`, accessibility `100`, best practices `96`, SEO `100`; FCP `0.757 s`, LCP `2.162 s`, TBT `2.5 ms`, CLS `0`, 189,870 bytes / 13 requests                    |
+| `pnpm test:load`                                         | Exit 0; 15/15 k6 checks, 3/3 requests, `0%` failures, request-duration p95 `5.7 ms` against `<1000 ms`                                                                             |
+| `pnpm verify`                                            | Exit 0 under pinned Node `24.18.0` and pnpm `11.13.0`; the aggregate reran formatting, secrets, lint, types, unit/DB checks, type drift, both builds, E2E, axe, Lighthouse, and k6 |
+| `pnpm test:hosted:preview --url <PR Preview>`            | Blocked before application assertions: Vercel Deployment Protection redirected anonymous automation to its login page because `VERCEL_AUTOMATION_BYPASS_SECRET` was not present    |
+
+Commit `a0d99c3` reached Vercel `READY` at the PR Preview URL
+`https://cogniflow-git-codex-phase-0-12dd39-cogniflow-app-3471s-projects.vercel.app`. The GitHub
+integration exposes that stable PR alias and the Vercel deployment record, but not the immutable
+generated hostname to an unauthenticated operator. The guarded hosted suite was attempted against
+the PR URL and confirmed the remaining blocker is Deployment Protection, not an application
+failure: the landing, health, Auth, and redirect checks received Vercel's login surface. The run was
+stopped after four such failures rather than repeating the same credential failure six more times.
+Complete the 10-check hosted smoke by supplying the existing project-scoped bypass credential only
+as the transient `VERCEL_AUTOMATION_BYPASS_SECRET` process value; do not weaken protection or store
+the secret in this repository.
+
+This task changed no authentication or email behavior, Supabase Auth setting, migration, RLS policy,
+hosted database, hosted environment variable, SMTP/domain configuration, or provider secret. The
+ignored `apps/web/.env.local` was not inspected, edited, staged, or tracked. No Phase 02 product work
+was started.
 
 ## Completed custom-domain and hosted-auth finalization
 

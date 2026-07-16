@@ -9,7 +9,7 @@ export default function UpdatePasswordPage() {
   return (
     <AuthShell
       eyebrow="Secure recovery"
-      story="A valid recovery session is checked again on the server before the credential changes. An expired or reused link cannot update the account."
+      story="Only a valid, unexpired recovery link can change your password."
       title="Choose a new password."
     >
       <div className="auth-card">

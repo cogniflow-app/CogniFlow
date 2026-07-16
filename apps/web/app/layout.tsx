@@ -33,11 +33,10 @@ const newsreader = localFont({
 export const metadata: Metadata = {
   applicationName: brandConfig.name,
   description:
-    "An evolving learning platform for durable recall, adaptive practice, and purposeful games, built on secure account and privacy boundaries.",
+    "Secure account access and privacy-first learner profiles for a platform designed around durable learning.",
   metadataBase: new URL(appUrl),
   openGraph: {
-    description:
-      "Durable recall, adaptive practice, and purposeful play in one original learning platform.",
+    description: "Secure account access and privacy-first learner profiles for durable learning.",
     siteName: brandConfig.name,
     title: brandConfig.name,
     type: "website",
@@ -48,7 +47,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    description: "Durable recall, adaptive practice, and purposeful play.",
+    description: "Secure account access and privacy-first learner profiles.",
     title: brandConfig.name,
   },
 };
@@ -59,6 +58,7 @@ export const viewport: Viewport = {
     { color: "#f7f8fc", media: "(prefers-color-scheme: light)" },
     { color: "#101422", media: "(prefers-color-scheme: dark)" },
   ],
+  viewportFit: "cover",
   width: "device-width",
 };
 

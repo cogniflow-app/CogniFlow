@@ -1,3 +1,4 @@
+import { PageContainer } from "@lumen/ui/shells";
 import type { ReactNode } from "react";
 
 const informationLinks = [
@@ -7,7 +8,7 @@ const informationLinks = [
   { href: "/copyright", label: "Copyright" },
 ] as const;
 
-export const publicInformationUpdated = "July 15, 2026";
+export const publicInformationUpdated = "July 16, 2026";
 
 interface PublicInformationPageProps {
   readonly children: ReactNode;
@@ -28,7 +29,7 @@ export function PublicInformationPage({
 }: PublicInformationPageProps) {
   return (
     <main className="information-page" id="main-content" tabIndex={-1}>
-      <div className="site-container information-layout">
+      <PageContainer className="information-layout" width="site">
         <aside className="information-sidebar">
           <p className="information-sidebar__label">Policies and safety</p>
           <nav aria-label="Public information">
@@ -55,7 +56,7 @@ export function PublicInformationPage({
           <div className="information-note">{notice}</div>
           <div className="information-copy">{children}</div>
         </article>
-      </div>
+      </PageContainer>
     </main>
   );
 }

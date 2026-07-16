@@ -9,7 +9,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell
       eyebrow="Account recovery"
-      story="Recovery messages use the same neutral response whether or not an address is registered, which helps prevent account enumeration."
+      story="We show the same response for every address to protect account privacy."
       title="A careful way back in."
     >
       <div className="auth-card">

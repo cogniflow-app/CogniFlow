@@ -1,5 +1,13 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function revealSiteNavigation(page: Page): Promise<void> {
+  const compactToggle = page.getByRole("button", { name: "Open primary navigation" });
+  if (await compactToggle.isVisible()) {
+    await compactToggle.click();
+    await expect(page.getByRole("button", { name: "Close primary navigation" })).toBeVisible();
+  }
+}
 
 test("the public landing page exposes only real destinations", async ({ page }) => {
   await page.goto("/");
@@ -8,9 +16,10 @@ test("the public landing page exposes only real destinations", async ({ page }) 
   await expect(
     page.getByRole("heading", { level: 1, name: /learn from a foundation you control/i }),
   ).toBeVisible();
+  await revealSiteNavigation(page);
   const primaryNavigation = page.getByRole("navigation", { name: "Primary" });
   await expect(primaryNavigation).toBeVisible();
-  await expect(primaryNavigation.getByRole("link", { name: "Join a game" })).toBeVisible();
+  await expect(primaryNavigation.getByRole("link", { name: "Enter a room code" })).toBeVisible();
   await expect(primaryNavigation.getByRole("link", { name: "Safety" })).toBeVisible();
 
   await page.getByRole("link", { name: /create an account/i }).click();
@@ -24,12 +33,12 @@ test("the public guest shell checks a host code without pretending a room exists
   await page.goto("/join/ABCDEF");
 
   await expect(
-    page.getByRole("heading", { level: 1, name: /room code is all you need/i }),
+    page.getByRole("heading", { level: 1, name: /have a room code\? check it here/i }),
   ).toBeVisible();
   const roomCode = page.getByRole("textbox", { name: "Room code" });
   await expect(roomCode).toHaveValue("ABCDEF");
   await expect(page.getByRole("button", { name: "Check room code" })).toBeVisible();
-  await expect(page.getByText("No pretend rooms")).toBeVisible();
+  await expect(page.getByText("Active rooms only")).toBeVisible();
 
   await roomCode.clear();
   await page.getByRole("button", { name: "Check room code" }).click();
@@ -69,7 +78,7 @@ test("an under-13 signup follows the guardian path without creating an account",
 
   await expect(page).toHaveURL(/\/auth\/guardian-required$/u);
   await expect(
-    page.getByRole("heading", { level: 2, name: "Ask a guardian to continue" }),
+    page.getByRole("heading", { level: 2, name: "A child account cannot be created" }),
   ).toBeVisible();
   await expect(page.getByText(/does not collect a child email/i)).toBeVisible();
   expect(authMutations).toEqual([]);
@@ -136,7 +145,8 @@ test("appearance controls apply dark, reduced-motion, and serious preferences", 
   page,
 }) => {
   await page.goto("/");
-  await page.getByText("Appearance").click();
+  await revealSiteNavigation(page);
+  await page.locator(".appearance-panel > summary").click();
   await page.getByLabel("Color theme").selectOption("dark");
   await page.getByLabel("Reduce motion").check();
   await page.getByLabel("Serious mode").check();
