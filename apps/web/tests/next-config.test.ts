@@ -8,7 +8,7 @@ import {
 } from "next/constants";
 import { describe, expect, it } from "vitest";
 
-import { validateNextEnvironment } from "../next.config";
+import { createNextConfigForEnvironment, validateNextEnvironment } from "../next.config";
 
 const requiredProductionValues = [
   "DEPLOYMENT_PROFILE",
@@ -16,7 +16,6 @@ const requiredProductionValues = [
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   "SUPABASE_SECRET_KEY",
-  "DATABASE_URL",
   "APP_ENCRYPTION_KEY",
   "GUEST_TOKEN_SIGNING_KEY",
   "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY",
@@ -73,6 +72,52 @@ describe("Next environment validation", () => {
       enableChildProfiles: false,
       parentalConsentMode: "disabled",
       vercelRuntime: true,
+    });
+  });
+
+  it("derives and inlines the exact Vercel preview deployment origin", () => {
+    const source = {
+      ...createProductionEnvironmentFixture(),
+      NEXT_PUBLIC_APP_URL: undefined,
+      VERCEL: "1",
+      VERCEL_ENV: "preview",
+      VERCEL_URL: "cogniflow-preview-123.vercel.app",
+    };
+    const environment = validateNextEnvironment(PHASE_PRODUCTION_BUILD, source);
+    const config = createNextConfigForEnvironment(PHASE_PRODUCTION_BUILD, source);
+
+    expect(environment.public.appUrl).toBe("https://cogniflow-preview-123.vercel.app");
+    expect(config.env?.NEXT_PUBLIC_APP_URL).toBe("https://cogniflow-preview-123.vercel.app");
+  });
+
+  it("fails closed when a Vercel preview origin is missing or malformed", () => {
+    const source = {
+      ...createProductionEnvironmentFixture(),
+      NEXT_PUBLIC_APP_URL: undefined,
+      VERCEL: "1",
+      VERCEL_ENV: "preview",
+    };
+
+    expect(() => validateNextEnvironment(PHASE_PRODUCTION_BUILD, source)).toThrow();
+    expect(() =>
+      validateNextEnvironment(PHASE_PRODUCTION_BUILD, {
+        ...source,
+        VERCEL_URL: "example.com/path",
+      }),
+    ).toThrow(/VERCEL_URL/u);
+  });
+
+  it("adds noindex response headers to the beta profile", async () => {
+    const config = createNextConfigForEnvironment(PHASE_PRODUCTION_BUILD, {
+      ...createProductionEnvironmentFixture(),
+      DEPLOYMENT_PROFILE: "vercel_beta",
+    });
+    const headers = await config.headers?.();
+    const global = headers?.find(({ source }) => source === "/(.*)");
+
+    expect(global?.headers).toContainEqual({
+      key: "X-Robots-Tag",
+      value: "noindex, nofollow, noarchive",
     });
   });
 });

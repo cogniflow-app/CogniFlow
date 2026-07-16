@@ -6,7 +6,7 @@
 
 A successful build proves compile-time compatibility only. It does not prove a live provider configuration, legal compliance, child eligibility, quotas, backup readiness, or production security.
 
-Provider dashboards, SMTP/OAuth applications, consent-provider credentials, hosted migrations, worker schedules, secrets, domains, and promotion are owner/operator-only changes. Pull-request validation may exercise adapters with deterministic or local configuration, but must not deploy or claim that an external integration is live-verified.
+Provider dashboards, SMTP/OAuth applications, consent-provider credentials, hosted migrations, worker schedules, secrets, domains, and promotion require explicit owner authorization. The one-time hosted bootstrap has provisioned the Phase 01 Supabase and Vercel targets; future promotions must follow [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). Pull-request validation may exercise adapters with deterministic or local configuration, but must not deploy or claim that an external integration is live-verified.
 
 ## Shared build contract
 
@@ -22,22 +22,22 @@ Provider dashboards, SMTP/OAuth applications, consent-provider credentials, host
 
 ## Required environment inventory
 
-| Variable/group                       | Vercel                   | Cloudflare/OpenNext       | Notes                                                                                              |
-| ------------------------------------ | ------------------------ | ------------------------- | -------------------------------------------------------------------------------------------------- |
-| Public app name/URL/Supabase URL/key | Build/runtime            | Build/runtime             | Public values only; both URLs must be HTTPS in production; app URL is the accepted mutation origin |
-| `SUPABASE_SECRET_KEY`                | Secret                   | Worker secret             | Server-only service/admin RPC access; never serialize                                              |
-| `DATABASE_URL`                       | Secret                   | Worker secret             | Prefer pooled/direct form appropriate to operation/runtime                                         |
-| `DEPLOYMENT_PROFILE`                 | `vercel_beta`            | `cloudflare`              | Drives the server capability guard                                                                 |
-| Child/public/chat flags              | All `false`              | All `false` in production | Production parser forces them off; local/test owns managed-profile verification                    |
-| `PARENTAL_CONSENT_MODE`              | `disabled`               | `disabled` in production  | The external verifier adapter cannot override the production managed-identity gate                 |
-| `PARENTAL_CONSENT_VERIFIER_URL`      | Unset                    | Server-only config        | Required when adapter is tested; use HTTPS for a production-grade endpoint                         |
-| `PARENTAL_CONSENT_VERIFIER_API_KEY`  | Unset                    | Worker secret             | Required for `external_verified`; independent 24+ character credential                             |
-| Email-confirmation/OAuth flags       | Match reviewed providers | Match reviewed providers  | Visibility/UX flags only; do not contain or configure credentials                                  |
-| Retention/rate-limit values          | Server config            | Server config             | Typed/bounded; deletion RPC and cleanup boundaries still require owner schedules                   |
-| `APP_ENCRYPTION_KEY`                 | Secret                   | Worker secret             | Independent 32+ byte HMAC/signing key                                                              |
-| `GUEST_TOKEN_SIGNING_KEY`            | Secret                   | Worker secret             | Independent 32+ byte guest-claim key                                                               |
-| `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | Secret                   | Worker secret             | Stable base64 32-byte key shared by instances                                                      |
-| `NEXT_PUBLIC_BUILD_VERSION`          | Build/runtime            | Build/runtime             | Public commit/release identifier                                                                   |
+| Variable/group                       | Vercel                   | Cloudflare/OpenNext       | Notes                                                                                                   |
+| ------------------------------------ | ------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Public app name/URL/Supabase URL/key | Build/runtime            | Build/runtime             | Public values only; both URLs must be HTTPS in production; app URL is the accepted mutation origin      |
+| `SUPABASE_SECRET_KEY`                | Secret                   | Worker secret             | Server-only service/admin RPC access; never serialize                                                   |
+| `DATABASE_URL`                       | Unset                    | Future worker secret      | Optional; web uses Supabase HTTP APIs. Add only when a direct-Postgres worker has an implemented parser |
+| `DEPLOYMENT_PROFILE`                 | `vercel_beta`            | `cloudflare`              | Drives the server capability guard                                                                      |
+| Child/public/chat flags              | All `false`              | All `false` in production | Production parser forces them off; local/test owns managed-profile verification                         |
+| `PARENTAL_CONSENT_MODE`              | `disabled`               | `disabled` in production  | The external verifier adapter cannot override the production managed-identity gate                      |
+| `PARENTAL_CONSENT_VERIFIER_URL`      | Unset                    | Server-only config        | Required when adapter is tested; use HTTPS for a production-grade endpoint                              |
+| `PARENTAL_CONSENT_VERIFIER_API_KEY`  | Unset                    | Worker secret             | Required for `external_verified`; independent 24+ character credential                                  |
+| Email-confirmation/OAuth flags       | Match reviewed providers | Match reviewed providers  | Visibility/UX flags only; do not contain or configure credentials                                       |
+| Retention/rate-limit values          | Server config            | Server config             | Typed/bounded; deletion RPC and cleanup boundaries still require owner schedules                        |
+| `APP_ENCRYPTION_KEY`                 | Secret                   | Worker secret             | Independent 32+ byte HMAC/signing key                                                                   |
+| `GUEST_TOKEN_SIGNING_KEY`            | Secret                   | Worker secret             | Independent 32+ byte guest-claim key                                                                    |
+| `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | Secret                   | Worker secret             | Stable base64 32-byte key shared by instances                                                           |
+| `NEXT_PUBLIC_BUILD_VERSION`          | Build/runtime            | Build/runtime             | Public commit/release identifier                                                                        |
 
 Generate production secrets independently with a cryptographically secure generator. Do not copy local defaults, reuse keys across purposes/environments, or commit secrets to provider configuration files.
 
@@ -53,9 +53,20 @@ Store the result as `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` in the provider's encry
 
 ## Vercel preview and beta
 
-1. Import the repository with its monorepo root.
-2. Select Node `24.x`.
-3. Use the detected pnpm install and `pnpm build`.
+The single hosted web project is configured with `apps/web` as its Root Directory, Next.js as the
+framework preset, Node `24.x`, and pnpm `11.13.0`. Its explicit monorepo commands are:
+
+```text
+Install: cd ../.. && pnpm install --frozen-lockfile
+Build:   cd ../.. && pnpm exec turbo run build --filter=@lumen/web
+Output:  Next.js default (.next)
+```
+
+For a new provider import or a configuration audit:
+
+1. Import exactly one project and set the Root Directory to `apps/web`.
+2. Select Node `24.x` and Next.js.
+3. Use the install/build commands above and the default Next.js output.
 4. Configure preview and production variables separately.
 5. Set:
 
@@ -70,7 +81,11 @@ Store the result as `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` in the provider's encry
 6. Leave all OAuth flags false until the corresponding Supabase/provider application is configured and live-tested. Keep the email-confirmation flag aligned with Supabase Auth.
 7. Point previews at a non-production Supabase project and apply migrations through a reviewed deployment workflow, never automatically from an untrusted pull request.
 8. Verify `/`, public information/join/auth routes, `/api/health`, error/not-found handling, security headers, robots metadata, and Supabase connectivity.
-9. Run browser and accessibility smoke tests against the deployment before promotion.
+9. Run the guarded hosted smoke tests against the deployment before promotion.
+
+The exact project identity, URLs, scoped environment assignments, Deployment Protection behavior,
+and smoke commands are recorded in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). The complete
+secret-free variable contract is [HOSTED_ENVIRONMENT.md](./HOSTED_ENVIRONMENT.md).
 
 Do not place a secret key in Vercel variables whose name begins `NEXT_PUBLIC_`. Do not expose production data to forked preview builds.
 
@@ -136,7 +151,21 @@ Verify CSP, content-type sniffing protection, referrer policy, permissions polic
 - Keep secret/service credentials server-side and rotate on suspected exposure.
 - Read quotas from current provider configuration; do not assume a free tier meets scale targets.
 
-Phase 01 adds Auth-trigger provisioning, identity/privacy tables, RLS, authenticated atomic `current_*` wrappers, private authorization ledgers, and service-only infrastructure. A hosted project must receive the complete additive migration chain through `20260715006800_profile_session_revocation_boundary.sql` before the Phase 01 application is promoted. This includes the closed school-managed settings boundary in `20260715006700_school_managed_payload_hardening.sql`. The service secret is required only by server-side provisioning, RPC-only authentication-profile/device handling, onboarding/verified-child proof issuance, provisional-identity rejection, profile-session, school-authorization, guest/rate-limit, audit, and deletion-worker adapters; it must not be substituted for the browser publishable key. The service role is intentionally not granted broad identity-table reads.
+Phase 01 adds Auth-trigger provisioning, identity/privacy tables, RLS, authenticated atomic `current_*` wrappers, private authorization ledgers, and service-only infrastructure. A hosted project must receive the complete additive migration chain through `20260715006900_hosted_grant_parity.sql` before the Phase 01 application is promoted. This includes the closed school-managed settings boundary in `20260715006700_school_managed_payload_hardening.sql`, exact profile-session revocation in `20260715006800_profile_session_revocation_boundary.sql`, and explicit revocation of hosted platform default service-role table/sequence grants in `20260715006900_hosted_grant_parity.sql`. The service secret is required only by server-side provisioning, RPC-only authentication-profile/device handling, onboarding/verified-child proof issuance, provisional-identity rejection, profile-session, school-authorization, guest/rate-limit, audit, and deletion-worker adapters; it must not be substituted for the browser publishable key. The service role is intentionally not granted broad identity-table reads.
+
+Use only the guarded repository commands for hosted promotion and parity checks:
+
+```bash
+pnpm db:deploy:preview
+pnpm db:verify:preview
+pnpm db:deploy:beta
+pnpm db:verify:beta
+```
+
+The Beta deploy command refuses to run unless the worktree is clean, the current branch is `main`,
+and `HEAD` exactly equals freshly fetched `origin/main`. Neither deploy command has a seed, reset,
+repair, `--include-all`, or config-push path. See [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md)
+before running one.
 
 The application-device rows are bound to verified Supabase Auth `session_id` claims. Device registration goes through `admin_register_request_device()`, which verifies the exact live row in `auth.sessions` and returns the canonical application device without requiring a service-role table read. Current-device sign-out is available even in managed mode and revokes only that JWT-bound application device/profile sessions. All-device sign-out is a distinct self-context operation that consumes a fresh password-derived `security_change` proof before revoking every application device. From the devices/settings surface, a self-context owner may instead revoke one selected learner-profile session after a fresh password-derived `security_change` proof; the containing device and unrelated profile sessions remain active. These paths mutate Postgres before any relevant Auth invalidation, and RLS denies an access token whose exact device registration is missing/revoked or whose account is no longer live. Do not remove the application revocation call on the assumption that hosted Auth sign-out invalidates every already-issued access token immediately.
 
@@ -146,7 +175,7 @@ The signed onboarding cookie and consent-verifier result are route inputs, not d
 
 Before promotion:
 
-- set the Supabase Auth Site URL and redirect allowlist to the exact environment origin and application callback/confirm routes;
+- set the Supabase Auth Site URL to the stable environment origin and allowlist the application's `/auth/callback**` path; use only the minimum Vercel Preview wildcard documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md);
 - configure custom SMTP and a verified sender domain; review signup, magic-link, recovery, email-change, and security-notification templates;
 - align Confirm Email with `AUTH_EMAIL_CONFIRMATION_REQUIRED` and test both success and expired-link behavior;
 - configure each enabled Google/GitHub/Microsoft provider with the Supabase `/auth/v1/callback` URL, minimal scopes (including the explicitly requested Microsoft `email` scope), reviewed tenant/audience, and secrets held by Supabase/provider settings;
@@ -156,6 +185,12 @@ Before promotion:
 - verify a teen/adult signup through each visible provider, an under-13 pre-provider refusal, a mismatched/expired age-gate callback denial, and final onboarding without a client-supplied age field.
 
 Email/password, local email capture, magic link, recovery, and the Google/GitHub/Microsoft adapters are implemented in the repository. Custom SMTP, hosted email delivery, identity linking, and each provider application remain **implemented but not live-verified** until the owner completes this checklist with environment-specific credentials and records evidence.
+
+The default hosted email templates must retain `{{ .ConfirmationURL }}`. The application supplies a
+stateful, allowlisted `/auth/callback` RedirectTo for signup, magic-link, and recovery flows; replacing
+that value with `{{ .SiteURL }}` or appending a hard-coded path discards the signed flow state. A
+custom token-hash template targeting `/auth/confirm` is a separate provider-gated change and must be
+live-tested before use.
 
 See [SETUP.md](./SETUP.md#hosted-supabase-auth-configuration) for the provider checklist and current official references.
 

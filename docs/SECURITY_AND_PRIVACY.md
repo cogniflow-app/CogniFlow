@@ -1,6 +1,6 @@
 # Security and privacy baseline
 
-**Scope:** Phase 00 foundation, Phase 01 identity/privacy controls, and launch gates  
+**Scope:** Phase 00 foundation, Phase 01 identity/privacy controls, hosted bootstrap, and launch gates  
 **Last updated:** 2026-07-15
 
 This document is an engineering control baseline, not a certification or legal opinion. The provider and child-safety decisions in the [product blueprint](./PRODUCT_BLUEPRINT.md) remain mandatory.
@@ -10,6 +10,13 @@ This document is an engineering control baseline, not a certification or legal o
 Phase 01 implements Supabase Auth account access, self learner profiles, locally/tested guardian-managed learner profiles, provider/device/session settings, privacy preferences, append-only consent/audit evidence, export/deletion job state, and a pseudonymous guest-identity boundary. Every production runtime forces managed child profiles off until the child-facing browser can use an independent opaque backend-for-frontend identity instead of retaining a guardian Supabase bearer credential. The production game-room adapter contains no rooms, so the join form cannot create a deployed guest yet.
 
 It still does not implement deck content, review history, classes, sharing, public creator profiles, live games, analytics transport, AI processing, or export-archive assembly. Phase 01 implements an idempotent due-deletion transaction, but does not deploy its scheduler. Later phases must add authorization, RLS, retention, export/deletion coverage, and policy tests with each data-owning feature. Existing account permissions never imply access to a future content table.
+
+The controlled hosted bootstrap uses separate Supabase projects for Vercel Preview and the temporary
+Production beta. Both databases contain only the committed Phase 00/01 schema: verification found no
+Auth users, public identity/product rows, storage buckets, fixture identities, or test content. The
+neutral recovery smoke creates the expected bounded private rate-limit record using a server-HMACed
+subject; it stores no email address or personal information. The temporary beta remains site-wide
+`noindex, nofollow`; it is deployment evidence, not completion of the public launch gate below.
 
 ## Trust boundaries
 
@@ -55,6 +62,10 @@ These values must never cross a Client Component boundary or appear in health re
 Server environment access lives in the server-only config module. Client modules import a separately constructed sanitized projection. CI lint/boundary checks reject client imports of server modules.
 
 Secrets are set in the deployment provider, not committed to `.env*`, `wrangler.jsonc`, fixtures, or docs. Local `.env.local` remains ignored. Secretlint scans tracked project content; the CI examples use clearly non-production placeholders.
+
+`VERCEL_AUTOMATION_BYPASS_SECRET` is an operator-only Playwright input for the protected Preview
+deployment. It is not an application environment variable and must remain transient or in an
+approved CI secret store. It must never be logged, documented by value, or placed in `.env.local`.
 
 Non-secret server configuration also includes OAuth button flags, email-confirmation state, rate-limit bounds, retention windows, parental-consent mode, and the external verifier URL. Only the explicit sanitized capability projection may reach a rendered page; rate-limit settings, verifier configuration, and credential values are not part of it.
 
@@ -123,6 +134,23 @@ The foundation configures this application response baseline:
 
 The application does not emit HSTS during local development. Production parsing rejects HTTP application or Supabase origins, and cookie factories set `Secure` from production classification. HTTPS deployments must also add/verify HSTS at the reviewed edge, with a staged rollout before `includeSubDomains` or preload.
 
+### Hosted bootstrap posture
+
+- Vercel Standard Deployment Protection remains enabled for generated deployment URLs; the stable
+  temporary Production alias is the deliberately tested public endpoint.
+- Hosted Playwright can receive a project-scoped automation bypass only through the transient
+  `VERCEL_AUTOMATION_BYPASS_SECRET` process variable. The tracked runner never contains its value.
+- `DEPLOYMENT_PROFILE=vercel_beta` and Vercel Preview both produce an `X-Robots-Tag` no-index policy;
+  `/robots.txt` disallows all crawling for the temporary beta.
+- Preview and Production use independently generated application-owned keys and separate Supabase
+  projects. No database password or service credential has a `NEXT_PUBLIC_` name.
+- Managed child profiles, independent child publication, unrestricted free-text game chat, direct
+  messaging, parental-consent activation, OAuth, cloud AI, analytics, and monitoring remain disabled.
+
+Exact provider configuration and repeatable verification commands are in
+[HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md); the secret-free variable contract is
+[HOSTED_ENVIRONMENT.md](./HOSTED_ENVIRONMENT.md).
+
 Every JSON mutation Route Handler validates a bounded body and enforces same-origin `Origin`; cross-site `Sec-Fetch-Site` is rejected when present. This supplements SameSite cookies. Authentication, authorization, and RLS still run after origin validation. Safe error codes/messages avoid reflecting credentials, provider errors, unsafe nicknames, or protected resource existence.
 
 ### CSP evolution plan
@@ -172,6 +200,12 @@ Phase 01 applies these rules concretely:
 - teacher observers receive only a bounded projection and cannot select full child records;
 - non-live accounts and unregistered/revoked Auth sessions fail closed in RLS, preventing a suspended/deleted account or stale JWT from reading account data;
 - audit idempotency is actor-scoped with null actor columns compared consistently, and a replay must match the original target.
+
+Hosted Supabase may provision broader default `service_role` table and sequence grants than the
+local stack. Migration `20260715006900_hosted_grant_parity.sql` explicitly revokes those current and
+default privileges so hosted behavior matches the RPC-only contract. The guarded hosted verifier
+checks exact migration history, migration dry-run, database lint, read-only grant/RLS/function/view/
+publication invariants, empty storage, schema diff, and generated-type parity after every promotion.
 
 The Supabase secret/service credential bypasses ordinary RLS and is therefore used only inside server-only adapters. Account-triggered adapters verify the current user before use; system/worker adapters validate a bounded job or infrastructure contract and receive no arbitrary client pass-through. The credential must never be placed in a Client Component, public error, diagnostic artifact, or browser-capability object.
 

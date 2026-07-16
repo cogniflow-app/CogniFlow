@@ -1,26 +1,33 @@
 # Testing and verification
 
-**Scope:** Phase 00 harness and Phase 01 identity/privacy verification  
+**Scope:** Phase 00 harness, Phase 01 identity/privacy verification, and hosted bootstrap checks  
 **Evidence:** Exact measured results belong in [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md), not this guide.
 
 ## Test layers
 
-| Layer            | Root command           | What it protects                                                                                             | External prerequisite              |
-| ---------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
-| Formatting       | `pnpm format:check`    | Deterministic source/config/docs formatting                                                                  | None                               |
-| Secret scan      | `pnpm secret:scan`     | Accidental credentials in repository content                                                                 | None                               |
-| Lint/boundaries  | `pnpm lint`            | Next/React/a11y rules and forbidden dependency directions                                                    | None                               |
-| Types            | `pnpm typecheck`       | Strict package and application contracts                                                                     | None                               |
-| Unit/property/UI | `pnpm test`            | Environment/auth/profile/privacy/guest schemas, security helpers, and UI behavior                            | None                               |
-| Database         | `pnpm test:db`         | Migration chain, provisioning, grants, RLS actors, token/session/job RPCs, and pgTAP assertions              | Running local Supabase             |
-| Production build | `pnpm build`           | Next.js and package production compilation plus fail-fast environment checks                                 | Complete environment values        |
-| Portable build   | `pnpm build:portable`  | OpenNext/Cloudflare transform and Edge-middleware compatibility                                              | None for build; no deployment      |
-| End-to-end       | `pnpm test:e2e`        | Public/guest gates, protected redirects, under-13 refusal, local signup/onboarding/settings, and UI behavior | Local Supabase and pinned Chromium |
-| Accessibility    | `pnpm test:a11y`       | axe checks across public, auth, onboarding, join, information, and gallery routes plus keyboard workflows    | Local Supabase and pinned Chromium |
-| Lighthouse       | `pnpm test:lighthouse` | Public performance/accessibility/best-practice budgets                                                       | Chrome/Chromium                    |
-| Load smoke       | `pnpm test:load`       | Real `/api/health` availability and latency threshold                                                        | k6 `2.1.0`                         |
+| Layer            | Root command                                               | What it protects                                                                                             | External prerequisite                                             |
+| ---------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Formatting       | `pnpm format:check`                                        | Deterministic source/config/docs formatting                                                                  | None                                                              |
+| Secret scan      | `pnpm secret:scan`                                         | Accidental credentials in repository content                                                                 | None                                                              |
+| Lint/boundaries  | `pnpm lint`                                                | Next/React/a11y rules and forbidden dependency directions                                                    | None                                                              |
+| Types            | `pnpm typecheck`                                           | Strict package and application contracts                                                                     | None                                                              |
+| Unit/property/UI | `pnpm test`                                                | Environment/auth/profile/privacy/guest schemas, security helpers, and UI behavior                            | None                                                              |
+| Database         | `pnpm test:db`                                             | Migration chain, provisioning, grants, RLS actors, token/session/job RPCs, and pgTAP assertions              | Running local Supabase                                            |
+| Production build | `pnpm build`                                               | Next.js and package production compilation plus fail-fast environment checks                                 | Complete environment values                                       |
+| Portable build   | `pnpm build:portable`                                      | OpenNext/Cloudflare transform and Edge-middleware compatibility                                              | None for build; no deployment                                     |
+| End-to-end       | `pnpm test:e2e`                                            | Public/guest gates, protected redirects, under-13 refusal, local signup/onboarding/settings, and UI behavior | Local Supabase and pinned Chromium                                |
+| Accessibility    | `pnpm test:a11y`                                           | axe checks across public, auth, onboarding, join, information, and gallery routes plus keyboard workflows    | Local Supabase and pinned Chromium                                |
+| Lighthouse       | `pnpm test:lighthouse`                                     | Public performance/accessibility/best-practice budgets                                                       | Chrome/Chromium                                                   |
+| Load smoke       | `pnpm test:load`                                           | Real `/api/health` availability and latency threshold                                                        | k6 `2.1.0`                                                        |
+| Hosted database  | `pnpm db:verify:preview` / `pnpm db:verify:beta`           | Remote migration/grant/RLS/schema/storage/type parity without seed or reset                                  | Authenticated Supabase CLI and explicit operator authority        |
+| Hosted smoke     | `pnpm test:hosted:preview` / `pnpm test:hosted:production` | Non-mutating public/auth/redirect/neutral-response/header/no-index behavior                                  | Deployed HTTPS URL, Chromium, and protection bypass when required |
 
 `pnpm verify` runs the practical local aggregate, including local database reset/tests, database-type drift check, both production builds, browser and accessibility checks, Lighthouse budgets, and the k6 smoke test. It therefore requires Docker/Supabase, Chromium, and k6. The wrapper supplies deterministic, visibly inert configuration values without creating an environment file. Browser/a11y wrappers read the already-running local Supabase URL and generated keys into the child process without printing or writing them. Normal `pnpm build` and deployment builds remain strict and require real configuration. CI invokes the layers explicitly so cleanup and failure-artifact steps are reliable.
+
+Hosted verification is intentionally outside `pnpm verify`: it is an explicitly authorized operator
+action against provider state. Use only the guarded commands and targets in
+[HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). Never substitute a hosted project for local
+`pnpm db:reset` or `pnpm test:db`.
 
 Request interception intentionally uses Edge-compatible `apps/web/middleware.ts` instead of Next 16's Node-only `proxy.ts`. The standard build checks the Next contract, and `pnpm build:portable` checks that OpenNext can transform the middleware without a Node-only runtime dependency. Browser/auth tests still verify protected routes themselves because middleware performs only best-effort cookie refresh and must never be treated as authorization.
 
@@ -101,6 +108,21 @@ The teacher observer remains a placeholder projection for future class phases; t
 
 Together, route/unit tests and pgTAP exercise the complete managed-profile foundation in local/test configuration: consent verification, strict proof issuance and consumption, child/access/consent creation, credential setup, managed switching and isolation, current-device sign-out, guardian exit, revocation, replay, expiry, and attacker payloads. The same configuration suite proves every production runtime resolves child capability and consent mode off. This is boundary verification, not evidence that any production child deployment is enabled or approved.
 
+### Hosted database verification
+
+The remote verifier links only to a fixed project reference, compares exact local/remote migration
+history, dry-runs pending migrations, lints `public,private`, runs the read-only
+`hosted_invariants.test.sql`, requires empty storage, checks schema diff, verifies generated database
+types, and unlinks in a `finally` path. The hosted invariant transaction rolls back and creates no
+data. Before invoking Supabase, every hosted action requires the exact regular on-disk migration set
+to equal `git ls-files`, so an ignored file or symlink cannot bypass ordinary Git cleanliness checks.
+Deployment uses a separate guarded action; neither path contains seed, reset, repair,
+`--include-all`, or config-push behavior.
+
+Preview promotion requires a tracked, clean migration directory. Beta promotion additionally
+fetches `origin/main` and refuses anything except a completely clean `main` whose `HEAD` exactly
+matches it.
+
 When a database test fails:
 
 1. inspect the first failed migration/assertion;
@@ -111,6 +133,23 @@ When a database test fails:
 Then run `pnpm db:types:check`; a migration and generated contract that disagree is a failure, not a reason to hand-edit the generated file.
 
 CI always stops the local Supabase stack, including on failure. It does not upload environment/status output that could contain local secret keys.
+
+## Hosted deployment smoke tests
+
+The hosted Playwright configuration has no local fallback and rejects non-HTTPS, credential-bearing,
+or non-origin targets. Its nine checks cover the public landing page, safe health/capability
+projection, auth-page rendering with OAuth disabled, protected-route redirect, unsafe-return
+normalization, neutral invalid callback/confirmation routing, neutral recovery initiation for a
+reserved nonexistent address, unauthenticated sign-out, security headers, and site-wide no-index.
+It creates no Auth user and submits no personal information. Recovery initiation creates the normal
+bounded private rate-limit record under a server-HMACed subject; it does not store the reserved test
+address. A protected Vercel deployment may use `VERCEL_AUTOMATION_BYPASS_SECRET` as a transient
+test-process value; the runner never prints or stores it, accepts only this project's Vercel
+hostname family, and disables Playwright traces while the credential is present.
+
+Use `HOSTED_PREVIEW_URL` or `HOSTED_PRODUCTION_URL`, or pass an explicit `--url` through the runner
+as documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). Live email confirmation, delivered
+recovery mail, custom SMTP, and OAuth remain provider-gated and are not simulated by this suite.
 
 ## Playwright end-to-end tests
 

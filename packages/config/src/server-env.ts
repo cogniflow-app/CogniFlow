@@ -38,6 +38,8 @@ function readServerSource(): EnvironmentSource {
     PARENTAL_CONSENT_VERIFIER_API_KEY: process.env.PARENTAL_CONSENT_VERIFIER_API_KEY,
     PARENTAL_CONSENT_VERIFIER_URL: process.env.PARENTAL_CONSENT_VERIFIER_URL,
     VERCEL: process.env.VERCEL,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    VERCEL_URL: process.env.VERCEL_URL,
   };
 }
 

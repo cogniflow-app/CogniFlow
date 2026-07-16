@@ -10,6 +10,8 @@ import {
   PHASE_TEST,
 } from "next/constants";
 
+import { shouldPreventSearchIndexing } from "./lib/search-indexing";
+
 type EnvironmentSource = Readonly<Record<string, string | undefined>>;
 
 const productionPhases = new Set<string>([
@@ -66,6 +68,8 @@ export function validateNextEnvironment(phase: string, source: EnvironmentSource
     PARENTAL_CONSENT_VERIFIER_API_KEY: source.PARENTAL_CONSENT_VERIFIER_API_KEY,
     PARENTAL_CONSENT_VERIFIER_URL: source.PARENTAL_CONSENT_VERIFIER_URL,
     VERCEL: source.VERCEL,
+    VERCEL_ENV: source.VERCEL_ENV,
+    VERCEL_URL: source.VERCEL_URL,
   });
 }
 
@@ -86,11 +90,14 @@ function createContentSecurityPolicy(isDevelopment: boolean): string {
   ].join("; ");
 }
 
-export default function createNextConfig(phase: string): NextConfig {
-  validateNextEnvironment(phase);
+export function createNextConfigForEnvironment(
+  phase: string,
+  source: EnvironmentSource,
+): NextConfig {
+  const environment = validateNextEnvironment(phase, source);
 
   const withBundleAnalyzer = withBundleAnalyzerFactory({
-    enabled: process.env.ANALYZE === "true",
+    enabled: source.ANALYZE === "true",
   });
   const contentSecurityPolicy = createContentSecurityPolicy(phase === PHASE_DEVELOPMENT_SERVER);
   const securityHeaders = [
@@ -100,8 +107,14 @@ export default function createNextConfig(phase: string): NextConfig {
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
     { key: "X-Content-Type-Options", value: "nosniff" },
     { key: "X-Frame-Options", value: "DENY" },
+    ...(shouldPreventSearchIndexing(source)
+      ? [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }]
+      : []),
   ];
   const nextConfig: NextConfig = {
+    env: {
+      NEXT_PUBLIC_APP_URL: environment.public.appUrl,
+    },
     poweredByHeader: false,
     reactStrictMode: true,
     transpilePackages: [
@@ -127,4 +140,8 @@ export default function createNextConfig(phase: string): NextConfig {
   };
 
   return withBundleAnalyzer(nextConfig);
+}
+
+export default function createNextConfig(phase: string): NextConfig {
+  return createNextConfigForEnvironment(phase, process.env);
 }

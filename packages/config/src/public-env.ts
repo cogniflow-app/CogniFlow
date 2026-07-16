@@ -38,10 +38,44 @@ function requiredValue(
   return readNodeEnvironment(source) === "production" ? undefined : fallback;
 }
 
+function vercelPreviewAppUrl(source: EnvironmentSource): string | undefined {
+  if (source.VERCEL?.trim() !== "1" || source.VERCEL_ENV?.trim() !== "preview") {
+    return undefined;
+  }
+
+  const hostname = source.VERCEL_URL?.trim();
+  if (!hostname) {
+    return undefined;
+  }
+
+  let candidate: URL;
+  try {
+    candidate = new URL(`https://${hostname}`);
+  } catch {
+    throw new Error("VERCEL_URL must be a valid Vercel deployment hostname");
+  }
+
+  if (
+    candidate.hostname !== hostname.toLowerCase() ||
+    !candidate.hostname.endsWith(".vercel.app") ||
+    candidate.port ||
+    candidate.pathname !== "/" ||
+    candidate.search ||
+    candidate.hash
+  ) {
+    throw new Error("VERCEL_URL must be a valid Vercel deployment hostname");
+  }
+
+  return candidate.origin;
+}
+
 export function parsePublicEnvironment(source: EnvironmentSource): PublicEnvironment {
   const environment = publicEnvironmentSchema.parse({
     appName: source.NEXT_PUBLIC_APP_NAME?.trim() || DEFAULT_APP_NAME,
-    appUrl: requiredValue(source, "NEXT_PUBLIC_APP_URL", LOCAL_APP_URL),
+    appUrl:
+      source.NEXT_PUBLIC_APP_URL?.trim() ||
+      vercelPreviewAppUrl(source) ||
+      requiredValue(source, "NEXT_PUBLIC_APP_URL", LOCAL_APP_URL),
     supabaseUrl: requiredValue(source, "NEXT_PUBLIC_SUPABASE_URL", LOCAL_SUPABASE_URL),
     supabasePublishableKey: requiredValue(
       source,
@@ -70,5 +104,8 @@ export function readPublicEnvironment(): PublicEnvironment {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    VERCEL: process.env.VERCEL,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    VERCEL_URL: process.env.VERCEL_URL,
   });
 }

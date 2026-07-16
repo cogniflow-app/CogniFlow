@@ -39,6 +39,28 @@ describe("public environment", () => {
     expect(() => parsePublicEnvironment({ NODE_ENV: "production" })).toThrow();
   });
 
+  it("accepts only a provider-owned vercel.app hostname as the preview fallback", () => {
+    expect(
+      parsePublicEnvironment({
+        ...productionEnvironment,
+        NEXT_PUBLIC_APP_URL: undefined,
+        VERCEL: "1",
+        VERCEL_ENV: "preview",
+        VERCEL_URL: "cogniflow-preview-123.vercel.app",
+      }).appUrl,
+    ).toBe("https://cogniflow-preview-123.vercel.app");
+
+    expect(() =>
+      parsePublicEnvironment({
+        ...productionEnvironment,
+        NEXT_PUBLIC_APP_URL: undefined,
+        VERCEL: "1",
+        VERCEL_ENV: "preview",
+        VERCEL_URL: "attacker.example",
+      }),
+    ).toThrow(/VERCEL_URL/u);
+  });
+
   it("requires HTTPS for both public production origins", () => {
     expect(() =>
       parsePublicEnvironment({
@@ -264,6 +286,26 @@ describe("server environment and capabilities", () => {
         NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: "not-base64-even-when-long-enough-0000000000",
       }),
     ).toThrow(/NEXT_SERVER_ACTIONS_ENCRYPTION_KEY/u);
+  });
+
+  it("does not require a direct database credential in an HTTP-only production runtime", () => {
+    const environment = parseServerEnvironment({
+      ...productionEnvironment,
+      DATABASE_URL: undefined,
+      DEPLOYMENT_PROFILE: "vercel_beta",
+    });
+
+    expect(environment.databaseUrl).toBeNull();
+  });
+
+  it("requires independent application-owned production secrets", () => {
+    expect(() =>
+      parseServerEnvironment({
+        ...productionEnvironment,
+        DEPLOYMENT_PROFILE: "vercel_beta",
+        GUEST_TOKEN_SIGNING_KEY: productionEnvironment.APP_ENCRYPTION_KEY,
+      }),
+    ).toThrow(/must be distinct/u);
   });
 
   it("can exercise external consent locally without enabling production managed identity", () => {
