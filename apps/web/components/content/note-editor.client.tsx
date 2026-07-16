@@ -1,0 +1,1687 @@
+"use client";
+
+import {
+  CARD_SCHEMA_VERSION,
+  cardAuthoringSchema,
+  emptyRichDocument,
+  generateCardBlueprints,
+  type BasicCardData,
+  type BasicReversedCardData,
+  type CardAuthoringData,
+  type ChoiceDefinition,
+  type ClozeCardData,
+  type CustomCardData,
+  type DiagramCardData,
+  type DrawingReferenceLayer,
+  type DrawingStroke,
+  type ImageOcclusionCardData,
+  type ListAnswerCardData,
+  type OrderingCardData,
+  type PronunciationCardData,
+  type RichDocument,
+  type SelectAllCardData,
+  type AudioPromptCardData,
+} from "@lumen/domain";
+import { Badge, Button, Checkbox, Dialog, FormField, Input, Select, Textarea } from "@lumen/ui";
+import { useRouter } from "next/navigation";
+import type { Route } from "next";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+
+import { CARD_TYPE_BY_CODE, CARD_TYPE_DESCRIPTORS } from "@/lib/content/card-types";
+import type {
+  CardTypeCode,
+  ContentApiError,
+  ContentMutationResult,
+  NoteSummary,
+} from "@/lib/content/view-models";
+import { DrawingEditor } from "./drawing-editor.client";
+import { MediaUploader, type UploadedMediaAsset } from "./media-uploader.client";
+import { RichEditor } from "./rich-editor.client";
+import { StudyCardRenderer } from "./study-card-renderer.client";
+import { VisualRegionEditor, type VisualRegion } from "./visual-region-editor.client";
+
+type SaveState = "conflict" | "dirty" | "error" | "idle" | "reloading" | "saved" | "saving";
+
+function initialData(kind: CardTypeCode): CardAuthoringData {
+  const blank = () => emptyRichDocument("en");
+  switch (kind) {
+    case "basic":
+    case "basic_reversed":
+      return { kind, schemaVersion: CARD_SCHEMA_VERSION, front: blank(), back: blank() };
+    case "optional_reversed":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        front: blank(),
+        back: blank(),
+        reverseEnabled: false,
+      };
+    case "bidirectional":
+      return { kind, schemaVersion: CARD_SCHEMA_VERSION, sideA: blank(), sideB: blank() };
+    case "custom":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        fields: { Front: blank(), Back: blank() },
+        templates: [
+          {
+            semanticKey: "primary",
+            name: "Primary",
+            frontTemplate: "{{Front}}",
+            backTemplate: "{{FrontSide}}<hr>{{Back}}",
+          },
+        ],
+      };
+    case "typed_answer":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        prompt: blank(),
+        answer: blank(),
+        acceptedAnswers: [""],
+        caseSensitive: false,
+        language: "en",
+      };
+    case "cloze":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        text: blank(),
+        clozes: [{ semanticKey: "c1", ranges: [{ from: 0, to: 1 }] }],
+      };
+    case "image_occlusion":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        imageAssetId: "",
+        imageAlt: "",
+        mode: "hide_one_reveal_others",
+        occlusions: [],
+      };
+    case "multiple_choice":
+    case "select_all":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        prompt: blank(),
+        choices: [
+          { semanticKey: "choice-1", content: blank(), isCorrect: true, position: 0 },
+          { semanticKey: "choice-2", content: blank(), isCorrect: false, position: 1 },
+        ],
+      };
+    case "true_false":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        statement: blank(),
+        answer: true,
+        explanation: blank(),
+      };
+    case "ordering":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        prompt: blank(),
+        orderingItems: [
+          { semanticKey: "item-1", content: blank(), position: 0 },
+          { semanticKey: "item-2", content: blank(), position: 1 },
+        ],
+      };
+    case "list_answer":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        prompt: blank(),
+        listItems: [
+          { semanticKey: "item-1", answer: "", aliases: [], required: true, position: 0 },
+        ],
+        orderMatters: false,
+      };
+    case "diagram":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        imageAssetId: "",
+        imageAlt: "",
+        hotspots: [],
+      };
+    case "audio_prompt":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        audioPrompt: { assetId: "", transcript: "", answer: blank() },
+        playbackSpeed: 1,
+      };
+    case "pronunciation":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        pronunciationPrompt: {
+          text: "",
+          language: "en",
+          ttsAllowed: true,
+          fallbackAnswer: "",
+        },
+        selfReview: true,
+      };
+    case "drawing":
+      return {
+        kind,
+        schemaVersion: CARD_SCHEMA_VERSION,
+        prompt: blank(),
+        drawingLayers: [],
+        fallbackAnswer: "",
+        evaluation: "self_review",
+      };
+  }
+}
+
+function RichField({
+  label,
+  onChange,
+  value,
+}: {
+  readonly label: string;
+  readonly onChange: (value: RichDocument) => void;
+  readonly value: RichDocument;
+}) {
+  return <RichEditor document={value} label={label} onChange={onChange} />;
+}
+
+function PairEditor({
+  labels,
+  onChange,
+  value,
+}: {
+  readonly labels: readonly [string, string];
+  readonly onChange: (value: BasicCardData | BasicReversedCardData) => void;
+  readonly value: BasicCardData | BasicReversedCardData;
+}) {
+  return (
+    <div className="grid gap-5">
+      <RichField
+        label={labels[0]}
+        onChange={(front) => onChange({ ...value, front })}
+        value={value.front}
+      />
+      <RichField
+        label={labels[1]}
+        onChange={(back) => onChange({ ...value, back })}
+        value={value.back}
+      />
+    </div>
+  );
+}
+
+function ChoiceEditor({
+  onChange,
+  value,
+}: {
+  readonly onChange: (value: SelectAllCardData | CardAuthoringData) => void;
+  readonly value: SelectAllCardData | Extract<CardAuthoringData, { kind: "multiple_choice" }>;
+}) {
+  function updateChoice(index: number, patch: Partial<ChoiceDefinition>) {
+    const choices = value.choices.map((choice, choiceIndex) =>
+      choiceIndex === index ? { ...choice, ...patch } : choice,
+    );
+    onChange({ ...value, choices } as typeof value);
+  }
+  function toggleCorrect(index: number, checked: boolean) {
+    const choices = value.choices.map((choice, choiceIndex) => ({
+      ...choice,
+      isCorrect:
+        value.kind === "multiple_choice"
+          ? checked && choiceIndex === index
+          : choiceIndex === index
+            ? checked
+            : choice.isCorrect,
+    }));
+    onChange({ ...value, choices } as typeof value);
+  }
+  return (
+    <div className="grid gap-5">
+      <RichField
+        label="Prompt"
+        onChange={(prompt) => onChange({ ...value, prompt })}
+        value={value.prompt}
+      />
+      <fieldset className="repeatable-list">
+        <legend>Answer choices</legend>
+        {value.choices.map((choice, index) => (
+          <div className="repeatable-row" key={choice.semanticKey}>
+            <Checkbox
+              checked={choice.isCorrect}
+              label={value.kind === "multiple_choice" ? "Correct answer" : "Correct choice"}
+              onCheckedChange={(checked) => toggleCorrect(index, checked === true)}
+            />
+            <RichField
+              label={`Choice ${String(index + 1)}`}
+              onChange={(content) => updateChoice(index, { content })}
+              value={choice.content}
+            />
+            <RichField
+              label="Feedback (optional)"
+              onChange={(feedback) => updateChoice(index, { feedback })}
+              value={choice.feedback ?? emptyRichDocument("en")}
+            />
+            <Button
+              disabled={value.choices.length <= 2}
+              onClick={() =>
+                onChange({
+                  ...value,
+                  choices: value.choices
+                    .filter((_, candidateIndex) => candidateIndex !== index)
+                    .map((candidate, position) => ({ ...candidate, position })),
+                } as typeof value)
+              }
+              variant="ghost"
+            >
+              Remove choice
+            </Button>
+          </div>
+        ))}
+        <Button
+          onClick={() =>
+            onChange({
+              ...value,
+              choices: [
+                ...value.choices,
+                {
+                  semanticKey: `choice-${crypto.randomUUID()}`,
+                  content: emptyRichDocument("en"),
+                  isCorrect: false,
+                  position: value.choices.length,
+                },
+              ],
+            } as typeof value)
+          }
+          variant="secondary"
+        >
+          Add choice
+        </Button>
+      </fieldset>
+    </div>
+  );
+}
+
+function CustomEditor({
+  onChange,
+  value,
+}: {
+  readonly onChange: (value: CustomCardData) => void;
+  readonly value: CustomCardData;
+}) {
+  const [newField, setNewField] = useState("");
+  return (
+    <div className="grid gap-5">
+      <section className="repeatable-list" aria-labelledby="custom-fields-heading">
+        <h3 id="custom-fields-heading">Structured fields</h3>
+        {Object.entries(value.fields).map(([key, field]) => (
+          <div className="repeatable-row" key={key}>
+            <RichField
+              label={key}
+              onChange={(document) =>
+                onChange({ ...value, fields: { ...value.fields, [key]: document } })
+              }
+              value={field}
+            />
+            <Button
+              disabled={Object.keys(value.fields).length <= 1}
+              onClick={() => {
+                const fields = Object.fromEntries(
+                  Object.entries(value.fields).filter(([candidate]) => candidate !== key),
+                );
+                onChange({ ...value, fields });
+              }}
+              variant="ghost"
+            >
+              Remove {key}
+            </Button>
+          </div>
+        ))}
+        <div className="flex flex-wrap gap-2">
+          <Input
+            aria-label="New field name"
+            onChange={(event) => setNewField(event.target.value.replace(/[^A-Za-z0-9_]/gu, ""))}
+            placeholder="ExtraField"
+            value={newField}
+          />
+          <Button
+            disabled={!/^[A-Za-z][A-Za-z0-9_]{0,63}$/u.test(newField) || newField in value.fields}
+            onClick={() => {
+              onChange({
+                ...value,
+                fields: { ...value.fields, [newField]: emptyRichDocument("en") },
+              });
+              setNewField("");
+            }}
+            variant="secondary"
+          >
+            Add field
+          </Button>
+        </div>
+      </section>
+      <section className="repeatable-list" aria-labelledby="templates-heading">
+        <h3 id="templates-heading">Safe card templates</h3>
+        <p className="text-sm text-[var(--color-text-muted)]">
+          Interpolate fields with {"{{FieldName}}"}. Conditionals, bounded lists, hints, cloze,
+          typed-answer, media, language, and FrontSide are parsed by the constrained template
+          engine. Scripts, event handlers, global CSS, and network code are rejected.
+        </p>
+        {value.templates.map((template, index) => (
+          <div className="repeatable-row" key={template.semanticKey}>
+            <FormField label="Template name">
+              <Input
+                value={template.name}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    templates: value.templates.map((candidate, candidateIndex) =>
+                      candidateIndex === index
+                        ? { ...candidate, name: event.target.value }
+                        : candidate,
+                    ),
+                  })
+                }
+              />
+            </FormField>
+            <FormField label="Front template">
+              <Textarea
+                rows={4}
+                value={template.frontTemplate}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    templates: value.templates.map((candidate, candidateIndex) =>
+                      candidateIndex === index
+                        ? { ...candidate, frontTemplate: event.target.value }
+                        : candidate,
+                    ),
+                  })
+                }
+              />
+            </FormField>
+            <FormField label="Back template">
+              <Textarea
+                rows={4}
+                value={template.backTemplate}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    templates: value.templates.map((candidate, candidateIndex) =>
+                      candidateIndex === index
+                        ? { ...candidate, backTemplate: event.target.value }
+                        : candidate,
+                    ),
+                  })
+                }
+              />
+            </FormField>
+            <FormField label="Scoped CSS (optional)">
+              <Textarea
+                rows={3}
+                value={template.stylingCss ?? ""}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    templates: value.templates.map((candidate, candidateIndex) =>
+                      candidateIndex === index
+                        ? { ...candidate, stylingCss: event.target.value }
+                        : candidate,
+                    ),
+                  })
+                }
+              />
+            </FormField>
+          </div>
+        ))}
+        <Button
+          onClick={() =>
+            onChange({
+              ...value,
+              templates: [
+                ...value.templates,
+                {
+                  semanticKey: `template-${crypto.randomUUID()}`,
+                  name: `Template ${String(value.templates.length + 1)}`,
+                  frontTemplate: "{{Front}}",
+                  backTemplate: "{{FrontSide}}<hr>{{Back}}",
+                },
+              ],
+            })
+          }
+          variant="secondary"
+        >
+          Add template sibling
+        </Button>
+      </section>
+    </div>
+  );
+}
+
+function ClozeEditor({
+  onChange,
+  value,
+}: {
+  readonly onChange: (value: ClozeCardData) => void;
+  readonly value: ClozeCardData;
+}) {
+  return (
+    <div className="grid gap-5">
+      <RichField
+        label="Cloze passage"
+        onChange={(text) => onChange({ ...value, text })}
+        value={value.text}
+      />
+      <p className="m-0 text-sm text-[var(--color-text-muted)]">
+        Select exact character ranges in the extracted passage. Ranges may overlap when they belong
+        to different semantic groups.
+      </p>
+      <fieldset className="repeatable-list">
+        <legend>Deletion groups</legend>
+        {value.clozes.map((cloze, index) => (
+          <div className="repeatable-row" key={cloze.semanticKey}>
+            <FormField label={`Group ${String(index + 1)} key`}>
+              <Input
+                value={cloze.semanticKey}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    clozes: value.clozes.map((candidate, candidateIndex) =>
+                      candidateIndex === index
+                        ? { ...candidate, semanticKey: event.target.value }
+                        : candidate,
+                    ),
+                  })
+                }
+              />
+            </FormField>
+            {cloze.ranges.map((range, rangeIndex) => (
+              <div
+                className="grid grid-cols-2 gap-2"
+                key={`${String(range.from)}-${String(range.to)}-${String(rangeIndex)}`}
+              >
+                <FormField label="Start">
+                  <Input
+                    min={0}
+                    type="number"
+                    value={range.from}
+                    onChange={(event) =>
+                      onChange({
+                        ...value,
+                        clozes: value.clozes.map((candidate, candidateIndex) =>
+                          candidateIndex === index
+                            ? {
+                                ...candidate,
+                                ranges: candidate.ranges.map(
+                                  (candidateRange, candidateRangeIndex) =>
+                                    candidateRangeIndex === rangeIndex
+                                      ? { ...candidateRange, from: Number(event.target.value) }
+                                      : candidateRange,
+                                ),
+                              }
+                            : candidate,
+                        ),
+                      })
+                    }
+                  />
+                </FormField>
+                <FormField label="End">
+                  <Input
+                    min={1}
+                    type="number"
+                    value={range.to}
+                    onChange={(event) =>
+                      onChange({
+                        ...value,
+                        clozes: value.clozes.map((candidate, candidateIndex) =>
+                          candidateIndex === index
+                            ? {
+                                ...candidate,
+                                ranges: candidate.ranges.map(
+                                  (candidateRange, candidateRangeIndex) =>
+                                    candidateRangeIndex === rangeIndex
+                                      ? { ...candidateRange, to: Number(event.target.value) }
+                                      : candidateRange,
+                                ),
+                              }
+                            : candidate,
+                        ),
+                      })
+                    }
+                  />
+                </FormField>
+              </div>
+            ))}
+            <FormField label="Hint (optional)">
+              <Input
+                value={cloze.hint ?? ""}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    clozes: value.clozes.map((candidate, candidateIndex) =>
+                      candidateIndex === index
+                        ? { ...candidate, hint: event.target.value }
+                        : candidate,
+                    ),
+                  })
+                }
+              />
+            </FormField>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    clozes: value.clozes.map((candidate, candidateIndex) =>
+                      candidateIndex === index
+                        ? { ...candidate, ranges: [...candidate.ranges, { from: 0, to: 1 }] }
+                        : candidate,
+                    ),
+                  })
+                }
+                variant="secondary"
+              >
+                Add overlapping range
+              </Button>
+              <Button
+                disabled={value.clozes.length <= 1}
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    clozes: value.clozes.filter((_, candidateIndex) => candidateIndex !== index),
+                  })
+                }
+                variant="ghost"
+              >
+                Remove group
+              </Button>
+            </div>
+          </div>
+        ))}
+        <Button
+          onClick={() =>
+            onChange({
+              ...value,
+              clozes: [
+                ...value.clozes,
+                {
+                  semanticKey: `c${String(value.clozes.length + 1)}`,
+                  ranges: [{ from: 0, to: 1 }],
+                },
+              ],
+            })
+          }
+          variant="secondary"
+        >
+          Add cloze group
+        </Button>
+      </fieldset>
+    </div>
+  );
+}
+
+function VisualEditor({
+  onChange,
+  value,
+}: {
+  readonly onChange: (value: DiagramCardData | ImageOcclusionCardData) => void;
+  readonly value: DiagramCardData | ImageOcclusionCardData;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!value.imageAssetId || imageUrl) return;
+    const controller = new AbortController();
+    void fetch(`/api/content/media/${encodeURIComponent(value.imageAssetId)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => (response.ok ? (response.json() as Promise<unknown>) : null))
+      .then((body) => {
+        if (typeof body !== "object" || body === null || !("data" in body)) return;
+        const data = body.data as Readonly<Record<string, unknown>>;
+        if (typeof data.signedUrl === "string") setImageUrl(data.signedUrl);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [imageUrl, value.imageAssetId]);
+  const regions: readonly VisualRegion[] =
+    value.kind === "diagram"
+      ? value.hotspots.map((hotspot) => ({
+          ...hotspot,
+          altText: hotspot.label,
+          groupKey: hotspot.semanticKey,
+        }))
+      : value.occlusions.map((region) => ({
+          ...region,
+          aliases: [],
+          altText: region.altText ?? region.label,
+          promptDirection: "region_to_label",
+        }));
+  function attach(asset: UploadedMediaAsset) {
+    setImageUrl(asset.signedUrl);
+    onChange({ ...value, imageAssetId: asset.id, imageAlt: asset.altText } as typeof value);
+  }
+  function update(regionsValue: readonly VisualRegion[]) {
+    if (value.kind === "diagram") {
+      onChange({
+        ...value,
+        hotspots: regionsValue.map(({ semanticKey, shape, label, aliases, promptDirection }) => ({
+          semanticKey,
+          shape,
+          label,
+          aliases,
+          promptDirection,
+        })),
+      });
+    } else {
+      onChange({
+        ...value,
+        occlusions: regionsValue.map(({ semanticKey, groupKey, shape, label, altText }) => ({
+          semanticKey,
+          groupKey,
+          shape,
+          label,
+          altText,
+        })),
+      });
+    }
+  }
+  return (
+    <div className="grid gap-5">
+      <MediaUploader
+        kind="image"
+        label={value.kind === "diagram" ? "Diagram image" : "Occlusion image"}
+        onUploaded={attach}
+      />
+      {value.imageAssetId && <Badge tone="success">Image attached</Badge>}
+      <VisualRegionEditor
+        imageAlt={value.imageAlt}
+        imageUrl={imageUrl}
+        kind={value.kind === "diagram" ? "diagram" : "occlusion"}
+        {...(value.kind === "image_occlusion"
+          ? {
+              mode: value.mode,
+              onModeChange: (mode: ImageOcclusionCardData["mode"]) => onChange({ ...value, mode }),
+            }
+          : {})}
+        onChange={update}
+        regions={regions}
+      />
+    </div>
+  );
+}
+
+function OrderingEditor({
+  onChange,
+  value,
+}: {
+  readonly onChange: (value: OrderingCardData) => void;
+  readonly value: OrderingCardData;
+}) {
+  function move(index: number, direction: -1 | 1) {
+    const next = [...value.orderingItems];
+    const target = index + direction;
+    if (!next[index] || !next[target]) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange({ ...value, orderingItems: next.map((item, position) => ({ ...item, position })) });
+  }
+  return (
+    <div className="grid gap-5">
+      <RichField
+        label="Sequencing prompt"
+        onChange={(prompt) => onChange({ ...value, prompt })}
+        value={value.prompt}
+      />
+      <fieldset className="repeatable-list">
+        <legend>Correct order</legend>
+        {value.orderingItems.map((item, index) => (
+          <div className="repeatable-row" key={item.semanticKey}>
+            <RichField
+              label={`Step ${String(index + 1)}`}
+              onChange={(content) =>
+                onChange({
+                  ...value,
+                  orderingItems: value.orderingItems.map((candidate, candidateIndex) =>
+                    candidateIndex === index ? { ...candidate, content } : candidate,
+                  ),
+                })
+              }
+              value={item.content}
+            />
+            <div className="flex gap-2">
+              <Button
+                aria-label={`Move step ${String(index + 1)} up`}
+                disabled={index === 0}
+                onClick={() => move(index, -1)}
+                variant="secondary"
+              >
+                ↑
+              </Button>
+              <Button
+                aria-label={`Move step ${String(index + 1)} down`}
+                disabled={index === value.orderingItems.length - 1}
+                onClick={() => move(index, 1)}
+                variant="secondary"
+              >
+                ↓
+              </Button>
+              <Button
+                disabled={value.orderingItems.length <= 2}
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    orderingItems: value.orderingItems
+                      .filter((_, candidateIndex) => candidateIndex !== index)
+                      .map((candidate, position) => ({ ...candidate, position })),
+                  })
+                }
+                variant="ghost"
+              >
+                Remove
+              </Button>
+            </div>
+          </div>
+        ))}
+        <Button
+          onClick={() =>
+            onChange({
+              ...value,
+              orderingItems: [
+                ...value.orderingItems,
+                {
+                  semanticKey: `item-${crypto.randomUUID()}`,
+                  content: emptyRichDocument("en"),
+                  position: value.orderingItems.length,
+                },
+              ],
+            })
+          }
+          variant="secondary"
+        >
+          Add step
+        </Button>
+      </fieldset>
+    </div>
+  );
+}
+
+function ListEditor({
+  onChange,
+  value,
+}: {
+  readonly onChange: (value: ListAnswerCardData) => void;
+  readonly value: ListAnswerCardData;
+}) {
+  return (
+    <div className="grid gap-5">
+      <RichField
+        label="List prompt"
+        onChange={(prompt) => onChange({ ...value, prompt })}
+        value={value.prompt}
+      />
+      <Checkbox
+        checked={value.orderMatters}
+        label="Answers must be in this order"
+        onCheckedChange={(checked) => onChange({ ...value, orderMatters: checked === true })}
+      />
+      <fieldset className="repeatable-list">
+        <legend>Expected list items</legend>
+        {value.listItems.map((item, index) => (
+          <div className="repeatable-row" key={item.semanticKey}>
+            <FormField label={`Answer ${String(index + 1)}`}>
+              <Input
+                value={item.answer}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    listItems: value.listItems.map((candidate, candidateIndex) =>
+                      candidateIndex === index
+                        ? { ...candidate, answer: event.target.value }
+                        : candidate,
+                    ),
+                  })
+                }
+              />
+            </FormField>
+            <FormField label="Accepted aliases">
+              <Input
+                placeholder="Comma separated"
+                value={item.aliases.join(", ")}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    listItems: value.listItems.map((candidate, candidateIndex) =>
+                      candidateIndex === index
+                        ? {
+                            ...candidate,
+                            aliases: event.target.value
+                              .split(",")
+                              .map((alias) => alias.trim())
+                              .filter(Boolean),
+                          }
+                        : candidate,
+                    ),
+                  })
+                }
+              />
+            </FormField>
+            <Checkbox
+              checked={item.required}
+              label="Required"
+              onCheckedChange={(checked) =>
+                onChange({
+                  ...value,
+                  listItems: value.listItems.map((candidate, candidateIndex) =>
+                    candidateIndex === index
+                      ? { ...candidate, required: checked === true }
+                      : candidate,
+                  ),
+                })
+              }
+            />
+            <Button
+              disabled={value.listItems.length <= 1}
+              onClick={() =>
+                onChange({
+                  ...value,
+                  listItems: value.listItems
+                    .filter((_, candidateIndex) => candidateIndex !== index)
+                    .map((candidate, position) => ({ ...candidate, position })),
+                })
+              }
+              variant="ghost"
+            >
+              Remove
+            </Button>
+          </div>
+        ))}
+        <Button
+          onClick={() =>
+            onChange({
+              ...value,
+              listItems: [
+                ...value.listItems,
+                {
+                  semanticKey: `item-${crypto.randomUUID()}`,
+                  answer: "",
+                  aliases: [],
+                  required: true,
+                  position: value.listItems.length,
+                },
+              ],
+            })
+          }
+          variant="secondary"
+        >
+          Add answer
+        </Button>
+      </fieldset>
+    </div>
+  );
+}
+
+function AudioEditor({
+  onChange,
+  value,
+}: {
+  readonly onChange: (value: AudioPromptCardData) => void;
+  readonly value: AudioPromptCardData;
+}) {
+  return (
+    <div className="grid gap-5">
+      <MediaUploader
+        kind="audio"
+        label="Audio prompt"
+        onUploaded={(asset) =>
+          onChange({
+            ...value,
+            audioPrompt: { ...value.audioPrompt, assetId: asset.id, transcript: asset.transcript },
+          })
+        }
+      />
+      {value.audioPrompt.assetId && <Badge tone="success">Audio attached</Badge>}
+      <FormField label="Transcript">
+        <Textarea
+          value={value.audioPrompt.transcript}
+          onChange={(event) =>
+            onChange({
+              ...value,
+              audioPrompt: { ...value.audioPrompt, transcript: event.target.value },
+            })
+          }
+        />
+      </FormField>
+      <RichField
+        label="Answer"
+        onChange={(answer) => onChange({ ...value, audioPrompt: { ...value.audioPrompt, answer } })}
+        value={value.audioPrompt.answer}
+      />
+      <FormField label="Default playback speed">
+        <Input
+          min={0.5}
+          max={2}
+          step={0.25}
+          type="number"
+          value={value.playbackSpeed}
+          onChange={(event) => onChange({ ...value, playbackSpeed: Number(event.target.value) })}
+        />
+      </FormField>
+    </div>
+  );
+}
+
+function PronunciationEditor({
+  onChange,
+  value,
+}: {
+  readonly onChange: (value: PronunciationCardData) => void;
+  readonly value: PronunciationCardData;
+}) {
+  function speak() {
+    if (!("speechSynthesis" in window) || !value.pronunciationPrompt.text) return;
+    const utterance = new SpeechSynthesisUtterance(value.pronunciationPrompt.text);
+    utterance.lang = value.pronunciationPrompt.language;
+    window.speechSynthesis.speak(utterance);
+  }
+  return (
+    <div className="grid gap-5">
+      <FormField label="Text to pronounce">
+        <Input
+          value={value.pronunciationPrompt.text}
+          onChange={(event) =>
+            onChange({
+              ...value,
+              pronunciationPrompt: { ...value.pronunciationPrompt, text: event.target.value },
+            })
+          }
+        />
+      </FormField>
+      <FormField label="Language">
+        <Input
+          value={value.pronunciationPrompt.language}
+          onChange={(event) =>
+            onChange({
+              ...value,
+              pronunciationPrompt: { ...value.pronunciationPrompt, language: event.target.value },
+            })
+          }
+        />
+      </FormField>
+      <Checkbox
+        checked={value.pronunciationPrompt.ttsAllowed}
+        label="Allow local browser text-to-speech"
+        onCheckedChange={(checked) =>
+          onChange({
+            ...value,
+            pronunciationPrompt: { ...value.pronunciationPrompt, ttsAllowed: checked === true },
+          })
+        }
+      />
+      <Button
+        disabled={!value.pronunciationPrompt.ttsAllowed || !value.pronunciationPrompt.text}
+        onClick={speak}
+        variant="secondary"
+      >
+        Preview local pronunciation
+      </Button>
+      <MediaUploader
+        kind="audio"
+        label="Optional reference pronunciation"
+        onUploaded={(asset) =>
+          onChange({
+            ...value,
+            pronunciationPrompt: { ...value.pronunciationPrompt, referenceAssetId: asset.id },
+          })
+        }
+      />
+      <FormField label="Typed or non-audio fallback">
+        <Input
+          value={value.pronunciationPrompt.fallbackAnswer ?? ""}
+          onChange={(event) =>
+            onChange({
+              ...value,
+              pronunciationPrompt: {
+                ...value.pronunciationPrompt,
+                fallbackAnswer: event.target.value,
+              },
+            })
+          }
+        />
+      </FormField>
+      <p className="text-sm text-[var(--color-text-muted)]">
+        Learner recordings are local and explicit. Pronunciation is self-reviewed; no cloud speech
+        service is used.
+      </p>
+    </div>
+  );
+}
+
+function CardFields({
+  data,
+  onChange,
+}: {
+  readonly data: CardAuthoringData;
+  readonly onChange: (data: CardAuthoringData) => void;
+}): ReactNode {
+  switch (data.kind) {
+    case "basic":
+    case "basic_reversed":
+      return (
+        <PairEditor labels={["Front / prompt", "Back / answer"]} onChange={onChange} value={data} />
+      );
+    case "optional_reversed":
+      return (
+        <div className="grid gap-5">
+          <RichField
+            label="Front / prompt"
+            onChange={(front) => onChange({ ...data, front })}
+            value={data.front}
+          />
+          <RichField
+            label="Back / answer"
+            onChange={(back) => onChange({ ...data, back })}
+            value={data.back}
+          />
+          <Checkbox
+            checked={data.reverseEnabled}
+            label="Generate a reverse sibling for this note"
+            onCheckedChange={(checked) => onChange({ ...data, reverseEnabled: checked === true })}
+          />
+        </div>
+      );
+    case "bidirectional":
+      return (
+        <div className="grid gap-5">
+          <RichField
+            label="Concept A"
+            onChange={(sideA) => onChange({ ...data, sideA })}
+            value={data.sideA}
+          />
+          <RichField
+            label="Concept B"
+            onChange={(sideB) => onChange({ ...data, sideB })}
+            value={data.sideB}
+          />
+        </div>
+      );
+    case "custom":
+      return <CustomEditor onChange={onChange} value={data} />;
+    case "typed_answer":
+      return (
+        <div className="grid gap-5">
+          <RichField
+            label="Prompt"
+            onChange={(prompt) => onChange({ ...data, prompt })}
+            value={data.prompt}
+          />
+          <RichField
+            label="Displayed answer"
+            onChange={(answer) => onChange({ ...data, answer })}
+            value={data.answer}
+          />
+          <FormField label="Accepted typed answers">
+            <Textarea
+              value={data.acceptedAnswers.join("\n")}
+              onChange={(event) =>
+                onChange({ ...data, acceptedAnswers: event.target.value.split("\n") })
+              }
+            />
+          </FormField>
+          <Checkbox
+            checked={data.caseSensitive}
+            label="Answers are case-sensitive"
+            onCheckedChange={(checked) => onChange({ ...data, caseSensitive: checked === true })}
+          />
+          <FormField label="Answer language">
+            <Input
+              value={data.language ?? ""}
+              onChange={(event) => onChange({ ...data, language: event.target.value })}
+            />
+          </FormField>
+        </div>
+      );
+    case "cloze":
+      return <ClozeEditor onChange={onChange} value={data} />;
+    case "image_occlusion":
+    case "diagram":
+      return <VisualEditor onChange={onChange} value={data} />;
+    case "multiple_choice":
+    case "select_all":
+      return <ChoiceEditor onChange={onChange} value={data} />;
+    case "true_false":
+      return (
+        <div className="grid gap-5">
+          <RichField
+            label="Statement"
+            onChange={(statement) => onChange({ ...data, statement })}
+            value={data.statement}
+          />
+          <FormField label="Correct answer">
+            <Select
+              value={data.answer ? "true" : "false"}
+              onValueChange={(answer) => onChange({ ...data, answer: answer === "true" })}
+              options={[
+                { label: "True", value: "true" },
+                { label: "False", value: "false" },
+              ]}
+            />
+          </FormField>
+          <RichField
+            label="Explanation"
+            onChange={(explanation) => onChange({ ...data, explanation })}
+            value={data.explanation ?? emptyRichDocument("en")}
+          />
+        </div>
+      );
+    case "ordering":
+      return <OrderingEditor onChange={onChange} value={data} />;
+    case "list_answer":
+      return <ListEditor onChange={onChange} value={data} />;
+    case "audio_prompt":
+      return <AudioEditor onChange={onChange} value={data} />;
+    case "pronunciation":
+      return <PronunciationEditor onChange={onChange} value={data} />;
+    case "drawing":
+      return (
+        <div className="grid gap-5">
+          <RichField
+            label="Drawing prompt"
+            onChange={(prompt) => onChange({ ...data, prompt })}
+            value={data.prompt}
+          />
+          <MediaUploader
+            kind="image"
+            label="Optional drawing reference image"
+            onUploaded={(asset) =>
+              onChange({
+                ...data,
+                drawingLayers: attachPrimaryDrawingAsset(data.drawingLayers, asset.id),
+              })
+            }
+          />
+          {data.drawingLayers[0]?.assetId && (
+            <Badge tone="success">Drawing reference image attached</Badge>
+          )}
+          <DrawingEditor
+            strokes={data.drawingLayers[0]?.strokes ?? []}
+            typedFallback={data.fallbackAnswer}
+            onTypedFallbackChange={(fallbackAnswer) => onChange({ ...data, fallbackAnswer })}
+            onChange={(strokes) =>
+              onChange({
+                ...data,
+                drawingLayers: replacePrimaryDrawingStrokes(data.drawingLayers, strokes),
+              })
+            }
+          />
+        </div>
+      );
+  }
+}
+
+function attachPrimaryDrawingAsset(
+  layers: readonly DrawingReferenceLayer[],
+  assetId: string,
+): readonly DrawingReferenceLayer[] {
+  const primary = layers[0];
+  if (!primary) {
+    return [
+      {
+        assetId,
+        opacity: 1,
+        position: 0,
+        semanticKey: "reference",
+        strokes: [],
+      },
+    ];
+  }
+  return [{ ...primary, assetId }, ...layers.slice(1)];
+}
+
+function replacePrimaryDrawingStrokes(
+  layers: readonly DrawingReferenceLayer[],
+  strokes: readonly DrawingStroke[],
+): readonly DrawingReferenceLayer[] {
+  const primary = layers[0];
+  if (!primary) {
+    return strokes.length === 0
+      ? []
+      : [
+          {
+            opacity: 1,
+            position: 0,
+            semanticKey: "reference",
+            strokes,
+          },
+        ];
+  }
+  const remaining = layers.slice(1);
+  if (!primary.assetId && strokes.length === 0) {
+    return remaining.map((layer, position) => ({ ...layer, position }));
+  }
+  return [{ ...primary, strokes }, ...remaining];
+}
+
+function SiblingPreview({ data }: { readonly data: CardAuthoringData }) {
+  const result = useMemo(() => {
+    const parsed = cardAuthoringSchema.safeParse(data);
+    if (!parsed.success) return { issues: parsed.issues, siblings: [] } as const;
+    return { issues: [], siblings: generateCardBlueprints(parsed.data) } as const;
+  }, [data]);
+  return (
+    <aside className="card-preview-pane" aria-labelledby="siblings-heading">
+      <div>
+        <span className="text-xs font-extrabold tracking-wider text-[var(--color-brand)] uppercase">
+          Live generation
+        </span>
+        <h2 id="siblings-heading">Sibling cards</h2>
+        <p>
+          Each semantic sibling keeps its own durable card identity. Removing one deactivates it
+          instead of assigning its identity to new content.
+        </p>
+      </div>
+      {result.issues.length > 0 ? (
+        <div className="editor-validation" role="status">
+          <strong>Complete the highlighted card data to preview it.</strong>
+          <ul>
+            {result.issues.slice(0, 6).map((issue) => (
+              <li key={`${issue.path}-${issue.code}`}>
+                {issue.path}: {issue.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <ol className="sibling-list">
+          {result.siblings.map((sibling, index) => (
+            <li key={sibling.generationKey}>
+              <div className="flex items-center justify-between gap-2">
+                <strong>Sibling {String(index + 1)}</strong>
+                <Badge tone="info">{sibling.semanticKey}</Badge>
+              </div>
+              <StudyRendererPreview renderer={sibling.renderer} />
+              <small>{sibling.renderer.accessibility.instructions}</small>
+              <details>
+                <summary>Accessible fallback</summary>
+                <p>{sibling.renderer.accessibility.nonvisualAlternative}</p>
+              </details>
+            </li>
+          ))}
+        </ol>
+      )}
+    </aside>
+  );
+}
+
+function StudyRendererPreview({
+  renderer,
+}: {
+  readonly renderer: ReturnType<typeof generateCardBlueprints>[number]["renderer"];
+}) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div className="editor-study-preview">
+      <StudyCardRenderer renderer={renderer} revealed={revealed} />
+      <Button onClick={() => setRevealed((current) => !current)} size="sm" variant="secondary">
+        {revealed ? "Show prompt" : "Reveal answer"}
+      </Button>
+    </div>
+  );
+}
+
+async function readMutation(response: Response): Promise<ContentMutationResult<NoteSummary>> {
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = body as Partial<ContentApiError> | null;
+    const caught = new Error(error?.message ?? "The note could not be saved.");
+    Object.assign(caught, { code: error?.code, currentVersion: error?.currentVersion });
+    throw caught;
+  }
+  return body as ContentMutationResult<NoteSummary>;
+}
+
+function draftFingerprint(data: CardAuthoringData, source: string, tags: string): string {
+  return JSON.stringify({ data, source, tags });
+}
+
+export function NoteEditor({
+  deckId,
+  existingNotes = [],
+  initialKind = "basic",
+  note,
+}: {
+  readonly deckId: string;
+  readonly existingNotes?: readonly NoteSummary[];
+  readonly initialKind?: CardTypeCode;
+  readonly note?: NoteSummary;
+}) {
+  const router = useRouter();
+  const [data, setData] = useState<CardAuthoringData>(
+    note?.authoringData ?? initialData(initialKind),
+  );
+  const [tags, setTags] = useState(note?.tags.join(", ") ?? "");
+  const [source, setSource] = useState(note?.source ?? "");
+  const [state, setState] = useState<SaveState>("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const [currentVersion, setCurrentVersion] = useState(note?.version ?? 0);
+  const [savedNoteId, setSavedNoteId] = useState(note?.id ?? null);
+  const [conflictVersion, setConflictVersion] = useState<number | null>(null);
+  const [reloadAfterVersion, setReloadAfterVersion] = useState<number | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const firstRender = useRef(true);
+  const latestDraft = useRef(draftFingerprint(data, source, tags));
+  latestDraft.current = draftFingerprint(data, source, tags);
+  const duplicateMatches = useMemo(() => {
+    const parsed = cardAuthoringSchema.safeParse(data);
+    if (!parsed.success) return [];
+    const prompt = generateCardBlueprints(parsed.data)[0]
+      ?.renderer.accessibility.promptText.normalize("NFKC")
+      .trim()
+      .toLocaleLowerCase();
+    if (!prompt) return [];
+    return existingNotes.filter(
+      (candidate) =>
+        candidate.id !== savedNoteId &&
+        candidate.preview.normalize("NFKC").trim().toLocaleLowerCase() === prompt,
+    );
+  }, [data, existingNotes, savedNoteId]);
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    setState((current) => (current === "saving" || current === "reloading" ? current : "dirty"));
+  }, [data, source, tags]);
+
+  useEffect(() => {
+    if (state !== "dirty" || !savedNoteId || deleteOpen) return;
+    const timeout = window.setTimeout(() => void save(false), 2_000);
+    return () => window.clearTimeout(timeout);
+    // Save is deliberately keyed to serialized authoring state and current optimistic version.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, source, tags, state, savedNoteId, currentVersion, deleteOpen]);
+
+  useEffect(() => {
+    if (reloadAfterVersion === null || !note || note.version < reloadAfterVersion) return;
+    firstRender.current = true;
+    // A deliberate conflict reload is the one point where fresh server props replace editor state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setData(note.authoringData);
+    setTags(note.tags.join(", "));
+    setSource(note.source);
+    setCurrentVersion(note.version);
+    setSavedNoteId(note.id);
+    setConflictVersion(null);
+    setReloadAfterVersion(null);
+    setState("saved");
+    setMessage(`Version ${String(note.version)} loaded.`);
+  }, [note, reloadAfterVersion]);
+
+  async function save(asNew: boolean) {
+    const parsed = cardAuthoringSchema.safeParse(data);
+    if (!parsed.success) {
+      setState("error");
+      setMessage(
+        "Complete the card fields before saving. The live preview lists the remaining validation issues.",
+      );
+      return;
+    }
+    const submittedDraft = draftFingerprint(parsed.data, source, tags);
+    setState("saving");
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/content/decks/${deckId}/notes`, {
+        method: asNew || !savedNoteId ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authoringData: parsed.data,
+          expectedVersion: asNew || !savedNoteId ? null : currentVersion,
+          idempotencyKey: crypto.randomUUID(),
+          noteId: asNew || !savedNoteId ? null : savedNoteId,
+          source,
+          tags: tags
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+        }),
+      });
+      const result = await readMutation(response);
+      setCurrentVersion(result.data.version);
+      setSavedNoteId(result.data.id);
+      setConflictVersion(null);
+      setReloadAfterVersion(null);
+      const hasNewerDraft = latestDraft.current !== submittedDraft;
+      setState(hasNewerDraft ? "dirty" : "saved");
+      setMessage(hasNewerDraft ? "Newer changes are waiting to save." : "All changes saved.");
+      if (!note || asNew)
+        router.replace(`/app/decks/${deckId}/edit?note=${result.data.id}` as Route);
+      router.refresh();
+    } catch (caught) {
+      const conflict = caught as Error & { code?: string; currentVersion?: number };
+      if (conflict.code === "CONFLICT") {
+        setConflictVersion(conflict.currentVersion ?? null);
+        setState("conflict");
+        setMessage(
+          `A newer version${conflict.currentVersion ? ` (${String(conflict.currentVersion)})` : ""} exists. Your draft is still open.`,
+        );
+      } else {
+        setState("error");
+        setMessage(caught instanceof Error ? caught.message : "The note could not be saved.");
+      }
+    }
+  }
+
+  async function deleteNote() {
+    if (!savedNoteId) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch(
+        `/api/content/decks/${encodeURIComponent(deckId)}/notes/${encodeURIComponent(savedNoteId)}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            expectedVersion: currentVersion,
+            idempotencyKey: crypto.randomUUID(),
+          }),
+        },
+      );
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const error = body as Partial<ContentApiError> | null;
+        const version = error?.currentVersion;
+        throw new Error(
+          error?.code === "CONFLICT"
+            ? version
+              ? `This note is now at version ${String(version)}. Reload it before deleting.`
+              : "A newer version of this note exists. Reload it before deleting."
+            : (error?.message ?? "The note could not be deleted."),
+        );
+      }
+      setDeleteOpen(false);
+      router.replace(`/app/decks/${deckId}/edit` as Route);
+      router.refresh();
+    } catch (caught) {
+      setDeleteError(caught instanceof Error ? caught.message : "The note could not be deleted.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const descriptor = CARD_TYPE_BY_CODE[data.kind];
+  return (
+    <div className="note-editor-shell">
+      <section className="note-editor-main">
+        <header className="editor-heading">
+          <div>
+            <span className="text-xs font-extrabold tracking-wider text-[var(--color-brand)] uppercase">
+              {savedNoteId ? "Edit note" : "New note"}
+            </span>
+            <h1>{descriptor.label}</h1>
+            <p>
+              {descriptor.description} {descriptor.generatedCards}.
+            </p>
+          </div>
+          <div className="autosave-state" data-state={state} aria-live="polite">
+            <span aria-hidden="true" />
+            {state === "saving"
+              ? "Saving…"
+              : state === "reloading"
+                ? "Loading current version…"
+                : state === "dirty"
+                  ? "Unsaved changes"
+                  : state === "saved"
+                    ? "Saved"
+                    : state === "conflict"
+                      ? "Version conflict"
+                      : state === "error"
+                        ? "Needs attention"
+                        : "Ready"}
+          </div>
+        </header>
+        <FormField
+          label="Card type"
+          description={
+            savedNoteId
+              ? "A saved note keeps its note type so generated sibling identities remain stable. To use another type, create a new note."
+              : descriptor.editorHint
+          }
+        >
+          <Select
+            disabled={savedNoteId !== null}
+            value={data.kind}
+            onValueChange={(value) => setData(initialData(value as CardTypeCode))}
+            options={CARD_TYPE_DESCRIPTORS.map((type) => ({ label: type.label, value: type.code }))}
+          />
+        </FormField>
+        <CardFields data={data} onChange={setData} />
+        {duplicateMatches.length > 0 && (
+          <aside className="editor-message" role="status">
+            <strong>Possible duplicate note</strong>
+            <p>
+              {duplicateMatches.length === 1
+                ? "Another note in this deck has the same normalized prompt."
+                : `${String(duplicateMatches.length)} notes in this deck have the same normalized prompt.`}{" "}
+              You can still save when the answer or context is intentionally different.
+            </p>
+          </aside>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Tags" description="Comma separated. Tags are normalized when saved.">
+            <Input
+              value={tags}
+              onChange={(event) => setTags(event.target.value)}
+              placeholder="biology, chapter-4"
+            />
+          </FormField>
+          <FormField
+            label="Source or citation note"
+            description="Optional provenance for this note."
+          >
+            <Input
+              value={source}
+              onChange={(event) => setSource(event.target.value)}
+              placeholder="Textbook, lecture, URL, or page"
+            />
+          </FormField>
+        </div>
+        {message && (
+          <p
+            className={
+              state === "error" || state === "conflict"
+                ? "editor-message editor-message--error"
+                : "editor-message"
+            }
+            role="status"
+          >
+            {message}
+          </p>
+        )}
+        <div className="editor-actions">
+          <Button loading={state === "saving"} onClick={() => void save(false)}>
+            Save note
+          </Button>
+          <Button
+            onClick={() => router.push(`/app/decks/${deckId}/cards` as Route)}
+            variant="secondary"
+          >
+            Open card browser
+          </Button>
+          {savedNoteId && (
+            <Button
+              onClick={() => {
+                setDeleteError(null);
+                setDeleteOpen(true);
+              }}
+              variant="danger"
+            >
+              Delete note
+            </Button>
+          )}
+        </div>
+      </section>
+      <SiblingPreview data={data} />
+      <Dialog
+        open={state === "conflict"}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConflictVersion(null);
+            setState("dirty");
+          }
+        }}
+        title="This note changed elsewhere"
+        description="Your unsaved draft is preserved in this tab. Choose how to continue."
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                setReloadAfterVersion(conflictVersion ?? currentVersion + 1);
+                setState("reloading");
+                setMessage("Loading the current stored version…");
+                router.refresh();
+              }}
+              variant="secondary"
+            >
+              Reload current version
+            </Button>
+            <Button onClick={() => void save(true)}>Save draft as a new note</Button>
+          </>
+        }
+      >
+        <p>
+          Reload to inspect the latest stored version, or save this draft as a separate note so no
+          author’s work is overwritten.
+        </p>
+      </Dialog>
+      <Dialog
+        description="The note and its generated siblings will be removed from the active deck. Stored history remains auditable."
+        footer={
+          <>
+            <Button disabled={deleting} onClick={() => setDeleteOpen(false)} variant="secondary">
+              Keep note
+            </Button>
+            <Button loading={deleting} onClick={() => void deleteNote()} variant="danger">
+              Delete this note
+            </Button>
+          </>
+        }
+        onOpenChange={(open) => {
+          if (!deleting) setDeleteOpen(open);
+        }}
+        open={deleteOpen}
+        title="Delete this note?"
+      >
+        <p>Any unsaved changes in this editor will be discarded.</p>
+        {deleteError && (
+          <p className="editor-message editor-message--error" role="alert">
+            {deleteError}
+          </p>
+        )}
+      </Dialog>
+    </div>
+  );
+}

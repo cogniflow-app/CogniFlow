@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +7,7 @@ import { AppearanceControls } from "../components/appearance-controls.client";
 import { AppearanceProvider } from "../components/appearance-provider.client";
 import { ProfileSettingsForm } from "../components/settings/profile-settings-form.client";
 import { resolveActiveAppearancePreferences } from "../lib/appearance";
+import { isolateBrowserLearnerContext } from "../lib/auth/cache-isolation.client";
 
 describe("appearance preferences", () => {
   beforeEach(() => {
@@ -45,6 +46,28 @@ describe("appearance preferences", () => {
     expect(window.localStorage.getItem("lumen:appearance:v1")).toContain('"seriousMode":true');
   });
 
+  it("keeps theme, stored reduced motion, and serious mode as independent choices", async () => {
+    render(
+      <AppearanceProvider>
+        <AppearanceControls />
+      </AppearanceProvider>,
+    );
+    await userEvent.click(screen.getByText("Appearance"));
+    await userEvent.selectOptions(screen.getByLabelText("Color theme"), "light");
+    await userEvent.click(screen.getByLabelText("Serious mode"));
+
+    expect(screen.getByLabelText("Color theme")).toHaveValue("light");
+    expect(screen.getByLabelText("Reduce motion")).not.toBeChecked();
+    expect(screen.getByLabelText("Serious mode")).toBeChecked();
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+    expect(document.documentElement).toHaveAttribute("data-motion", "reduce");
+
+    await userEvent.click(screen.getByLabelText("Serious mode"));
+    expect(screen.getByLabelText("Reduce motion")).not.toBeChecked();
+    expect(document.documentElement).toHaveAttribute("data-motion", "full");
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+  });
+
   it("hydrates the active managed learner over stale browser preferences", async () => {
     window.localStorage.setItem(
       "lumen:appearance:v1",
@@ -72,6 +95,155 @@ describe("appearance preferences", () => {
     expect(window.localStorage.getItem("lumen:appearance:v1")).toBe(
       JSON.stringify({ color: "dark", reduceMotion: false, seriousMode: true }),
     );
+  });
+
+  it("persists an authenticated control change and protects it from a stale route projection", async () => {
+    let resolveWrite: ((value: { ok: boolean; status: number }) => void) | undefined;
+    const fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise<{ ok: boolean; status: number }>((resolve) => {
+          resolveWrite = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const view = render(
+      <AppearanceProvider>
+        <AppearanceControls persistToAccount />
+      </AppearanceProvider>,
+    );
+
+    await userEvent.click(screen.getByText("Appearance"));
+    await userEvent.selectOptions(screen.getByLabelText("Color theme"), "dark");
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/settings/appearance",
+      expect.objectContaining({
+        body: JSON.stringify({ reduceMotion: false, seriousMode: false, theme: "dark" }),
+        keepalive: true,
+        method: "PATCH",
+      }),
+    );
+    expect(window.localStorage.getItem("lumen:appearance:v1")).toContain('"status":"pending"');
+
+    view.rerender(
+      <AppearanceProvider>
+        <AccountAppearanceHydrator
+          preferences={{ color: "system", reduceMotion: false, seriousMode: false }}
+        />
+        <AppearanceControls persistToAccount />
+      </AppearanceProvider>,
+    );
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+      expect(screen.getByLabelText("Color theme")).toHaveValue("dark");
+    });
+
+    await act(async () => resolveWrite?.({ ok: true, status: 200 }));
+    await waitFor(() =>
+      expect(window.localStorage.getItem("lumen:appearance:v1")).toContain('"status":"confirmed"'),
+    );
+
+    view.rerender(
+      <AppearanceProvider>
+        <AccountAppearanceHydrator
+          preferences={{ color: "dark", reduceMotion: false, seriousMode: false }}
+        />
+        <AppearanceControls persistToAccount />
+      </AppearanceProvider>,
+    );
+    await waitFor(() => {
+      expect(window.localStorage.getItem("lumen:appearance:v1")).toBe(
+        JSON.stringify({ color: "dark", reduceMotion: false, seriousMode: false }),
+      );
+    });
+  });
+
+  it("synchronizes explicit preferences from another tab", async () => {
+    render(
+      <AppearanceProvider>
+        <AppearanceControls />
+      </AppearanceProvider>,
+    );
+
+    const next = JSON.stringify({ color: "dark", reduceMotion: true, seriousMode: false });
+    window.localStorage.setItem("lumen:appearance:v1", next);
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: "lumen:appearance:v1", newValue: next }),
+    );
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+      expect(document.documentElement).toHaveAttribute("data-motion", "reduce");
+    });
+    await userEvent.click(screen.getByText("Appearance"));
+    expect(screen.getByLabelText("Color theme")).toHaveValue("dark");
+    expect(screen.getByLabelText("Reduce motion")).toBeChecked();
+  });
+
+  it("follows OS color changes only while System is selected", async () => {
+    const colorListeners = new Set<() => void>();
+    let systemDark = false;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: (_type: string, listener: () => void) => {
+          if (query === "(prefers-color-scheme: dark)") colorListeners.add(listener);
+        },
+        addListener: () => undefined,
+        dispatchEvent: () => false,
+        get matches() {
+          return query === "(prefers-color-scheme: dark)" && systemDark;
+        },
+        media: query,
+        onchange: null,
+        removeEventListener: (_type: string, listener: () => void) => {
+          colorListeners.delete(listener);
+        },
+        removeListener: () => undefined,
+      })),
+    );
+    render(
+      <AppearanceProvider>
+        <AppearanceControls />
+      </AppearanceProvider>,
+    );
+    await userEvent.click(screen.getByText("Appearance"));
+    await userEvent.selectOptions(screen.getByLabelText("Color theme"), "light");
+
+    act(() => {
+      systemDark = true;
+      for (const listener of colorListeners) listener();
+    });
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+
+    await userEvent.selectOptions(screen.getByLabelText("Color theme"), "system");
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+    act(() => {
+      systemDark = false;
+      for (const listener of colorListeners) listener();
+    });
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+  });
+
+  it("clears account appearance at the sign-out identity boundary", async () => {
+    window.localStorage.setItem(
+      "lumen:appearance:v1",
+      JSON.stringify({ color: "dark", reduceMotion: true, seriousMode: true }),
+    );
+    render(
+      <AppearanceProvider>
+        <AppearanceControls />
+      </AppearanceProvider>,
+    );
+    await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "dark"));
+
+    await isolateBrowserLearnerContext("account_signed_out");
+
+    expect(window.localStorage.getItem("lumen:appearance:v1")).toBeNull();
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute("data-color-preference", "system");
+      expect(document.documentElement).toHaveAttribute("data-serious-mode", "false");
+    });
   });
 
   it("keeps operating-system reduced motion authoritative", async () => {

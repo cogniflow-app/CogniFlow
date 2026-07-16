@@ -7,7 +7,7 @@ import {
   type VerifiedOnboardingAgeGate,
 } from "@lumen/auth/inputs";
 import type { OAuthProviderName } from "@lumen/auth/providers";
-import { normalizeReturnUrl } from "@lumen/auth/redirects";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import { getServerEnvironment } from "@lumen/config/server-env";
 import { cookies } from "next/headers";
 import type { NextRequest, NextResponse } from "next/server";
@@ -107,7 +107,7 @@ export async function issuePasswordSignupAgeGate(
       intent: "sign_up",
       provider: null,
       purpose: "pending_auth_age_gate",
-      returnTo: normalizeReturnUrl(input.returnTo),
+      returnTo: normalizeAuthenticationReturnUrl(input.returnTo),
       subjectHash: await hmacSha256Hex(
         input.email.trim().toLowerCase(),
         getServerEnvironment().appEncryptionKey,
@@ -140,7 +140,7 @@ export async function issueOAuthAgeGate(
           intent: "sign_up",
           provider: input.provider,
           purpose: "pending_auth_age_gate",
-          returnTo: normalizeReturnUrl(input.returnTo),
+          returnTo: normalizeAuthenticationReturnUrl(input.returnTo),
           subjectHash: null,
         }
       : {
@@ -149,7 +149,7 @@ export async function issueOAuthAgeGate(
           intent: "sign_in",
           provider: input.provider,
           purpose: "pending_auth_age_gate",
-          returnTo: normalizeReturnUrl(input.returnTo),
+          returnTo: normalizeAuthenticationReturnUrl(input.returnTo),
           subjectHash: null,
         },
     now,
@@ -228,7 +228,7 @@ export async function issueVerifiedOnboardingAgeGate(
     issuedAt: now.toISOString(),
     nonceHash: await sha256Hex(createOpaqueToken()),
     purpose: "verified_onboarding_age_gate",
-    returnTo: normalizeReturnUrl(input.returnTo),
+    returnTo: normalizeAuthenticationReturnUrl(input.returnTo),
     version: 1,
   });
   return Object.freeze({ expiresAt, payload: parsed, token: await signPayload(parsed) });

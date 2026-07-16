@@ -4,6 +4,7 @@ import type { Route } from "next";
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { cache } from "react";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import { createPrivilegedDatabaseClient } from "@lumen/database/server";
 
 import { deviceCookieName, profileSessionCookieName } from "@/lib/server/cookies";
@@ -273,9 +274,9 @@ export const readAccountContext = cache(readAccountContextUncached);
 
 export async function readProtectedReturnTo(fallback: string): Promise<string> {
   const value = (await headers()).get("x-lumen-request-path");
-  return value?.startsWith("/app") && !value.startsWith("//") && value.length <= 2_048
-    ? value
-    : fallback;
+  const normalizedFallback = normalizeAuthenticationReturnUrl(fallback);
+  const normalized = normalizeAuthenticationReturnUrl(value, normalizedFallback);
+  return /^\/app(?:[/?#]|$)/u.test(normalized) ? normalized : normalizedFallback;
 }
 
 export async function requireAccountContext(options: {
@@ -283,12 +284,13 @@ export async function requireAccountContext(options: {
   readonly requireSelfLearner?: boolean;
   readonly returnTo: string;
 }): Promise<AccountContext> {
+  const returnTo = normalizeAuthenticationReturnUrl(options.returnTo);
   const account = await readAccountContext();
   if (!account) {
-    redirect(`/auth/sign-in?returnTo=${encodeURIComponent(options.returnTo)}`);
+    redirect(`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
   }
   if (!options.allowIncompleteOnboarding && !account.profile.onboardingCompletedAt) {
-    redirect(`/onboarding?returnTo=${encodeURIComponent(options.returnTo)}`);
+    redirect(`/onboarding?returnTo=${encodeURIComponent(returnTo)}`);
   }
   if (["deleted", "suspended"].includes(account.profile.accountStatus)) {
     redirect("/auth/error?reason=account_unavailable");

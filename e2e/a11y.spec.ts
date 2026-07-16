@@ -68,6 +68,34 @@ async function readLongestTransitionMilliseconds(locator: Locator): Promise<numb
   });
 }
 
+async function createA11yAuthor(page: Page): Promise<void> {
+  const suffix = crypto.randomUUID().replaceAll("-", "");
+  await page.setExtraHTTPHeaders({ "X-Forwarded-For": "198.51.100.63" });
+  await page.goto("/auth/sign-up?returnTo=%2Fapp");
+  await page.getByRole("combobox", { name: /which age range describes you/i }).click();
+  await page.getByRole("option", { name: "18 or older" }).click();
+  await page
+    .getByRole("textbox", { name: "Email address" })
+    .fill(`phase02-a11y-${suffix}@example.test`);
+  await page.getByLabel("Password").fill(`Local-only-password-${suffix}`);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page).toHaveURL(/\/onboarding\?returnTo=%2Fapp$/u);
+  await page.getByRole("textbox", { name: "Display name" }).fill("Accessibility author");
+  await page.getByRole("textbox", { name: "Handle" }).fill(`a11y_${suffix.slice(0, 12)}`);
+  await page.getByRole("button", { name: "Finish account setup" }).click();
+  await expect(page).toHaveURL(/\/app$/u);
+}
+
+async function expectNoDocumentOverflow(page: Page): Promise<void> {
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+      ),
+    )
+    .toBe(true);
+}
+
 for (const route of [
   "/",
   "/join",
@@ -186,4 +214,68 @@ test("the dark design-system gallery has no serious or critical axe violations",
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
   await expectNoSeriousOrCriticalViolations(page);
+});
+
+test("the authenticated library, creation dialog, and card editor are accessible by keyboard", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await createA11yAuthor(page);
+
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "A clear place to build, Accessibility author.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Welcome, Accessibility author/i })).toHaveCount(
+    0,
+  );
+  await expectNoDocumentOverflow(page);
+  await expectNoSeriousOrCriticalViolations(page);
+
+  await page.getByRole("button", { name: "Create deck" }).first().click();
+  const createDialog = page.getByRole("dialog", { name: "Create a deck" });
+  await expect(createDialog).toBeVisible();
+  await expect(createDialog.getByRole("textbox", { name: "Deck title" })).toBeFocused();
+  await expectNoSeriousOrCriticalViolations(page);
+  await page.keyboard.press("Escape");
+  await expect(createDialog).toBeHidden();
+
+  await page.goto("/app/decks/new");
+  await expect(page.locator(".card-type-option")).toHaveCount(17);
+  const typedAnswer = page.locator('[aria-describedby="card-type-typed_answer-detail"]');
+  await expect(typedAnswer).toBeVisible();
+  await typedAnswer.focus();
+  await expect(typedAnswer).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(typedAnswer).toHaveAttribute("aria-pressed", "true");
+  await expectNoDocumentOverflow(page);
+  await expectNoSeriousOrCriticalViolations(page);
+
+  await page.getByRole("textbox", { name: "Deck title" }).fill("Accessible authoring deck");
+  const createResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/content/decks") && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Create deck and continue" }).click();
+  expect((await createResponse).status()).toBe(201);
+  await expect(page).toHaveURL(/\/app\/decks\/[^/]+\/edit\?type=typed_answer$/u);
+
+  const prompt = page.getByRole("textbox", { name: "Prompt" });
+  await prompt.focus();
+  await expect(prompt).toBeFocused();
+  await page.keyboard.type("What does ATP stand for?");
+  await page.getByRole("textbox", { name: "Displayed answer" }).fill("Adenosine triphosphate");
+  await page
+    .getByRole("textbox", { name: "Accepted typed answers" })
+    .fill("adenosine triphosphate");
+  await expect(page.getByText("Sibling 1")).toBeVisible();
+  await expectNoDocumentOverflow(page);
+  await expectNoSeriousOrCriticalViolations(page);
+
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Delete this deck?" })).toBeVisible();
+  await page.getByRole("button", { name: "Delete deck" }).click();
+  await expect(page).toHaveURL(/\/app$/u);
 });

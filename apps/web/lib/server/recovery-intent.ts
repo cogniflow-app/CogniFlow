@@ -5,7 +5,7 @@ import {
   recoverySessionIntentSchema,
   type PendingRecoveryIntent,
 } from "@lumen/auth/inputs";
-import { normalizeReturnUrl } from "@lumen/auth/redirects";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import { getServerEnvironment } from "@lumen/config/server-env";
 import type { NextRequest, NextResponse } from "next/server";
 
@@ -60,7 +60,7 @@ export async function issuePendingRecoveryIntent(
     flowNonceHash: await sha256Hex(callbackNonce),
     issuedAt: now.toISOString(),
     purpose: "pending_password_recovery",
-    returnTo: normalizeReturnUrl(input.returnTo),
+    returnTo: normalizeAuthenticationReturnUrl(input.returnTo),
     subjectHash: await hmacSha256Hex(
       input.email.trim().toLowerCase(),
       getServerEnvironment().appEncryptionKey,

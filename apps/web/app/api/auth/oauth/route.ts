@@ -1,6 +1,6 @@
 import { signupAgeBandSchema } from "@lumen/auth";
 import { oauthProviderNameSchema } from "@lumen/auth/providers";
-import { normalizeReturnUrl } from "@lumen/auth/redirects";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import { getServerEnvironment } from "@lumen/config/server-env";
 import type { NextRequest } from "next/server";
 
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         retryable: false,
       });
     }
-    const returnTo = normalizeReturnUrl(candidate.returnTo);
+    const returnTo = normalizeAuthenticationReturnUrl(candidate.returnTo);
     let pendingAgeGate: Awaited<ReturnType<typeof issueOAuthAgeGate>>;
     if (candidate.intent === "sign_up") {
       if (!ageBand) throw new Error("INVALID_INPUT");

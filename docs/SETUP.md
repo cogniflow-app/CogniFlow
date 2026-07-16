@@ -1,6 +1,6 @@
 # Local setup
 
-This guide brings the Phase 01 workspace up from a clean checkout. Commands run from the repository root unless stated otherwise.
+This guide brings the Phase 02 workspace up from a clean checkout. Commands run from the repository root unless stated otherwise.
 
 ## Prerequisites
 
@@ -81,7 +81,30 @@ pnpm test:db
 pnpm db:types
 ```
 
-`db:reset` applies the Phase 00 foundation followed by every additive Phase 01 migration through `20260715006900_hosted_grant_parity.sql`, including the school-managed payload hardening, profile-session revocation boundary, and explicit hosted service-role grant parity. `pnpm db:types` writes the generated public database contract; `pnpm db:types:check` verifies that the committed contract matches a fresh local schema.
+`db:reset` applies the Phase 00 foundation, every additive Phase 01 migration through
+`20260715006900_hosted_grant_parity.sql`, and the Phase 02 content chain:
+
+```text
+20260716000000_content_schema.sql
+20260716001000_content_authorization_and_rpcs.sql
+20260716002000_content_integration_hardening.sql
+20260716003000_content_rpc_parameter_names.sql
+20260716004000_content_guarded_read_volatility.sql
+20260716005000_content_security_audit_hardening.sql
+20260716006000_content_note_create_identity.sql
+20260716007000_content_conflict_sqlstate.sql
+```
+
+The content chain creates the 17 system note types, folders/decks/notes/generated cards, immutable
+versions, frozen publication projection, and private `lumen-content-media` Storage bucket with its
+RLS policies. Its forward hardening composes note/media writes, exposes stable named PostgREST
+arguments, classifies guarded reads correctly, requires explicit concurrency versions, serializes
+and reauthorizes mutation replay, makes ready objects browser-immutable, and reconciles embedded
+media usage. It also assigns an omitted new-note ID from the required idempotency UUID and raises
+typed stale-version outcomes with non-serialization SQLSTATE `P0001`, avoiding duplicate creation
+identities and automatic serialization retry loops. It does not create learner scheduling state or
+seed product rows. `pnpm db:types` writes the generated public database contract;
+`pnpm db:types:check` verifies that the committed contract matches a fresh local schema.
 
 `db:reset` is intentionally destructive to the local development database only. Never point the local command at a hosted database. Stop services without deleting local volumes using:
 
@@ -116,6 +139,13 @@ Forgot-password requests use independent signed pending state. Before requesting
 ## Environment variables
 
 `.env.example` is the canonical inventory.
+
+Phase 02 adds no environment variable. Media quotas are currently versioned application and
+database policy, not deployment overrides: 5 MiB per image, 10 MiB per audio asset, 50 MiB media
+per account, uploaded video disabled, and a seven-day delayed-unreferenced-media
+window. A future configurable quota must be added to the typed parser, `.env.example`,
+[HOSTED_ENVIRONMENT.md](./HOSTED_ENVIRONMENT.md), migrations/RPCs, and tests together; do not invent
+an unparsed provider variable.
 
 For the exhaustive hosted scope, source, required/optional, and browser/server classification, see
 [HOSTED_ENVIRONMENT.md](./HOSTED_ENVIRONMENT.md). Do not infer a hosted variable from a feature
@@ -275,7 +305,38 @@ Phase 01 implements the service-only `admin_process_account_deletion(deletion_jo
 4. monitor and alert on stuck/failed jobs without logging account content, credentials, or proof values; and
 5. update the reviewed deletion matrix whenever a later phase adds a data-owning table.
 
-The transaction removes the Supabase Auth principal and secret/session material, revokes access and active evidence, minimizes mutable account/learner fields, and retains opaque tombstone identities required by append-only consent and audit records. It does not assemble an export archive, and a queued job is not a completed deletion. Configure the schedule and service credential only in an owner-controlled worker environment.
+The transaction removes the Supabase Auth principal and secret/session material, revokes access and
+active evidence, minimizes mutable account/learner fields, and retains opaque tombstone identities
+required by append-only consent and audit records. The Phase 02 extension also withdraws owned
+publications, minimizes folders/decks/notes/tags/custom note types, redacts history payloads while
+retaining structural coordinates, clears content mutation receipts, and marks owned media for
+immediate operated cleanup. It does not assemble an export archive or itself delete Storage bytes,
+and a queued job is not a completed deletion. Configure the schedule and service credential only
+in an owner-controlled worker environment.
+
+## Phase 02 media behavior
+
+No dashboard bucket setup is required. The migration creates the private
+`lumen-content-media` bucket, its supported image/audio MIME allowlist, and object policies.
+After `pnpm db:reset`, confirm it exists through the database tests rather than changing it in
+Supabase Studio.
+
+The web upload flow accepts JPEG, PNG, or WebP images and MP3/M4A, Ogg, WAV, or WebM audio. Images
+require alt text; audio requires a transcript. The browser preprocesses images and hashes bytes,
+but the server independently verifies content length, magic bytes, claimed/detected MIME,
+SHA-256, and image dimensions before finalization. A duplicate digest reuses the owner's existing
+matching asset. The registered path begins with an opaque media public UUID rather than the owner
+account UUID. Browser credentials may replace/delete only an exact `pending` registered object;
+the authorization locks the row against a racing trusted finalization, and a verified `ready`
+object is immutable. A newly verified unreferenced asset receives a seven-day cleanup deadline.
+Explicit links, deck covers, audio prompts, pronunciation reference audio, and drawing reference
+layers share one authoritative usage count; adding usage clears the deadline and retiring the final
+usage starts it again. A recording remains local until the creator selects the explicit upload
+action.
+
+Use small, non-sensitive development media. The local private object URL is signed for a short
+preview and must not be copied into fixtures or docs. Uploaded video remains unsupported; a rich
+document may represent only the allowlisted privacy-enhanced external-video descriptor.
 
 ## Run the web application
 
@@ -283,7 +344,7 @@ The transaction removes the Supabase Auth principal and secret/session material,
 pnpm dev
 ```
 
-The default application URL is `http://127.0.0.1:3100`. Implemented Phase 01 surfaces include:
+The default application URL is `http://127.0.0.1:3100`. Implemented Phase 01/02 surfaces include:
 
 - `/` — public landing page;
 - `/privacy`, `/terms`, `/safety`, `/copyright` — public information surfaces;
@@ -291,15 +352,51 @@ The default application URL is `http://127.0.0.1:3100`. Implemented Phase 01 sur
 - `/api/health` — non-sensitive runtime/build health;
 - `/auth/sign-up`, `/auth/sign-in`, `/auth/magic-link`, `/auth/forgot-password`, and callback/error routes — real Supabase Auth flows;
 - `/onboarding` — minimum-data adult/teen onboarding with a neutral guardian-required under-13 outcome;
-- `/app` — server-protected account workspace;
+- `/app` — canonical query-backed deck/folder library dashboard; `/app/library` redirects here;
+- `/app/decks/new` — card-type-aware deck creation;
+- `/app/decks/[id]` — deck overview;
+- `/app/decks/[id]/edit` — rich single-note authoring and generated-card preview;
+- `/app/decks/[id]/cards` — note/card browser and bulk/quick authoring;
+- `/app/decks/[id]/history` — immutable version history and restore;
+- `/app/decks/[id]/settings` — metadata, reversible archive/restore, confirmed tombstone deletion,
+  and publication controls;
 - `/app/settings/*` — profile, security, connected-provider, device, learner, guardian, and privacy/job state;
+- `/deck/[slug]` — public/unlisted frozen deck preview; unlisted pages emit `noindex`;
+- `/embed/deck/[publicId]` — read-only publication projection for the reviewed embed surface;
 - `/dev/design-system` — developer component gallery, marked against production indexing.
 
-No fixture room is joinable in a deployed build, and the dashboard contains no synthetic study progress. Study/deck functionality begins in its owning phase.
+No fixture room is joinable in a deployed build, and the dashboard contains no synthetic study
+progress. Card preview does not persist progress, schedule a card, or update mastery. FSRS/review is
+introduced only by Phase 03.
 
 The shared public header resolves a server-only viewer projection. Verified accounts see the workspace action; visitors receive sign-in/sign-up links whose `returnTo` preserves only the current canonical public route family and query. The resolver rejects external origins, API/auth/account paths, traversal, and encoded navigation hazards and treats an Auth outage as an anonymous public shell. `/join/[code]` uses the same context so account creation can return to that room-code page without making the public viewer an authorization boundary.
 
-The protected shell resolves appearance from the active learner on the server. Self mode hydrates the account theme/motion/serious-mode fields; managed mode hydrates only learner settings and defaults missing values to reduced motion plus serious mode. This projection overwrites stale local browser preferences, and the profile form synchronizes it immediately after a successful save.
+The Workspace reset defect came from two competing sources: the public Appearance control wrote
+only browser-local state, while the protected layout rendered the account's older `system` tuple
+and its hydrator then applied that projection unconditionally. Navigating into Workspace therefore
+replaced the user's fresh explicit choice before any durable account mutation existed.
+
+The protected shell resolves appearance from the active learner on the server. Self mode hydrates
+the account theme/motion/serious-mode fields; managed mode hydrates only learner settings and
+defaults missing values to reduced motion plus serious mode. Authenticated Appearance controls now
+optimistically apply and persist the complete tuple through `/api/settings/appearance`. A bounded
+pending/confirmed mutation marker prevents a stale protected render from immediately undoing that
+explicit choice, retries after reconnect, and synchronizes tabs. A rejected/expired write returns
+to server precedence. Identity-boundary cleanup resets browser state before another learner is
+adopted. Operating-system reduced motion is always at least as restrictive as the stored value.
+
+The exact order is: protected self account projection; a fresh (at most 24-hour) in-flight or
+confirmed complete-tuple write only when the render is stale; protected managed-learner projection;
+browser-local explicit state on anonymous/public routes; then the safe `system`/motion-on/serious-off
+default. There is no appearance cookie. `system` alone follows operating-system color changes;
+explicit light/dark does not. Operating-system reduced motion still restricts either choice, and
+serious/reduced-motion settings never rewrite color. Root and protected bootstrap scripts apply the
+choice before hydration to avoid a route-mount theme flash.
+
+Authentication, recovery, confirmation, OAuth, and onboarding use `/app` as their safe fallback.
+They preserve a validated same-origin public or protected return destination, but reject external,
+protocol-relative, encoded navigation hazards and Auth/API/onboarding lifecycle paths to avoid
+open redirects and callback loops.
 
 Runtime authentication-profile lookup and application-device registration are intentionally RPC-only. Device registration verifies the exact live Supabase Auth session and returns the canonical application device; do not add service-role table reads as a shortcut. “Sign out this device” revokes only the current JWT-bound device/profile sessions and remains available in managed mode. “Sign out all devices” is a separate self-context action that requires the guardian/account password, consumes a fresh `security_change` proof, and then revokes every application device before global Supabase sign-out.
 
@@ -349,6 +446,25 @@ when a required value is absent or malformed. `pnpm build:verify`, `pnpm test:li
 write an environment file and are not a deployment configuration.
 
 See [TESTING.md](./TESTING.md) for scope and failure artifacts.
+
+Provider acceptance is intentionally outside `pnpm verify`. After the complete local suite, a
+committed feature branch, guarded Preview database promotion, and an exact Vercel Preview URL, the
+operator sequence is:
+
+```bash
+pnpm db:deploy:preview
+pnpm db:verify:preview
+pnpm test:hosted:preview --url https://<exact-preview-host>.vercel.app
+pnpm test:hosted:preview:content --url https://<exact-preview-host>.vercel.app
+pnpm db:verify:preview
+```
+
+The content runner is Preview-only. It creates one UUID-marked disposable adult account/deck,
+captures the Preview project server key only in memory through the authenticated Supabase CLI,
+disables Playwright trace/video, and always attempts Auth/content/publication cleanup plus an empty
+recursive Storage-object assertion. Supply the Vercel automation bypass transiently when the
+project's protection requires it. Do not call the hosted-content Playwright file directly, copy a
+hosted key into `.env.local`, or use this path against Beta/Production.
 
 ## Deployment setup summary
 

@@ -1,8 +1,8 @@
 # Event protocol template
 
-**Scope:** Versioning/safety contract plus Phase 01 identity audit facts  
-**Implemented product event catalogs:** Phase 01 sensitive-change audit catalog  
-**Last updated:** 2026-07-15
+**Scope:** Versioning/safety contract, Phase 01 identity audit facts, and Phase 02 content commands  
+**Implemented product event catalogs:** Phase 01 identity/privacy and Phase 02 content audit catalogs  
+**Last updated:** 2026-07-16
 
 This document defines the template later phases must use for offline outbox events, realtime game/collaboration messages, immutable ledgers, and integration events. Phase 01 adds a private server-authored audit catalog; it is not a realtime transport or client event bus. Each owning phase must add its concrete event schemas, authorization rules, retention policy, and compatibility tests before exposing a producer.
 
@@ -196,6 +196,74 @@ The school-profile creation fact is emitted only after the consumer accepts a mi
 
 The signed onboarding cookie and consent-verifier response are inputs to proof issuance; neither is written to these ledgers or accepted directly by the mutation RPC. The strict verified-child issuer accepts only the exact minimized consent scope and closed settings schema, including all required keys with correct JSON types and no extras. The lower-level child issuer/creator is not service-callable. Audit facts record issuance/consumption IDs and bounded age/target context, never the raw proof, payload digest, verifier credential, or guardian bearer token.
 
+## Phase 02 content mutation and audit facts
+
+**Protocol name:** content-authoring commands and accepted audit facts  
+**Owning package/phase:** domain/server/database, Phase 02  
+**Current version:** operation names and payload contracts defined by the Phase 02 migrations; no offline wire protocol yet  
+**Producer authority:** authenticated `current_*` content transactions and the service-only media finalizer  
+**Consumers:** creator UI conflict/replay handling; future owner security/content operations  
+**Transport:** bounded same-origin Route Handler input followed by a transaction-local Postgres RPC  
+**Ordering scope:** positive resource version and deck content-version within the affected resource  
+**Delivery semantics:** at least once from the client; exactly-once accepted effect per account/idempotency key in the database  
+**Idempotency key:** client-generated UUID scoped to authenticated account plus exact operation  
+**Retention:** mutation receipts are operational replay state; note/deck revisions are durable content history; cleanup is not deployed in Phase 02  
+**PII classification:** account/resource opaque IDs and bounded content metadata; audit facts exclude authored field/media bytes  
+**Authorization rule:** self learner + live Auth-session device + resource permission + optimistic version where applicable  
+**Schema source:** content input/domain schemas, `private.content_mutation_receipts`, immutable revision tables, and `public.audit_events`
+
+A content Route Handler receives a command, not an accepted fact. It validates the request body,
+same-origin context, active self learner, current device-bound Auth session, card/rich-document
+schema, and resource identifiers. The RPC repeats the authoritative actor/resource check, obtains a
+row/advisory lock as required, and compares an explicit expected version. New-note creation uses
+the sentinel `0` at the database boundary: the browser's null creation marker is mapped to `0` by
+the Route Handler. When no note ID exists yet, the atomic note/media boundary derives that stable
+ID from the command's required idempotency UUID. Null update versions and null bulk-vector elements
+are invalid rather than wildcard versions.
+
+Private receipt lookup serializes the account/idempotency-key pair with a transaction advisory lock
+before checking replay state. A successful exact replay returns the stable resource/result and does
+not create a second deck, note, version, media reference, or publication, but only after rechecking
+that the actor still has the permission required for the stored resource/operation. Concurrent
+retries therefore converge, and revoking a collaborator also revokes their ability to replay an old
+accepted receipt.
+
+One account cannot reuse an idempotency key for a different operation. A version mismatch returns
+an actionable conflict containing resource type/ID and expected/actual version under user-exception
+SQLSTATE `P0001`, not serialization-failure `40001`, so transport/database clients do not
+automatically repeat a known-stale command. The browser can invoke only the atomic note/media
+command: fields, specialized rows,
+sources, tags, media links, sibling reconciliation, revision, deck-version bump, and impact either
+all commit or all roll back. Note and deck revision rows are immutable accepted snapshots, not
+commands. A version restore appends a new head and audit fact instead of rewriting historical
+events and reconciles orphaned explicit/specialized media usage.
+
+Accepted Phase 02 audit facts are:
+
+| Area                 | Event names                                                                                                                                                                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Folder               | `content.folder_created`, `content.folder_updated`, `content.folder_deleted`                                                                                                                                                               |
+| Note type            | `content.note_type_created`, `content.note_type_updated`                                                                                                                                                                                   |
+| Deck                 | `content.deck_created`, `content.deck_updated`, `content.deck_duplicated`, `content.deck_archived`, `content.deck_restored`, `content.deck_deleted`, `content.deck_published`, `content.deck_unpublished`, `content.deck_version_restored` |
+| Note/card generation | `content.note_created`, `content.note_updated`, `content.note_deleted`, `content.note_media_reconciled`, `content.notes_bulk_tagged`, `content.notes_bulk_moved`                                                                           |
+| Media                | `content.media_registered`, `content.media_verified`, `content.media_quarantined`, `content.media_linked`, `content.media_released`                                                                                                        |
+
+Audit metadata is deliberately small: lifecycle/visibility/version/card-count, deck association, or
+media kind/byte size/status as appropriate. It never includes rich documents, template source,
+field text, Storage object bytes, signed URLs, raw hash claims, transcripts, bearer credentials, or
+future learner schedule. Media verification and quarantine are emitted only after the server-held
+finalizer compares detected MIME/hash/magic state with the owner-bound registered asset.
+
+Card-generation reconciliation is deterministic from sanitized authoring data, current stored
+generation identities, and the next content version. It creates no random semantic key and reads
+no clock/provider state. The transaction preserves/reactivates matching identities, creates only
+new semantic siblings, and deactivates obsolete siblings. A duplicate/mismatched existing identity
+is a rejected command, not an event that silently changes card meaning.
+
+Phase 02 does not define an offline content-operation envelope. Phase 05 must wrap these same
+idempotency/version contracts in its outbox protocol and add merge/conflict/replay retention rules;
+it may not weaken the database command boundary.
+
 ## Catalog ownership
 
 Later phases add sections here rather than creating undocumented payloads:
@@ -203,6 +271,7 @@ Later phases add sections here rather than creating undocumented payloads:
 | Protocol                | Owning phase          | Status          |
 | ----------------------- | --------------------- | --------------- |
 | Identity/privacy audit  | Phase 01              | Implemented     |
+| Content authoring/audit | Phase 02              | Implemented     |
 | Review/offline sync     | Phase 03 and Phase 05 | Not implemented |
 | Collaboration           | Phase 07              | Not implemented |
 | Assignment/reporting    | Phase 08              | Not implemented |

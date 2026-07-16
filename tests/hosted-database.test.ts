@@ -8,6 +8,7 @@ import {
   assertDeployableMigrationHistory,
   assertExactMigrationHistory,
   assertEmptyHostedStorage,
+  assertHostedStoragePaths,
   assertPreviewPromotionState,
   createHostedDatabaseCommandPlan,
   HOSTED_DATABASE_TARGETS,
@@ -180,10 +181,18 @@ describe("hosted database command guards", () => {
     ]);
   });
 
-  it("requires an empty hosted storage inventory", () => {
+  it("requires the exact Phase 02 bucket and an empty object inventory", () => {
+    expect(() =>
+      assertHostedStoragePaths('{"paths":["lumen-content-media/"],"message":""}', [
+        "lumen-content-media/",
+      ]),
+    ).not.toThrow();
+    expect(() =>
+      assertHostedStoragePaths('{"paths":["unexpected/"],"message":""}', ["lumen-content-media/"]),
+    ).toThrow(/Phase 02 contract/u);
     expect(() => assertEmptyHostedStorage('{"paths":[],"message":""}')).not.toThrow();
     expect(() => assertEmptyHostedStorage('{"paths":[{"name":"unexpected"}]}')).toThrow(
-      /outside the Phase 01 contract/u,
+      /Phase 02 contract/u,
     );
     expect(() => assertEmptyHostedStorage("not-json")).toThrow(/valid JSON/u);
   });

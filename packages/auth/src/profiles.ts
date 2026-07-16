@@ -118,6 +118,11 @@ export const profilePreferencesSchema = z
   })
   .strict();
 
+/** A focused account mutation used by the global appearance control. */
+export const accountAppearanceInputSchema = profilePreferencesSchema
+  .pick({ reduceMotion: true, seriousMode: true, theme: true })
+  .strict();
+
 export const onboardingInputSchema = z
   .object({
     displayName: displayNameSchema,
@@ -342,6 +347,7 @@ export type LearnerKind = z.infer<typeof learnerKindSchema>;
 export type LearnerAccessRole = z.infer<typeof learnerAccessRoleSchema>;
 export type AccountCapabilityName = z.infer<typeof accountCapabilityNameSchema>;
 export type ProfilePreferences = z.infer<typeof profilePreferencesSchema>;
+export type AccountAppearanceInput = z.infer<typeof accountAppearanceInputSchema>;
 export type OnboardingInput = z.infer<typeof onboardingInputSchema>;
 export type OnboardingDetailsInput = z.infer<typeof onboardingDetailsInputSchema>;
 export type OnboardingAgeGateSelectionInput = z.infer<typeof onboardingAgeGateSelectionInputSchema>;

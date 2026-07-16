@@ -187,6 +187,45 @@ describe("identity route boundaries", () => {
     expect(mocks.signInWithPassword).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [undefined, "/app"],
+    ["/app/library?view=list", "/app/library?view=list"],
+    ["/auth/sign-in", "/app"],
+    ["https://attacker.example/steal", "/app"],
+  ])("finishes password sign-in at the safe destination %s", async (returnTo, expected) => {
+    const accountId = "11111111-1111-4111-8111-111111111111";
+    mocks.signInWithPassword.mockResolvedValue({
+      data: {
+        session: { access_token: "server-applied-session" },
+        user: { email: "learner@example.test", id: accountId },
+      },
+      error: null,
+    });
+    mocks.privilegedRpc
+      .mockResolvedValueOnce({
+        data: [{ onboarding_completed_at: "2026-07-01T00:05:00Z", profile_exists: true }],
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: true, error: null });
+
+    const response = await passwordPost(
+      mutationRequest("/api/auth/password", {
+        email: "learner@example.test",
+        intent: "sign_in",
+        password: "correct horse battery staple",
+        ...(returnTo === undefined ? {} : { returnTo }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ next: expected, status: "authenticated" });
+    expect(mocks.registerRequestDevice).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      accountId,
+      expect.anything(),
+    );
+  });
+
   it("binds an eligible password signup to an HttpOnly callback age gate", async () => {
     mocks.signUp.mockResolvedValue({ data: { session: null, user: null }, error: null });
     const response = await passwordPost(

@@ -1,9 +1,16 @@
 # Hosted environment contract
 
-This is the secret-free environment inventory for the Phase 01 hosted deployment. It maps the
+This is the secret-free environment inventory for the Phase 02 application and hosted deployment. It maps the
 variables accepted by the application, repository tools, Vercel, and the local Supabase helper.
 The runtime parsers remain authoritative; `.env.example` is the copyable local template. Do not
 put real values in either file.
+
+Phase 02 adds no accepted environment variable and no provider credential. Its image/audio size,
+per-account media quota, private-bucket name, allowed MIME set, and delayed-deletion interval are
+enforced in the application/migrations and reviewed as code. Do not add ad hoc Vercel variables
+such as `MAX_MEDIA_BYTES` unless a later change first adds the typed parser, public template,
+database/application enforcement, tests, and this inventory. The existing server-held Supabase
+credential is used only by the bounded media finalizer; it is not a new or media-specific secret.
 
 In the tables below, **required** means that a production build or runtime fails closed when the
 value is absent. **Optional** means that absence is an accepted state. A provider-managed value is
@@ -142,8 +149,28 @@ but keeping them as transient shell values avoids stale deployment targets.
 | `SUPABASE_TELEMETRY_DISABLED`     | Local/CI Supabase CLI             | Optional; CI sets `true`                                                                        | Tool control, non-secret | Disables Supabase CLI telemetry                                   | Not a Vercel application variable                   |
 | `NO_COLOR`                        | Hosted database operator tool     | Internally forced to `1` by the hosted database runner                                          | Tool control, non-secret | Keeps CLI output deterministic                                    | Same for Preview and Beta database commands         |
 
-The hosted smoke runner internally sets `HOSTED_SMOKE_TARGET`; no application or test currently
-consumes it, so it is not an operator configuration variable.
+The baseline hosted smoke runner internally sets `HOSTED_SMOKE_TARGET`; the application does not
+consume it, so it is not an operator configuration variable.
+
+### Guarded Preview content-runner process values
+
+`pnpm test:hosted:preview:content` is an operator tool, not an application runtime. It generates a
+UUIDv4 run ID, retrieves the exact Preview project's server key through the operator's authenticated
+Supabase CLI, and injects these values only into its Playwright child process:
+
+| Exact name                           | Source and lifetime                                  | Purpose                                                     |
+| ------------------------------------ | ---------------------------------------------------- | ----------------------------------------------------------- |
+| `HOSTED_ACCEPTANCE_RUN_ID`           | Runner-generated; one disposable acceptance run      | Names/marks the exact fixture and cleanup target            |
+| `HOSTED_PREVIEW_SUPABASE_URL`        | Fixed Preview project URL; one child process         | Admin Auth endpoint for fixture confirmation                |
+| `HOSTED_PREVIEW_SUPABASE_SECRET_KEY` | CLI-retrieved in memory; secret; one child process   | Confirms/marks only the reserved disposable Auth fixture    |
+| `PLAYWRIGHT_BASE_URL`                | Validated exact Vercel Preview origin                | Targets the application under review                        |
+| `VERCEL_AUTOMATION_BYPASS_SECRET`    | Optional operator secret; inherited only when needed | Crosses Standard Deployment Protection without weakening it |
+
+Operators supply only the exact Preview URL and, when protection requires it, the existing bypass
+secret through an approved transient source. They must not set, persist, or copy the runner's
+Supabase secret variable. The runner disables trace/video, never prints the captured key, limits the
+target to this repository's Vercel hostname family, and always attempts fixture cleanup before
+returning the test result.
 
 ## Local Supabase CLI output aliases
 
@@ -178,7 +205,7 @@ repository:
   provider. The three `AUTH_OAUTH_*_ENABLED` flags only control application affordances. Keep the
   flags false and the providers disabled until valid credentials and callbacks are configured.
 - The application accepts no SMTP API key, email-provider API key, analytics credential,
-  monitoring credential, or cloud-AI credential variable in Phase 01. Absence is the disabled
+  monitoring credential, or cloud-AI credential variable in Phase 01/02. Absence is the disabled
   state.
 - Hosted migration commands use the authenticated local Supabase CLI and never read a database
   password or access token from repository configuration. Vercel deployment commands use the
@@ -202,9 +229,11 @@ Every other variable in this document must retain its exact non-public name. In 
 create a `NEXT_PUBLIC_` form of `SUPABASE_SECRET_KEY`, `DATABASE_URL`, `APP_ENCRYPTION_KEY`,
 `GUEST_TOKEN_SIGNING_KEY`, `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`,
 `PARENTAL_CONSENT_VERIFIER_API_KEY`, `PARENTAL_CONSENT_VERIFIER_URL`, or
-`VERCEL_AUTOMATION_BYPASS_SECRET`. Database passwords,
-Supabase secret/service-role keys, OAuth client secrets, SMTP credentials, provider API tokens,
-CLI tokens, signing keys, and encryption keys are always server/tool secrets.
+`VERCEL_AUTOMATION_BYPASS_SECRET`. The runner-internal
+`HOSTED_PREVIEW_SUPABASE_SECRET_KEY` is equally secret and must never become application
+configuration. Database passwords, Supabase secret/service-role keys, OAuth client secrets, SMTP
+credentials, provider API tokens, CLI tokens, signing keys, and encryption keys are always
+server/tool secrets.
 
 The Vercel automation bypass is not an application environment value. Supply it only through a
 transient operator shell/keychain, or an approved GitHub Actions secret if hosted smoke is later
@@ -214,7 +243,7 @@ tracked runbook. The runner sends it only to the exact `recallflash.com` apex or
 
 ## Intentionally absent variables
 
-Do not invent environment values for subsystems that do not have a Phase 01 variable contract:
+Do not invent environment values for subsystems that do not have a Phase 01/02 variable contract:
 
 - **Session secret:** there is no application `SESSION_SECRET`. Supabase owns account session
   signing, while managed-profile sessions use server-verified opaque records and configured TTL.

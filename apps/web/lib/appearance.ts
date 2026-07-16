@@ -1,5 +1,8 @@
 export type ColorPreference = "light" | "dark" | "system";
 
+export const APPEARANCE_STORAGE_KEY = "lumen:appearance:v1";
+export const APPEARANCE_ACCOUNT_WRITE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
 export interface AppearancePreferences {
   readonly color: ColorPreference;
   readonly reduceMotion: boolean;

@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./phase-two.css";
 
 import { brandConfig } from "@lumen/config/brand";
 import { readPublicEnvironment } from "@lumen/config/public-env";
@@ -79,7 +80,7 @@ const appearanceScript = `
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={`${manrope.variable} ${newsreader.variable}`}>
         <script dangerouslySetInnerHTML={{ __html: appearanceScript }} />
         <AppearanceProvider>

@@ -11,10 +11,15 @@ interface SiteNavigationLink {
 
 interface SiteNavigationProps {
   readonly accountAction: ReactNode;
+  readonly persistAppearanceToAccount?: boolean;
   readonly links: readonly SiteNavigationLink[];
 }
 
-export function SiteNavigation({ accountAction, links }: SiteNavigationProps) {
+export function SiteNavigation({
+  accountAction,
+  links,
+  persistAppearanceToAccount = false,
+}: SiteNavigationProps) {
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
 
@@ -54,7 +59,7 @@ export function SiteNavigation({ accountAction, links }: SiteNavigationProps) {
           ))}
           {accountAction}
         </nav>
-        <AppearanceControls />
+        <AppearanceControls persistToAccount={persistAppearanceToAccount} />
       </div>
     </div>
   );

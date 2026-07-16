@@ -1,10 +1,15 @@
 # Data model conventions
 
-**Scope:** Phase 00 foundation and Phase 01 identity/privacy model  
+**Scope:** Phase 00 foundation, Phase 01 identity/privacy, and Phase 02 content authoring  
 **Canonical target:** [PRODUCT_BLUEPRINT.md, section 8](./PRODUCT_BLUEPRINT.md#8-database-model)  
-**Last updated:** 2026-07-15
+**Last updated:** 2026-07-16
 
-Phase 00 establishes the modeling conventions. Phase 01 adds the identity, learner-access, consent, device/session, privacy-job, audit, rate-limit, and guest-identity foundation. Content, scheduling, mastery, sharing, class, game-room, progression, and AI tables remain owned by later phases. If this document and the blueprint differ on product meaning, the blueprint wins and the mapping must be recorded here when the owning migration is added.
+Phase 00 establishes the modeling conventions. Phase 01 adds the identity, learner-access, consent,
+device/session, privacy-job, audit, rate-limit, and guest-identity foundation. Phase 02 adds decks,
+notes, stable generated cards, content versions, safe publication snapshots, and private media.
+Scheduling, mastery, collaboration/discovery, class, game-room, progression, and AI tables remain
+owned by later phases. If this document and the blueprint differ on product meaning, the blueprint
+wins and the mapping must be recorded here when the owning migration is added.
 
 ## Schema ownership
 
@@ -31,7 +36,7 @@ Migration `20260714000000_foundation.sql` creates only the reusable foundation:
 
 The pgTAP foundation suite contains 11 assertions covering extension availability, helper security mode/search path, and schema/function privilege denial. Phase 00 creates no application tables, public RPCs, or storage buckets, so there is not yet a product RLS matrix. The executable seed inserts no rows.
 
-## Phase 01 identity and privacy objects
+## Phase 01 identity and privacy migrations
 
 The additive migrations are:
 
@@ -57,6 +62,173 @@ The additive migrations are:
 - `20260715006900_hosted_grant_parity.sql` — revocation of hosted platform default `service_role` table/sequence privileges and matching future default privileges so the hosted RPC-only boundary remains identical to local policy.
 
 No Phase 00 migration is edited. No storage bucket or product-content table is introduced.
+
+## Phase 02 content-authoring objects
+
+The additive Phase 02 migrations are:
+
+- `20260716000000_content_schema.sql` — content enums, folders/decks, note-type/template schema,
+  notes/fields/tags, generated cards and specialized rows, media/reference rows, immutable
+  revisions/versions, content-impact records, frozen publication tables, 17 system note types,
+  indexes, RLS enablement, and default-deny grants;
+- `20260716001000_content_authorization_and_rpcs.sql` — cycle guards, content authorization
+  predicates, read policies, security-invoker public views, actor-derived idempotent/versioned
+  mutation RPCs, card reconciliation and version capture, media bucket/policies, publication
+  projection, narrow public reads, the Phase 01 due-account-deletion content extension, and exact
+  grants;
+- `20260716002000_content_integration_hardening.sql` — atomic note-plus-media reconciliation,
+  actor-scoped media resolution and exact library counts, bulk tag/move transactions, derived
+  publication-only card/media identifiers, field filtering, public Storage-locator separation, and
+  narrow frozen-table column grants;
+- `20260716003000_content_rpc_parameter_names.sql` — stable named PostgREST parameters for archive,
+  restore, and delete lifecycle RPCs;
+- `20260716004000_content_guarded_read_volatility.sql` — `VOLATILE` classification for guarded
+  library/media reads whose shared device/session authorization takes a row lock;
+- `20260716005000_content_security_audit_hardening.sql` — serialized and authorization-aware
+  idempotency replay, non-null expected-version enforcement, atomic-only browser note/media writes,
+  pending-only Storage mutation, embedded-media usage triggers/backfill, and orphan cleanup on note
+  deletion/version restore;
+- `20260716006000_content_note_create_identity.sql` — stable note creation identity derived from
+  the required idempotency key before entering the underlying upsert implementation; and
+- `20260716007000_content_conflict_sqlstate.sql` — typed version-conflict detail retained under
+  user-exception SQLSTATE `P0001` instead of retryable serialization-failure SQLSTATE `40001`.
+
+No earlier migration is edited. Phase 02 introduces no schedule, review, mastery, assignment,
+collaboration, game, XP, currency, or AI-job row.
+
+### Blueprint-to-schema mapping
+
+| Blueprint concept            | Phase 02 object(s)                                                                                                               | Important invariant                                                                                                                                                |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Nested organization          | `folders`, `folder_items`                                                                                                        | One active folder placement per deck; owner-scoped sibling names; trigger rejects self/descendant cycles; tombstones preserve future sync semantics                |
+| Deck ownership and lifecycle | `decks`, `deck_members`                                                                                                          | Owner/member roles are relational; `version` protects metadata and lifecycle writes; `current_version` identifies content history; archive/delete are soft states  |
+| Deck taxonomy                | `tags`, `note_tags`                                                                                                              | Tags are deck-scoped and cycle-checked; note links are tombstone-capable                                                                                           |
+| Note schema                  | `note_types`, `note_type_fields`, `card_templates`                                                                               | System or account-owned types; ordered unique fields/templates; safe template/CSS checks at both domain and SQL boundaries                                         |
+| Authored notes               | `notes`, `note_field_values`                                                                                                     | Versioned note, trusted-derived plain/normalized text, cryptographic content hash, bounded rich JSON and specialized payload, soft deletion                        |
+| Generated study units        | `cards`                                                                                                                          | Stable UUID, deterministic `generation_key`, unique note/template/key, independent sibling identity, obsolete cards deactivated instead of repurposed              |
+| Choice/cloze content         | `card_choices`, `cloze_definitions`                                                                                              | Stable semantic keys and deterministic positions/ranges                                                                                                            |
+| Visual content               | `image_occlusions`, `diagram_hotspots`                                                                                           | Rectangle/ellipse/polygon geometry is normalized to 0–1 coordinates and SQL-validated; labels/aliases provide text fallback                                        |
+| Structured-answer content    | `ordering_items`, `list_answer_items`                                                                                            | Stable keys, explicit position, aliases/requiredness, and tombstones                                                                                               |
+| Audio/voice/drawing          | `audio_prompts`, `pronunciation_prompts`, `drawing_reference_layers`                                                             | Transcript/language/playback/self-review/vector data only; no cloud speech or automatic drawing score                                                              |
+| Sources                      | `source_references`                                                                                                              | Bounded structured citation document and safe HTTP(S) source URL; no trusted imported HTML                                                                         |
+| Media                        | `media_assets`, `media_references`, cover/audio/pronunciation/drawing foreign keys, private Storage bucket `lumen-content-media` | Per-owner SHA-256 deduplication, opaque-public-ID path, magic verification, quota, authorization through every usage source, authoritative count, delayed deletion |
+| Note history                 | `note_revisions`                                                                                                                 | Immutable per-note-version snapshots and actor/idempotency uniqueness                                                                                              |
+| Deck history                 | `deck_versions`                                                                                                                  | Immutable numbered snapshots; restore creates a new version and records `restored_from_version`                                                                    |
+| Future schedule choice       | `content_change_impacts`                                                                                                         | Scheduling-neutral classification and affected generation keys; resolution is pending/preserve/relearn/reset, but Phase 02 never updates a schedule                |
+| Mutation replay              | `private.content_mutation_receipts`                                                                                              | Account + idempotency UUID uniquely identifies one operation/resource/result; no browser schema access                                                             |
+| Public deck projection       | `deck_publications`, `card_publications`, `media_publications`; `published_decks`, `published_cards`, `published_media`          | Frozen current publication only; excludes draft/member/revision/owner UUID data; normal anonymous enumeration is public-only                                       |
+
+The complete authoring and 17-card-type contract is documented in
+[CONTENT_AUTHORING.md](./CONTENT_AUTHORING.md).
+
+### Versions, hashes, and reconciliation
+
+`notes.version`, `folders.version`, note-type/template versions, and `decks.version` are positive
+optimistic-concurrency values. A new note uses the explicit expected-version sentinel `0`; every
+update must send a non-null expected version, and every bulk vector must contain only non-null
+versions. Null is never treated as a wildcard. A mutation RPC locks the row and compares the
+caller's expected version before changing it. A mismatch raises the structured content-conflict
+detail consumed by the application under SQLSTATE `P0001`; it is never a last-write-wins success
+or a serialization failure that a database client should retry automatically. When a browser
+creation has no note ID yet, the atomic note/media boundary uses its required idempotency UUID as
+the note ID, so exact create retries cannot drift to a second identity or inherit stale procedural
+branch state.
+
+`decks.current_version` advances for accepted content changes. `note_revisions` captures the prior
+or accepted note state, and `deck_versions` captures a stable deck/content snapshot. Restoring a
+historical version appends a new head rather than updating/deleting the old snapshot.
+
+Domain generation computes a canonical semantic generation key and the database reconciler uses
+that key when preserving, reactivating, creating, or deactivating rows. The uniqueness constraint
+prevents duplicate active or historical siblings with the same identity. Content hashes are based
+on a canonical structured projection; plain text is derived from sanitized JSON at a trusted
+boundary and is not accepted as authoritative client HTML.
+
+### Authorization and RLS matrix
+
+All Phase 02 exposed tables enable RLS in the schema-creation transaction. Browser roles receive
+no direct insert, update, or delete table grants. Authenticated table reads are policy-scoped:
+
+- folders and media assets require owner identity plus a live self content context;
+- decks, notes, fields, tags, cards, specialized rows, sources, and media references require a
+  view-capable owner/member role;
+- member-list reads are limited to the caller's membership or a deck manager;
+- note revisions, deck versions, and content-impact rows require edit permission; and
+- system note types/templates are readable in an active content context, while account-owned
+  types require owner access.
+
+`private.has_current_content_context()` binds content access to a live account/device and self
+learner context. `private.can_view_deck`, `can_edit_deck`, `can_manage_deck`, `can_host_deck`,
+`can_study_deck`, and `can_view_note_type` centralize indexed policy predicates. Managed learners
+cannot inherit a guardian's creator access.
+
+Authenticated writes use exact-signature `current_*` wrappers for folder, note type, deck,
+atomic note/media reconciliation, publication, and version-restore operations. Each wrapper derives
+`auth.uid()`, requires current content context, authorizes the resource, validates the expected
+version where mutable state exists, consumes an operation-specific idempotency receipt, and writes
+bounded audit metadata. Receipt lookup first takes an account/idempotency-key transaction advisory
+lock; a replay must still pass the current permission for its stored resource. The standalone note
+upsert, media-link, and media-release components have no browser-role execute grant, so fields,
+specialized rows, sources, tags, media links, generated siblings, revision, and version bump cannot
+be split across browser transactions. The reusable implementation helpers remain inaccessible to
+browser roles. `admin_finalize_media_asset()` is service-only and accepts only the server-verified
+hash, MIME, magic result, actor, asset, and idempotency context.
+
+`current_get_library_counts()`, `current_get_deck_media()`, and `current_get_media_asset()` are
+declared `VOLATILE` even though they return read projections. Their shared current-context guard
+takes a device/session row lock, and PostgREST would otherwise execute a `STABLE` RPC in a read-only
+transaction that cannot obtain the lock.
+
+### Public projection
+
+`deck_publications`, `card_publications`, and `media_publications` are publication snapshots, not
+views over draft tables. The publish transaction verifies manage permission, expected version,
+active cards, verified media, and image alternative text before replacing the snapshot. It copies
+only public IDs, sanitized content/template data, creator attribution, license/language/theme,
+card-type summaries, safe sources, and referenced media metadata. Unpublish deletes the snapshot.
+
+The `published_*` views are `security_invoker` plus `security_barrier` and enumerate only
+`visibility = 'public'`. Anonymous/authenticated exact-resource RPCs can return a requested
+`public` or `unlisted` publication by opaque public ID or slug. Published cards use deterministic
+publication-only IDs, custom payloads retain only the selected safe template and referenced
+fields, and attached draft media IDs are rewritten to opaque media publication IDs. Those narrowly
+granted functions expose no internal deck/card/media ID, owner account ID, member row, revision,
+mutation receipt, draft hash history, Storage bucket/path, or learner state. A separate
+service-only locator function supplies exact Storage coordinates solely to mint short-lived signed
+delivery URLs.
+
+### Storage bucket and lifecycle
+
+Migration-owned bucket `lumen-content-media` is private, has a 10 MiB object ceiling, and allows
+the supported raster-image/audio MIME set only. Registration additionally enforces 5 MiB images,
+10 MiB audio, 50 MiB per owner, safe dimensions, and a lowercase SHA-256 digest. Deduplication is
+per owner, but the server-derived object path begins with the asset's separate opaque public UUID
+and never contains the owner account UUID. The Route Handler recomputes the digest and validates
+magic bytes before the service-only finalizer can mark an asset ready.
+
+Storage policies authorize insert/update/delete only for the active owner's exact registered object
+path while its asset row remains `pending`. The predicate holds a row-share lock through the
+Storage write so trusted finalization cannot race a browser replacement. A verified `ready` object
+is immutable to browser update/delete credentials. Reads require owner/authorized-deck access or a
+matching verified public publication.
+
+Explicit `media_references`, active deck covers, audio prompts, pronunciation reference audio, and
+drawing reference layers all contribute to `reference_count`. Triggers revive a deleting asset and
+clear `delete_after` when a usage becomes active; retiring the last usage schedules the seven-day
+deadline. The hardening migration retires stale links for already deleted notes and rebuilds counts
+from every active usage source. Note deletion and deck-version restore reconcile both explicit and
+specialized usages. Physical-object cleanup requires an operated worker and is not claimed merely
+because the timestamp exists.
+
+The existing due-account-deletion transaction now activates a private Phase 02 extension during
+the guarded `pending_deletion` to `deleted` transition. It withdraws owned publications, revokes
+content relationships, soft-deletes and minimizes decks/notes/folders/tags/custom note types,
+redacts immutable history snapshots while retaining structural coordinates, removes private
+mutation receipts, and marks every owned media asset `deleting` with `delete_after` equal to the
+deletion time. This preserves append-only deletion evidence without retaining authored content or
+waiting another seven days to make the bytes eligible for the operated Storage cleanup worker.
+
+## Phase 01 identity and privacy model
 
 ### Account and learner mapping
 

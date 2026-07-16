@@ -39,6 +39,7 @@
     "test:lighthouse:configured": "pnpm --filter @lumen/web build && start-server-and-test 'node scripts/start-test-production-server.mjs' http-get://127.0.0.1:3100/api/health 'lhci autorun'",
     "test:load": "start-server-and-test 'node scripts/start-test-development-server.mjs' http-get://127.0.0.1:3100/api/health 'k6 run k6/smoke.js'",
     "test:hosted:preview": "node scripts/run-hosted-smoke.mjs preview",
+    "test:hosted:preview:content": "node scripts/run-hosted-content-acceptance.mjs",
     "test:hosted:production": "node scripts/run-hosted-smoke.mjs production",
     "typecheck": "turbo run typecheck",
     "verify": "node scripts/run-with-verification-environment.mjs pnpm run verify:configured",

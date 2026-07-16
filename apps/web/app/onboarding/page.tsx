@@ -1,4 +1,4 @@
-import { normalizeReturnUrl } from "@lumen/auth/redirects";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import { PageHeader, PageShell } from "@lumen/ui";
 import type { Metadata, Route } from "next";
 import { redirect } from "next/navigation";
@@ -18,13 +18,13 @@ export default async function OnboardingPage({
   searchParams: Promise<{ age?: string; returnTo?: string }>;
 }) {
   const parameters = await searchParams;
-  const returnTo = normalizeReturnUrl(parameters.returnTo);
+  const returnTo = normalizeAuthenticationReturnUrl(parameters.returnTo);
   const account = await requireAccountContext({
     allowIncompleteOnboarding: true,
     returnTo: "/onboarding",
   });
   if (account.profile.onboardingCompletedAt) {
-    redirect(returnTo as Route);
+    redirect(normalizeAuthenticationReturnUrl(returnTo) as Route);
   }
   const ageGate =
     parameters.age === "change" ? null : await readServerOnboardingAgeGate(account.profile.id);

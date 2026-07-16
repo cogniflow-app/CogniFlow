@@ -54,7 +54,7 @@ test("protected account routes preserve a safe return destination", async ({ pag
   await expect(page.getByText(/privacy and data controls/i)).toHaveCount(0);
 
   await page.goto("/onboarding");
-  await expect(page).toHaveURL(/\/auth\/sign-in\?returnTo=%2Fonboarding$/u);
+  await expect(page).toHaveURL(/\/auth\/sign-in\?returnTo=%2Fapp$/u);
 });
 
 test("an under-13 signup follows the guardian path without creating an account", async ({
@@ -121,8 +121,120 @@ test("local email signup provisions, onboards, and opens real settings", async (
 
   await expect(page).toHaveURL(/\/app$/u);
   await expect(
-    page.getByRole("heading", { level: 1, name: "Welcome, Local learner." }),
+    page.getByRole("heading", { level: 1, name: "A clear place to build, Local learner." }),
   ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome, Local learner." })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Library", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+
+  await revealSiteNavigation(page);
+  const workspaceAppearance = page.locator(".workspace-appearance").last();
+  await workspaceAppearance.locator("> summary").click();
+  const darkWrite = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/settings/appearance") &&
+      response.request().method() === "PATCH",
+  );
+  await workspaceAppearance.getByLabel("Color theme").selectOption("dark");
+  expect((await darkWrite).ok()).toBe(true);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("html")).toHaveAttribute("data-color-preference", "dark");
+
+  const motionWrite = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/settings/appearance") &&
+      response.request().method() === "PATCH",
+  );
+  await workspaceAppearance.getByLabel("Reduce motion").check();
+  expect((await motionWrite).ok()).toBe(true);
+  const seriousWrite = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/settings/appearance") &&
+      response.request().method() === "PATCH",
+  );
+  await workspaceAppearance.getByLabel("Serious mode").check();
+  expect((await seriousWrite).ok()).toBe(true);
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "reduce");
+  await expect(page.locator("html")).toHaveAttribute("data-serious-mode", "true");
+
+  await page.addInitScript(() => {
+    const observedThemes: string[] = [];
+    Object.defineProperty(window, "__lumenObservedThemes", {
+      configurable: true,
+      value: observedThemes,
+    });
+    new MutationObserver(() => {
+      const theme = document.documentElement.dataset.theme;
+      if (theme) observedThemes.push(theme);
+    }).observe(document.documentElement, { attributeFilter: ["data-theme"], attributes: true });
+  });
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const observedThemes = await page.evaluate(
+    () => (window as typeof window & { __lumenObservedThemes?: string[] }).__lumenObservedThemes,
+  );
+  expect(observedThemes).not.toContain("light");
+
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await revealSiteNavigation(page);
+  await page.getByRole("link", { name: "Open your workspace" }).click();
+  await expect(page).toHaveURL(/\/app$/u);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "reduce");
+  await expect(page.locator("html")).toHaveAttribute("data-serious-mode", "true");
+
+  await revealSiteNavigation(page);
+  await workspaceAppearance.locator("> summary").click();
+  const lightWrite = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/settings/appearance") &&
+      response.request().method() === "PATCH",
+  );
+  await workspaceAppearance.getByLabel("Color theme").selectOption("light");
+  expect((await lightWrite).ok()).toBe(true);
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await revealSiteNavigation(page);
+  await page.getByRole("link", { name: "Open your workspace" }).click();
+  await expect(page).toHaveURL(/\/app$/u);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "reduce");
+  await expect(page.locator("html")).toHaveAttribute("data-serious-mode", "true");
+
+  await revealSiteNavigation(page);
+  await workspaceAppearance.locator("> summary").click();
+  await page.emulateMedia({ colorScheme: "dark" });
+  const systemWrite = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/settings/appearance") &&
+      response.request().method() === "PATCH",
+  );
+  await workspaceAppearance.getByLabel("Color theme").selectOption("system");
+  expect((await systemWrite).ok()).toBe(true);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "reduce");
+  await expect(page.locator("html")).toHaveAttribute("data-serious-mode", "true");
+
+  const explicitWrite = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/settings/appearance") &&
+      response.request().method() === "PATCH",
+  );
+  await workspaceAppearance.getByLabel("Color theme").selectOption("dark");
+  expect((await explicitWrite).ok()).toBe(true);
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  const secondTab = await page.context().newPage();
+  await secondTab.goto("/");
+  await expect(secondTab.locator("html")).toHaveAttribute("data-theme", "dark");
+  await secondTab.close();
+
   await page.getByRole("link", { name: "Learner profiles" }).click();
   await expect(page).toHaveURL(/\/app\/settings\/learners$/u);
   await expect(

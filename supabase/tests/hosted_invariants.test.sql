@@ -8,44 +8,40 @@ do $hosted_invariants$
 declare
   v_authenticated_oid oid := (select oid from pg_catalog.pg_roles where rolname = 'authenticated');
 begin
-  if (
-    select pg_catalog.array_agg(relation.relname order by relation.relname)
-    from pg_catalog.pg_class as relation
-    join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
-    where namespace.nspname = 'public'
-      and relation.relkind = 'r'
-  ) is distinct from array[
-    'account_capabilities',
-    'audit_events',
-    'consent_records',
-    'data_export_jobs',
-    'deletion_jobs',
-    'devices',
-    'guardian_relationships',
-    'guest_sessions',
-    'learner_profile_access',
-    'learner_profiles',
-    'privacy_preferences',
-    'privacy_requests',
-    'profile_sessions',
-    'profiles'
-  ]::name[] then
-    raise exception 'public table inventory differs from the committed Phase 01 contract';
+  if exists(
+    select 1
+    from pg_catalog.unnest(array[
+      'account_capabilities', 'audit_events', 'consent_records', 'data_export_jobs',
+      'deletion_jobs', 'devices', 'guardian_relationships', 'guest_sessions',
+      'learner_profile_access', 'learner_profiles', 'privacy_preferences',
+      'privacy_requests', 'profile_sessions', 'profiles'
+    ]::text[]) as expected(table_name)
+    where not exists(
+      select 1
+      from pg_catalog.pg_class as relation
+      join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
+      where namespace.nspname = 'public'
+        and relation.relkind = 'r'
+        and relation.relname = expected.table_name
+    )
+  ) then
+    raise exception 'a committed identity table is missing from the additive schema';
   end if;
 
-  if (
-    select pg_catalog.array_agg(table_record.tablename order by table_record.tablename)
-    from pg_catalog.pg_tables as table_record
-    where table_record.schemaname = 'private'
-  ) is distinct from array[
-    'child_creation_authorizations',
-    'learner_profile_credentials',
-    'onboarding_authorizations',
-    'rate_limit_buckets',
-    'reauthentication_grants',
-    'school_authorization_proofs'
-  ]::name[] then
-    raise exception 'private table inventory differs from the committed Phase 01 contract';
+  if exists(
+    select 1
+    from pg_catalog.unnest(array[
+      'child_creation_authorizations', 'learner_profile_credentials',
+      'onboarding_authorizations', 'rate_limit_buckets', 'reauthentication_grants',
+      'school_authorization_proofs'
+    ]::text[]) as expected(table_name)
+    where not exists(
+      select 1 from pg_catalog.pg_tables as table_record
+      where table_record.schemaname = 'private'
+        and table_record.tablename = expected.table_name
+    )
+  ) then
+    raise exception 'a committed private identity table is missing from the additive schema';
   end if;
 
   if exists(
@@ -65,8 +61,14 @@ begin
     join pg_catalog.pg_class as relation on relation.oid = policy.polrelid
     join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
     where namespace.nspname = 'public'
+      and relation.relname = any(array[
+        'account_capabilities', 'audit_events', 'consent_records', 'data_export_jobs',
+        'deletion_jobs', 'devices', 'guardian_relationships', 'guest_sessions',
+        'learner_profile_access', 'learner_profiles', 'privacy_preferences',
+        'privacy_requests', 'profile_sessions', 'profiles'
+      ])
   ) <> 12 then
-    raise exception 'the public policy count differs from the committed contract';
+    raise exception 'the identity policy count differs from the committed contract';
   end if;
 
   if exists(
@@ -75,6 +77,12 @@ begin
     join pg_catalog.pg_class as relation on relation.oid = policy.polrelid
     join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
     where namespace.nspname = 'public'
+      and relation.relname = any(array[
+        'account_capabilities', 'audit_events', 'consent_records', 'data_export_jobs',
+        'deletion_jobs', 'devices', 'guardian_relationships', 'guest_sessions',
+        'learner_profile_access', 'learner_profiles', 'privacy_preferences',
+        'privacy_requests', 'profile_sessions', 'profiles'
+      ])
       and (
         policy.polcmd <> 'r'
         or policy.polroles <> array[v_authenticated_oid]::oid[]
@@ -88,11 +96,19 @@ begin
     from information_schema.role_table_grants as table_grant
     where table_grant.table_schema = 'public'
       and table_grant.grantee in ('PUBLIC', 'anon')
+      and table_grant.table_name not in (
+        'deck_publications', 'card_publications', 'media_publications',
+        'published_decks', 'published_cards', 'published_media'
+      )
   ) or exists(
     select 1
     from information_schema.role_column_grants as column_grant
     where column_grant.table_schema = 'public'
       and column_grant.grantee in ('PUBLIC', 'anon')
+      and column_grant.table_name not in (
+        'deck_publications', 'card_publications', 'media_publications',
+        'published_decks', 'published_cards', 'published_media'
+      )
   ) then
     raise exception 'anonymous roles have an exposed table or column grant';
   end if;
@@ -119,6 +135,9 @@ begin
     join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
     where namespace.nspname = 'public'
       and relation.relkind = 'r'
+      and relation.relname not in (
+        'deck_publications', 'card_publications', 'media_publications'
+      )
       and (
         pg_catalog.has_table_privilege('anon', relation.oid, 'SELECT')
         or pg_catalog.has_table_privilege('anon', relation.oid, 'INSERT')
@@ -208,13 +227,23 @@ begin
     raise exception 'the private schema is usable by an untrusted role';
   end if;
 
-  if exists(select 1 from pg_catalog.pg_views where schemaname = 'public')
-    or exists(select 1 from pg_catalog.pg_matviews where schemaname = 'public') then
+  if exists(
+    select 1 from pg_catalog.pg_views
+    where schemaname = 'public'
+      and viewname not in ('published_decks', 'published_cards', 'published_media')
+  ) or exists(select 1 from pg_catalog.pg_matviews where schemaname = 'public') then
     raise exception 'the exposed schema contains an unreviewed view';
   end if;
 
-  if exists(select 1 from pg_catalog.pg_policies where schemaname = 'storage') then
-    raise exception 'Phase 01 must not add a storage policy';
+  if exists(
+    select 1 from pg_catalog.pg_policies
+    where schemaname = 'storage'
+      and policyname not in (
+        'content_media_read', 'content_media_insert',
+        'content_media_update', 'content_media_delete'
+      )
+  ) then
+    raise exception 'the storage schema contains an unreviewed policy';
   end if;
 
   if exists(

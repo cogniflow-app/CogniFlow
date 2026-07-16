@@ -1,4 +1,5 @@
 import { onboardingDetailsInputSchema, onboardingInputSchema } from "@lumen/auth/profiles";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import { createPrivilegedDatabaseClient } from "@lumen/database/server";
 import type { NextRequest } from "next/server";
 
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
       database.applyCookies(
         apiSuccess({
           message: "Account setup is complete.",
-          next: ageGate.returnTo,
+          next: normalizeAuthenticationReturnUrl(ageGate.returnTo),
           status: "onboarded",
         }),
       ),

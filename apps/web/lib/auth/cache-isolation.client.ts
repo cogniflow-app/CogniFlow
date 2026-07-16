@@ -1,5 +1,7 @@
 "use client";
 
+import { APPEARANCE_STORAGE_KEY } from "@/lib/appearance";
+
 const privatePrefixes = ["lumen:learner:", "lumen:profile:", "lumen:private:"] as const;
 
 function clearMatchingStorage(storage: Storage): void {
@@ -41,6 +43,11 @@ async function clearMatchingCachesBestEffort(): Promise<void> {
 export async function isolateBrowserLearnerContext(reason: string): Promise<void> {
   clearMatchingStorageBestEffort(() => window.localStorage);
   clearMatchingStorageBestEffort(() => window.sessionStorage);
+  try {
+    window.localStorage.removeItem(APPEARANCE_STORAGE_KEY);
+  } catch {
+    // Account appearance is private browser state and clears best effort.
+  }
   await clearMatchingCachesBestEffort();
   try {
     window.dispatchEvent(new CustomEvent("lumen:identity-boundary", { detail: { reason } }));

@@ -149,6 +149,9 @@ importers:
       react-hook-form:
         specifier: 7.81.0
         version: 7.81.0(react@19.2.7)
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@lumen/test-utils':
         specifier: workspace:*

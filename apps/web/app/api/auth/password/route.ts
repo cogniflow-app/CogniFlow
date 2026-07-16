@@ -76,14 +76,10 @@ export async function POST(request: NextRequest) {
         email: input.email,
         password: input.password,
         options: {
-          emailRedirectTo: buildAuthCallbackUrl(
-            "authentication",
-            `/onboarding?returnTo=${encodeURIComponent(input.returnTo)}`,
-            {
-              callbackNonce: pendingAgeGate.callbackNonce,
-              flow: "password_signup",
-            },
-          ),
+          emailRedirectTo: buildAuthCallbackUrl("authentication", input.returnTo, {
+            callbackNonce: pendingAgeGate.callbackNonce,
+            flow: "password_signup",
+          }),
         },
       });
       if (error) {

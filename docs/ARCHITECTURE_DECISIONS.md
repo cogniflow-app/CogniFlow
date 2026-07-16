@@ -1,8 +1,8 @@
 # Architecture decisions
 
 **Project:** Lumen (temporary, configuration-driven brand)  
-**Decision baseline:** Phase 01  
-**Last updated:** 2026-07-15
+**Decision baseline:** Phase 02  
+**Last updated:** 2026-07-16
 
 This file is the architectural decision record (ADR) for implementation choices that affect more than one package or phase. The product target remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md). A later decision must add a new ADR and mark the earlier record superseded; do not silently rewrite a decision after it has shipped.
 
@@ -23,9 +23,11 @@ This file is the architectural decision record (ADR) for implementation choices 
 | 0011 | Opaque session, privacy-job, and audit boundaries      | Accepted; qualified by 0015      |
 | 0012 | Narrow public RPC entry points for PostgREST           | Accepted exception               |
 | 0013 | Callback-bound age eligibility                         | Accepted                         |
-| 0014 | Active learner owns the appearance projection          | Accepted                         |
+| 0014 | Active learner owns the appearance projection          | Accepted; qualified by 0018      |
 | 0015 | Production Auth is HTTPS-only; managed identity is off | Accepted with launch gate        |
 | 0016 | Edge middleware owns portable cookie refresh           | Accepted                         |
+| 0017 | Semantic card identities and frozen publications       | Accepted                         |
+| 0018 | Mutation-aware appearance and workspace returns        | Accepted; qualifies 0014         |
 
 ## ADR-0001: Pinned Node and pnpm Turborepo workspace
 
@@ -306,3 +308,134 @@ Production configuration also requires HTTPS for both `NEXT_PUBLIC_APP_URL` and 
 The public-shell viewer consumes that header through a server-only, minimal identity projection. It treats Auth failure as anonymous availability, accepts only the canonical public route families after the shared encoded-navigation-hazard checks, and creates encoded sign-in/sign-up links for that safe return destination. A verified account receives `/app` instead. This projection controls only the public call to action; it does not grant product access or replace protected-route authorization.
 
 **Consequences.** Every new public-shell family that should preserve return intent must be deliberately added to both the middleware matcher and public-return allowlist and tested against traversal, external-origin, API/auth/account-route, and double-encoded navigation attempts. Both `pnpm build` and `pnpm build:portable` are required after changes to request interception, Supabase SSR cookie handling, or Next/OpenNext versions. A live provider preview remains necessary before promotion because a successful transform proves compatibility, not deployed routing or cookie behavior.
+
+## ADR-0017: Semantic card identities and frozen publications
+
+**Context.** One authored note may generate multiple independently scheduled cards. Display order,
+mutable field text, and database row IDs are not sufficient generation identities. Public deck
+preview also needs to remain available without granting anonymous access to mutable drafts,
+membership, revision history, owner identifiers, or private storage metadata.
+
+**Decision.** `packages/domain` owns the framework-independent schema for all 17 Phase 02 card
+kinds, deterministic semantic generation, safe study-renderer contracts, rich-document migration,
+template compilation, and content-change classification. Each generated card uses a canonical key
+derived from generation-schema version, card kind, and semantic key. Reconciliation preserves or
+reactivates the stored card ID for the same key, creates a row for a new key, and deactivates an
+obsolete key. It never reassigns an existing card ID to different semantics. Database uniqueness
+on note/template/generation key is a second enforcement boundary.
+
+Authoring writes use actor-derived, version-checked, idempotent Postgres transactions. Creation at
+a versioned upsert boundary uses the explicit expected-version sentinel `0`; every update and bulk
+version vector must contain a non-null expected version. A null version is never a wildcard. When a
+browser-created note does not yet have an ID, the atomic boundary derives its stable note ID from
+the required idempotency UUID before entering the upsert implementation. Typed stale-version
+detail is raised as user exception `P0001`, not serialization failure `40001`, so infrastructure
+does not automatically retry a command already known to be stale. Per-account/idempotency-key
+advisory locks serialize concurrent retries before receipt lookup, and a replay rechecks the
+actor's current resource permission before returning the stored result. A collaborator cannot
+retain mutation authority by replaying a receipt after access is revoked.
+
+Note fields, specialized payload, sources, tags, explicit media links, generated siblings,
+revision, deck-version bump, and impact classification are one atomic mutation graph. The browser
+can call only that composed note/media boundary; the component note/link/release functions are
+implementation details without browser-role execute grants. Note revisions and deck versions are
+immutable snapshots; restoring a version creates a new head. Material-edit records classify an
+impact for a future `preserve`, `relearn`, or `reset` choice but cannot mutate scheduling because
+Phase 02 creates no schedule rows.
+
+Rich content is versioned ProseMirror-compatible JSON plus trusted-boundary plain-text extraction.
+Templates compile to a bounded AST with escaped fields, front-side inclusion, nonempty
+conditionals, bounded list iteration, approved helpers, and scoped allowlisted CSS. Arbitrary
+JavaScript, raw interpolation, network-capable template output, untrusted iframes, event handlers,
+global CSS escape, and server evaluation are invalid.
+
+Publishing atomically copies the current authorized content into deliberately minimal frozen
+publication tables. Published cards receive deterministic publication-only IDs, unused custom
+fields are removed, and attached internal media IDs are replaced by opaque media publication IDs.
+Normal anonymous table/view reads enumerate only `public` rows through RLS and security-invoker
+views. Narrow read-only RPCs can resolve an exact `public` or `unlisted` opaque ID or slug. Draft
+tables, member rows, internal owner/card/media IDs, revisions, mutation receipts, storage locators,
+and learner state never enter the client projection. A service-only locator projection exists only
+to mint bounded signed delivery URLs. The underlying bucket remains private.
+
+Storage objects are mutable through a browser credential only while the matching registered asset
+is pending verification. The authorization predicate holds a row-share lock so trusted
+finalization cannot race an already authorized replacement. Once ready, bytes are immutable to
+browser update/delete. Explicit links plus deck covers, audio prompts, pronunciation references,
+and drawing reference layers all participate in one authoritative usage count. Active use revives
+an asset scheduled for deletion; the transition to zero uses schedules the seven-day cleanup
+deadline. Physical byte removal remains an operated worker boundary.
+
+**Consequences.**
+
+- Phase 03 schedules point to durable card IDs and can treat siblings independently.
+- A template/card-type schema change must version the semantic key contract or provide a tested
+  compatibility adapter; changing display order alone cannot change identity.
+- Public rendering consumes the frozen projection and the same safe domain render contracts as
+  authenticated preview, not draft table access or trusted stored HTML.
+- Unlisted resources are direct-link readable but excluded from public enumeration and receive
+  `noindex`; password links and advanced sharing remain Phase 07 work.
+- The media bucket can use one private namespace because authorization depends on registered
+  ownership/reference/publication rows rather than path obscurity.
+- Actor-scoped reads that reuse the device/session guard are declared `VOLATILE`: the guard takes a
+  row lock, so PostgREST must not place those functions in a read-only transaction.
+
+## ADR-0018: Mutation-aware appearance and workspace returns
+
+**Context.** ADR-0014 correctly makes the active learner's server projection authoritative, but
+the prior public Appearance control wrote only browser-local state. Entering the protected
+Workspace rendered the account's older `system` tuple, and the account hydrator applied that
+projection unconditionally, resetting the user's fresh explicit light/dark choice before any
+durable account mutation existed. Even once persistence is introduced, navigation can briefly
+return a projection rendered before the in-flight write. Authentication flows also need one
+canonical safe destination without accepting a return to an Auth/onboarding lifecycle route.
+
+**Decision.** Account appearance controls optimistically apply a complete theme, reduced-motion,
+and serious-mode tuple and attach a short-lived mutation identifier. A same-origin authenticated
+route persists that complete tuple through the existing self-context profile mutation. The pending
+write is serialized, shared across tabs, retried after reconnect, and becomes confirmed only after
+the server accepts it. During a bounded 24-hour reconciliation window, that pending or confirmed
+mutation may temporarily win over a differing protected-layout projection so a stale render cannot
+undo the user's accepted choice. A rejected/expired write is discarded and the active learner's
+server projection wins again. Managed learner contexts cannot persist account appearance.
+
+The server bootstrap applies the chosen tuple before interactive hydration. System color is
+resolved from the operating system; operating-system reduced motion remains the most restrictive
+input. Serious mode and explicit reduced motion remain independent stored preferences even though
+either results in low-motion presentation. Storage and custom events synchronize tabs. An identity
+boundary clears the browser tuple/write metadata before the next active learner projection is
+adopted, preserving ADR-0014's shared-device isolation.
+
+Precedence is deterministic:
+
+1. on a protected self route, the account's server projection wins;
+2. the sole temporary exception is a fresh pending/confirmed complete-tuple account mutation (at
+   most 24 hours old), which may outrank a stale render while the write confirms/retries;
+3. on a managed route, the learner's server projection wins and guardian-local state is discarded;
+4. on an anonymous/public route, a valid browser-local explicit tuple wins; no appearance cookie is
+   used;
+5. without stored color intent, `system` delegates only color resolution to the operating system;
+   operating-system reduced motion is always an additional restrictive input; and
+6. malformed/absent local state falls back to `system`, motion allowed, and serious mode off.
+
+The root and account bootstrap scripts apply this choice before hydration, so a route mount does not
+perform a visible light/dark correction. Light/dark selection is independent from motion and
+serious mode; changing the operating-system color affects only an explicit `system` selection.
+
+`/app` is the canonical authenticated library/dashboard and `/app/library` is a compatibility
+redirect. Sign-in, signup, OAuth, recovery, confirmation, and onboarding normalize their return
+through the shared safe-return contract. The default is `/app`; same-origin public/product and
+protected application paths may be preserved, while absolute/protocol-relative paths, encoded
+navigation hazards, and `/api`, `/auth`, `/onboarding`, or `/_next` destinations fall back to
+`/app` to prevent open redirects and lifecycle loops.
+
+**Consequences.**
+
+- Local storage remains a presentation cache, never an identity or authorization source; the
+  mutation marker is only an ordering hint tied to an already attempted server write.
+- A protected navigation cannot silently revert a fresh accepted theme, and a failed account write
+  cannot remain authoritative indefinitely.
+- Public signed-out controls remain local-only; authenticated controls request durable account
+  persistence. Profile switch/sign-out cleanup continues to reset shared-device state.
+- New Auth entry or callback routes must use the shared authentication-return normalizer and keep
+  `/app` as the safe fallback.

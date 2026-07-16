@@ -1,11 +1,150 @@
 # Implementation status
 
-**Current phase:** Post-Phase 01 landing and public-surface UI polish  
-**Status:** Implementation/local acceptance complete; Preview is READY; hosted smoke is blocked by the unavailable protection-bypass credential  
+**Current phase:** Phase 02 — content model, editor, media, and card types  
+**Status:** Implementation and local acceptance complete; Preview verification is pending  
 **Evidence date:** 2026-07-16 UTC  
-**Next phase:** Phase 02 has not started
+**Next phase:** Phase 03 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
+
+## Phase 02 implementation and local acceptance complete
+
+The active branch is `codex/phase-02-content-editor-card-types`, created from the freshly fetched
+`origin/main`. The sections below this one retain the completed Phase 01 and hosted-baseline
+evidence; they do not represent current Phase 02 verification. Phase 02 must not be marked complete
+until every required local command passes, the final diff is reviewed, committed migrations are
+promoted only to Preview, and the guarded Preview application/database smoke succeeds. No Beta or
+Production promotion and no merge is part of this phase-branch record.
+
+### Locally accepted branch scope awaiting hosted verification
+
+- Added framework-independent runtime schemas and authoring/study contracts for all 17 required
+  card kinds: basic, basic reversed, optional reversed, bidirectional, custom multi-field, typed
+  answer, cloze, image occlusion, multiple choice, select all, true/false, ordering, list answer,
+  diagram, audio prompt, pronunciation, and drawing.
+- Added deterministic semantic generation keys, forward/reverse/group/hotspot sibling generation,
+  stable-ID reconciliation/reactivation, obsolete-card deactivation, and typed generation-conflict
+  results. Scheduling state is deliberately absent.
+- Added ProseMirror-compatible rich-document v2 validation/sanitization/migration, safe link/video
+  protocols, structured image/audio/math/code/table/callout/citation nodes, extracted plain text,
+  and output-encoded rendering.
+- Added a bounded AST template DSL with escaped fields, front-side inclusion, conditionals, list
+  iteration, approved helpers, safe static markup, and scoped allowlisted CSS. Arbitrary JavaScript,
+  raw interpolation, event handlers, untrusted iframes/network URLs, prototype traversal, and
+  global CSS escape are rejected.
+- Added normalized rectangle/ellipse/polygon geometry, image occlusion and diagram hotspot editor
+  contracts, keyboard region lists/numeric controls, labels/aliases/alt text, grouped generation,
+  pointer/touch drawing with undo/redo/clear, and required nonvisual typed fallbacks.
+- Added additive content migrations for folders, decks/members, tags, note types/fields/templates,
+  notes/fields, generated cards, every specialized card table, sources, media/references,
+  immutable note revisions/deck versions, scheduling-neutral content impacts, frozen publication
+  rows, system note types, RLS/policy helpers, actor-derived RPCs, and idempotency receipts. The API
+  maps a new note's null creation marker to database expected version `0` and, when it has no note ID
+  yet, the RPC derives one from the required idempotency key so exact create retries retain one
+  stable identity. Null/stale versions cannot bypass concurrency. Typed version conflicts use a
+  user-exception SQLSTATE rather than a serialization failure, preventing infrastructure retry
+  loops while preserving actionable expected/actual detail. Receipt lookup serializes concurrent
+  account/key retries and rechecks current resource permission before replay, while the browser has
+  only the atomic note/media mutation surface.
+- Added a private migration-owned `lumen-content-media` bucket, server/client SHA-256 checks,
+  magic-byte and declared/detected MIME verification, image dimensions, per-asset/account quotas,
+  content-addressed owner deduplication, owner-UUID-free opaque object paths, signed previews,
+  pending-only browser object mutation, and delayed deletion driven by explicit plus
+  cover/audio/pronunciation/drawing usage. Extended the due account-deletion boundary to withdraw
+  publications, redact/minimize authoring data and history, clear receipts, and make owned media
+  immediately eligible for cleanup. Physical Storage cleanup still requires an operated worker.
+- Replaced the old authenticated welcome with the query-backed `/app` folder/deck library;
+  `/app/library` is an intentional redirect. Added creation, search/filter/grid/list, deck overview,
+  rich note editor, quick/bulk entry, note/card browser, settings/lifecycle, version history/restore,
+  generated sibling preview, conflict recovery, and truthful empty/loading/error states.
+- Added frozen public/unlisted deck projection pages at `/deck/[slug]` and
+  `/embed/deck/[publicId]`, keyboard card preview with no persistent progress, creator attribution,
+  license/card-type summary, safe return-aware sign-in, and unlisted `noindex` metadata.
+- Changed Auth/onboarding fallback to `/app`, retained validated public/protected returns, and
+  rejects Auth/API/onboarding lifecycle loops plus encoded/open-redirect hazards.
+- Fixed explicit account appearance persistence. A fresh pending/confirmed complete-tuple write
+  survives stale protected renders, retries after reconnect, synchronizes tabs, and expires or
+  yields to the active learner projection on rejection. Managed contexts cannot save guardian
+  appearance, OS reduced motion stays authoritative, and identity-boundary cleanup isolates shared
+  devices.
+
+The detailed implementation contract is [CONTENT_AUTHORING.md](./CONTENT_AUTHORING.md), the exact
+schema mapping is [DATA_MODEL.md](./DATA_MODEL.md), and security boundaries are in
+[SECURITY_AND_PRIVACY.md](./SECURITY_AND_PRIVACY.md).
+
+### Phase 02 migrations
+
+| Migration                                             | Purpose                                                                                                                                                                                                                | Verification state   |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `20260716000000_content_schema.sql`                   | Content/media/publication enums, tables, constraints, indexes, 17 system note types/templates, RLS enablement, and default-deny grants                                                                                 | Reset and pgTAP pass |
+| `20260716001000_content_authorization_and_rpcs.sql`   | Folder/tag cycle guards, content permissions/RLS, version/idempotency mutations, revisions/generation/restore, private media bucket/policies, frozen publication/public RPCs, and due-account-deletion content cleanup | Reset and pgTAP pass |
+| `20260716002000_content_integration_hardening.sql`    | Atomic note/media graph, bulk operations, real library counts, actor-scoped media reads, derived public card/media IDs, field filtering, and service-only Storage locations                                            | Reset and pgTAP pass |
+| `20260716003000_content_rpc_parameter_names.sql`      | Named PostgREST parameters for archive, restore, and delete lifecycle RPCs                                                                                                                                             | Reset and pgTAP pass |
+| `20260716004000_content_guarded_read_volatility.sql`  | Writable transaction classification for guarded read RPCs whose shared session proof takes a row lock                                                                                                                  | Reset and pgTAP pass |
+| `20260716005000_content_security_audit_hardening.sql` | Serialized/reauthorized replay, strict expected versions, atomic-only browser note/media writes, pending-only Storage mutation, embedded-media counts, and orphan cleanup                                              | Reset and pgTAP pass |
+| `20260716006000_content_note_create_identity.sql`     | Stable new-note identity derived from the required idempotency key before the underlying upsert implementation                                                                                                         | Reset and pgTAP pass |
+| `20260716007000_content_conflict_sqlstate.sql`        | Typed optimistic conflicts raised as non-serialization user exceptions so stale commands fail promptly without automatic transaction retry                                                                             | Reset and pgTAP pass |
+
+Earlier applied migrations remain unchanged. `supabase/seed.sql` still inserts no product user,
+deck, card, publication, or media object. Generated database types were regenerated from the final
+local schema and the committed result passed the deterministic drift check.
+
+Phase 02 adds no application environment variable or new credential. Local setup requires only
+applying the full migration chain; the private content bucket and policies are migration-owned. The
+guarded hosted-content runner captures the existing Preview project server key in memory through an
+authenticated operator CLI and never writes it to application configuration. Hosted setup must use
+the guarded Preview database promotion after the migrations are committed and locally accepted;
+no dashboard-created bucket, Beta promotion, or Production environment change is authorized here.
+
+### Phase 02 validation evidence
+
+Local evidence below is from the final aggregate run on 2026-07-16 UTC under pinned Node `24.18.0`,
+pnpm `11.13.0`, local Docker/Supabase, Chromium, and k6 `2.1.0`. Hosted rows remain pending until the
+committed migration tree and Vercel Preview are verified.
+
+| Command                                              | Current Phase 02 result                                             |
+| ---------------------------------------------------- | ------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`                     | Exit 0; 8 workspace projects already current                        |
+| `pnpm format:check`                                  | Exit 0; every matched file uses Prettier style                      |
+| `pnpm secret:scan`                                   | Exit 0; no secretlint findings                                      |
+| `pnpm lint`                                          | Exit 0; ESLint has zero warnings and boundaries pass                |
+| `pnpm typecheck`                                     | Exit 0; 7/7 workspace packages pass strict TypeScript               |
+| `pnpm test`                                          | Exit 0; 70 files and 468 tests pass; 76.25% statement coverage      |
+| `pnpm db:reset`                                      | Exit 0 from the full empty committed migration chain                |
+| `pnpm test:db`                                       | Exit 0; 16 pgTAP files and 605 assertions pass                      |
+| `pnpm db:types` / `pnpm db:types:check`              | Exit 0; generated schema types are deterministic and current        |
+| `pnpm build` / `pnpm build:portable`                 | Exit 0; 59-page Next build and OpenNext worker bundle complete      |
+| `pnpm test:e2e`                                      | Exit 0; 24 pass, 15 intentional project skips                       |
+| `pnpm test:a11y`                                     | Exit 0; 27 axe, keyboard, motion, theme, and authoring checks pass  |
+| `pnpm test:lighthouse`                               | Exit 0; scores 98/100/96/100, LCP 2310.61 ms, CLS 0, TBT 3 ms       |
+| `pnpm test:load`                                     | Exit 0; 15/15 checks, 3/3 requests, 0% failures, p95 8.51 ms        |
+| `pnpm verify`                                        | Exit 0; complete aggregate reran every practical local release gate |
+| `pnpm db:deploy:preview` / `pnpm db:verify:preview`  | Not run; requires committed clean migrations after local acceptance |
+| Phase 02 Vercel Preview + `pnpm test:hosted:preview` | Not run; no Phase 02 hosted verification claimed                    |
+| `pnpm test:hosted:preview:content` + cleanup         | Not run; guarded disposable Preview acceptance remains pending      |
+
+### Phase 02 known later owners
+
+- **Scheduling and edit impact:** Phase 03 adds learner card schedules, FSRS/SM-2, review logs,
+  sibling burying, and the UI that applies stored preserve/relearn/reset choices. Phase 02 stores
+  impact only and never silently mutates future schedules.
+- **Grading/study:** Phase 04 owns typed/list/choice grading, adaptive Learn, and persistent practice
+  state. Phase 02 preview and renderer contracts do not claim grading or progress.
+- **Offline/conflicts:** Phase 05 owns Dexie, the content outbox, media retry after offline use, and
+  field-aware merge. Phase 02 supplies idempotency, optimistic versions, tombstones, and explicit
+  conflict recovery but does not claim offline sync.
+- **Import/export:** Phase 06 owns file adapters and portability; the 17 card definitions expose
+  stable import keys but no Phase 02 importer is claimed.
+- **Sharing/discovery/collaboration:** Phase 07 owns passwords, specific-user/class permissions,
+  forks, Yjs collaboration, discovery ranking, creator biographies, comments/ratings, and
+  moderation. Phase 02 supports only private/public/unlisted authoring and frozen read-only preview.
+- **Media operations:** an owner-operated cleanup job must physically remove assets whose
+  `delete_after` has passed, including never-linked uploads, the transition to zero explicit or
+  cover/audio/pronunciation/drawing usages, and media made immediately eligible by account deletion.
+  Uploaded video remains disabled. Pronunciation and drawing remain explicit self-review with no
+  cloud speech upload or automatic drawing judgment.
+
+There is no Phase 03 implementation in this branch.
 
 ## Completed Phase 01 landing and public-surface UI polish
 
@@ -231,7 +370,9 @@ Targeted tests additionally cover auth callback/recovery state, route payloads, 
 - **Export assembly:** Phase 06 owns archive creation, expiring download delivery, and full portability. Phase 01 provides real request/job state and status, without claiming that a queued job is a downloadable archive.
 - **School integration/classes:** Phase 08 owns a reviewed school evidence adapter, class membership, and assignment-scoped reporting. Phase 01 provides only the proof-gated school identity and observer authorization foundation.
 - **Games:** Phase 09 owns game tables, production room admission, participants, realtime events, reports, and deployed guest cleanup; Phase 10 owns advanced games and persistent progression. Phase 01's production room adapter remains intentionally empty so no UI can fake a join.
-- **Public deck content:** Phase 02 owns deck/card content and later sharing phases own publication/discovery. Phase 01 provides only the anonymous viewer and safe return-aware authorization foundation.
+- **Public deck content (historical Phase 01 handoff):** Phase 02 now owns deck/card authoring and
+  frozen public/unlisted preview; Phase 07 still owns passwords, user/class sharing, discovery,
+  creator profiles, forks, collaboration, ratings/comments, and moderation.
 - **Operations:** deployment smoke tests are implemented and live-verified. Scheduled guest/audit retention, deletion-worker execution, live email/provider monitoring, backup/restore exercises, and alerting still require owner-operated infrastructure documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 There is no blocker to custom-domain finalization. Closing the old-host callback rollback window,

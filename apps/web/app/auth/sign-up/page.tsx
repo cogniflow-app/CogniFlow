@@ -1,4 +1,4 @@
-import { normalizeReturnUrl } from "@lumen/auth/redirects";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import type { Metadata } from "next";
 
 import { AuthForm } from "@/components/auth/auth-form.client";
@@ -13,7 +13,7 @@ export default async function SignUpPage({
   searchParams: Promise<{ returnTo?: string }>;
 }) {
   const { returnTo } = await searchParams;
-  const safeReturnTo = normalizeReturnUrl(returnTo);
+  const safeReturnTo = normalizeAuthenticationReturnUrl(returnTo);
   return (
     <AuthShell
       eyebrow="A private beginning"

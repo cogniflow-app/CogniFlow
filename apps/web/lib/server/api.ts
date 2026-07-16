@@ -9,11 +9,14 @@ export interface ApiErrorBody {
     | "FORBIDDEN"
     | "CONFLICT"
     | "RATE_LIMITED"
+    | "NOT_FOUND"
+    | "QUOTA_EXCEEDED"
     | "OFFLINE"
     | "INTERNAL";
   readonly message: string;
   readonly retryable: boolean;
   readonly retryAfterMs?: number;
+  readonly currentVersion?: number;
   readonly fieldErrors?: Readonly<Record<string, readonly string[]>>;
 }
 

@@ -1,19 +1,36 @@
 # Security and privacy baseline
 
-**Scope:** Phase 00 foundation, Phase 01 identity/privacy controls, hosted bootstrap, and launch gates  
+**Scope:** Phase 00 foundation, Phase 01 identity/privacy, Phase 02 content/media controls, hosted operations, and launch gates  
 **Last updated:** 2026-07-16
 
 This document is an engineering control baseline, not a certification or legal opinion. The provider and child-safety decisions in the [product blueprint](./PRODUCT_BLUEPRINT.md) remain mandatory.
 
 ## Current data posture
 
-Phase 01 implements Supabase Auth account access, self learner profiles, locally/tested guardian-managed learner profiles, provider/device/session settings, privacy preferences, append-only consent/audit evidence, export/deletion job state, and a pseudonymous guest-identity boundary. Every production runtime forces managed child profiles off until the child-facing browser can use an independent opaque backend-for-frontend identity instead of retaining a guardian Supabase bearer credential. The production game-room adapter contains no rooms, so the join form cannot create a deployed guest yet.
+Phase 01 implements Supabase Auth account access, self learner profiles, locally/tested
+guardian-managed learner profiles, provider/device/session settings, privacy preferences,
+append-only consent/audit evidence, export/deletion job state, and a pseudonymous guest-identity
+boundary. Phase 02 adds private creator decks/notes, 17 validated card payloads, safe templates,
+version/revision history, private image/audio media, and a deliberately minimal frozen public deck
+projection. Every production runtime forces managed child profiles off until the child-facing
+browser can use an independent opaque backend-for-frontend identity instead of retaining a guardian
+Supabase bearer credential. Managed contexts cannot create/edit content through a guardian's
+account capability. The production game-room adapter still contains no rooms.
 
-It still does not implement deck content, review history, classes, sharing, public creator profiles, live games, analytics transport, AI processing, or export-archive assembly. Phase 01 implements an idempotent due-deletion transaction, but does not deploy its scheduler. Later phases must add authorization, RLS, retention, export/deletion coverage, and policy tests with each data-owning feature. Existing account permissions never imply access to a future content table.
+It still does not implement learner schedule/review history, mastery, classes, collaboration,
+discovery/search ranking, comments/ratings, advanced sharing/passwords, live games, analytics
+transport, AI processing, or export-archive assembly. The public creator value in a deck publication
+is a bounded attribution projection, not a public biography. The due account-deletion transaction
+is implemented, but its operator scheduler and the Phase 02 delayed-media deletion worker are not
+deployed. Later phases must extend authorization, retention, export/deletion coverage, and policy
+tests with each data-owning feature. Existing account or content permission never implies access to
+a future schedule/class/game table.
 
 The controlled hosted deployment uses separate Supabase projects for Vercel Preview and the
-`https://recallflash.com` Production beta. Both databases contain only the committed Phase 00/01 schema: verification found no
-Auth users, public identity/product rows, storage buckets, fixture identities, or test content. The
+`https://recallflash.com` Production beta. The latest completed hosted evidence in
+[IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) determines whether the Phase 02 migrations
+have been promoted; do not infer provider state from branch files. The prior Phase 00/01 baseline
+found no Auth users, public identity/product rows, storage buckets, fixture identities, or test content. The
 neutral recovery smoke creates the expected bounded private rate-limit record using a server-HMACed
 subject; it stores no email address or personal information. The custom-domain beta remains site-wide
 `noindex, nofollow`; it is deployment evidence, not completion of the public launch gate below.
@@ -67,6 +84,12 @@ Secrets are set in the deployment provider, not committed to `.env*`, `wrangler.
 protected deployments. It is not an application environment variable and must remain transient or
 in an approved CI secret store. It must never be logged, documented by value, or placed in
 `.env.local`.
+
+The guarded Phase 02 content runner also exposes the existing Preview project key to one
+trace/video-disabled Playwright child as `HOSTED_PREVIEW_SUPABASE_SECRET_KEY`. The wrapper obtains
+it in memory from the authenticated Supabase CLI, restricts the target to this repository's Vercel
+Preview family, and always attempts cleanup. It is not operator/application configuration and must
+never be manually set, logged, persisted, or copied to `.env.local`.
 
 Non-secret server configuration also includes OAuth button flags, email-confirmation state, rate-limit bounds, retention windows, parental-consent mode, and the external verifier URL. Only the explicit sanitized capability projection may reach a rendered page; rate-limit settings, verifier configuration, and credential values are not part of it.
 
@@ -124,11 +147,16 @@ The provisional Cloudflare/OpenNext profile does not enable child features by it
 
 The foundation configures this application response baseline:
 
-- `Content-Security-Policy` limited to self-hosted application assets, data/blob media where required, localhost development connections, and Supabase HTTP/WebSocket origins;
+- `Content-Security-Policy` limited to self-hosted application assets, data/blob media where
+  required, Supabase image/audio/API/WebSocket origins, localhost development connections, and
+  privacy-enhanced YouTube/Vimeo frame sources;
 - `X-Content-Type-Options: nosniff`;
 - `Referrer-Policy: strict-origin-when-cross-origin`;
-- `Permissions-Policy` disabling camera, geolocation, and microphone;
-- `frame-ancestors 'none'` and `X-Frame-Options: DENY` for current routes;
+- `Permissions-Policy` disabling camera/geolocation and allowing same-origin microphone only on
+  non-embed routes for explicit author recording; the embed route disables microphone;
+- `frame-ancestors 'none'` and `X-Frame-Options: DENY` for every non-embed route;
+- a route-specific `/embed/deck/:publicId` CSP with `frame-ancestors 'self' https:` and no legacy
+  `X-Frame-Options`, so only the read-only public projection can be framed by HTTPS pages;
 - `Cross-Origin-Opener-Policy: same-origin`;
 - no production indexing for preview/developer-only surfaces;
 - non-sensitive health output with `Cache-Control: no-store`.
@@ -165,11 +193,14 @@ validation remains unmodified, and no secondary `allowedOrigins` entry is config
 
 The initial production policy permits only application assets and the configured Supabase HTTP/WebSocket origins. Development may require `unsafe-eval` for tooling; production must not inherit that exception. Inline style support is kept as narrow as the Next.js rendering/toolchain requires.
 
-Later features amend the policy deliberately:
+Content and later features amend the policy deliberately:
 
-- public embed routes receive their own reviewed `frame-ancestors` policy instead of weakening the whole site;
-- media/storage origins are allowlisted from validated configuration;
-- external video is restricted to approved providers and sandboxed frames;
+- the Phase 02 embed exception remains path-exact and read-only; hosted acceptance verifies its
+  emitted CSP/no-XFO result and the continuing frame denial on protected/non-embed routes;
+- media/storage access remains limited to the configured Supabase HTTPS origin family and
+  separately authorized signed/public objects;
+- external video is restricted to privacy-enhanced YouTube and Vimeo sources and must remain a
+  sanitized, titled renderer node rather than arbitrary iframe markup;
 - nonce/hash support is introduced if rich rendering requires inline scripts;
 - report-only rollout precedes a materially stricter production CSP, and reports are scrubbed of sensitive URLs/data.
 
@@ -213,7 +244,56 @@ Hosted Supabase may provision broader default `service_role` table and sequence 
 local stack. Migration `20260715006900_hosted_grant_parity.sql` explicitly revokes those current and
 default privileges so hosted behavior matches the RPC-only contract. The guarded hosted verifier
 checks exact migration history, migration dry-run, database lint, read-only grant/RLS/function/view/
-publication invariants, empty storage, schema diff, and generated-type parity after every promotion.
+publication invariants, the exact migration-owned bucket inventory with zero recursive objects,
+schema diff, and generated-type parity after every promotion.
+
+Phase 02 applies the same rules to content and Storage:
+
+- every content table enables RLS before grants; authenticated roles receive policy-scoped reads
+  and no direct table mutation grant;
+- content access requires a live device-bound self learner context plus the deck owner/member role;
+  a managed learner cannot exercise a guardian's create/edit capability;
+- actor-derived `current_*` RPCs authorize the target, require an explicit expected version (`0`
+  only for creation), reject null bulk-version elements, hold the required lock, deduplicate an
+  account/operation idempotency key, and write privacy-minimized audit facts;
+- the atomic new-note boundary derives an omitted note ID from that required idempotency key, while
+  typed stale-version detail is raised under non-serialization SQLSTATE `P0001`; exact retries
+  therefore keep one creation identity and infrastructure does not loop automatically on a known
+  conflict;
+- receipt lookup serializes an account/key pair with a transaction advisory lock and rechecks the
+  actor's current resource permission before replay, so concurrent retries cannot race side effects
+  and revoked collaborators cannot retain authority through an old receipt;
+- note/card/source/tag/media reconciliation, note revisions, deck versions, version restore, and
+  publication are atomic; browser roles can execute only the composed note/media wrapper, restore
+  appends a new version, and obsolete semantic siblings are deactivated;
+- anonymous enumeration reaches only `public` frozen publication rows through RLS and
+  security-invoker views; exact-resource RPCs may resolve an unlisted public ID/slug without
+  exposing draft, membership, revision, owner/internal card/internal media UUID, Storage locator,
+  or learner state. Published cards receive deterministic projection-only IDs, unused custom
+  fields are removed, and attached media identifiers are rewritten to opaque publication IDs; a
+  separate service-only locator is used only to mint short-lived signed delivery URLs;
+- the `lumen-content-media` bucket remains private. Storage reads require owner/authorized-deck
+  access or a frozen public media publication. Insert/update/delete requires the actor's exact
+  registered content-addressed path while the asset remains pending; the authorization holds a row
+  lock against finalization, and ready objects are immutable to browser credentials. The path
+  begins with an opaque media public UUID, not an owner UUID;
+- the upload boundary verifies request size, magic bytes, declared/detected MIME equality,
+  server-computed SHA-256, image dimensions, per-asset limits, and the 50 MiB per-owner quota before
+  a service-only finalizer can mark the asset ready; and
+- image alternative text is required for references/publication, audio requires a transcript in
+  the authoring route, and explicit links plus active cover/audio/pronunciation/drawing usages
+  maintain one authoritative count. Adding usage revives a deleting asset; newly verified
+  unreferenced media and the transition to zero usages schedule a seven-day delayed deletion rather
+  than immediate byte destruction; and
+- the due account-deletion transaction withdraws publications, minimizes/soft-deletes authored
+  content and custom schemas, redacts history payloads while preserving structural coordinates,
+  clears mutation receipts, and makes owned media immediately eligible for operated byte cleanup.
+
+The domain layer independently sanitizes versioned rich JSON, derives plain text, validates every
+card payload and normalized geometry, compiles the bounded template AST, encodes rendered content,
+and scopes allowlisted CSS. Templates cannot execute JavaScript, make a network request, inject an
+event handler/iframe, use raw interpolation, or escape into global CSS. Public and authenticated
+preview use the same typed renderer contract.
 
 The Supabase secret/service credential bypasses ordinary RLS and is therefore used only inside server-only adapters. Account-triggered adapters verify the current user before use; system/worker adapters validate a bounded job or infrastructure contract and receive no arbitrary client pass-through. The credential must never be placed in a Client Component, public error, diagnostic artifact, or browser-capability object.
 
@@ -237,23 +317,30 @@ See [DATA_MODEL.md](./DATA_MODEL.md) for the migration and RLS contract.
 - Two-stage password-recovery intent: signed nonce/email/return-path pending state before the email callback, followed only on a matching recovered session by a short-lived account-bound password-update capability; query tampering and state mismatch fail closed.
 - Strict verified-child payload validation and explicit managed-learner preference fields, preventing arbitrary JSON settings or missing/null privacy controls from crossing a service/PostgREST boundary.
 - A private school-authorization ledger containing only proof/evidence digests; issuance is service-only after upstream verification, expires within 15 minutes, and can be consumed once for the bound actor/owner.
-- Account export request/job state that does not claim a file exists, plus a due-deletion transaction that removes the Auth principal and secrets, minimizes identity data, and preserves opaque tombstones required for append-only evidence.
+- Account export request/job state that does not claim a file exists, plus a due-deletion
+  transaction that removes the Auth principal and secrets, minimizes identity and Phase 02 content,
+  withdraws publications, queues owned media bytes for cleanup, and preserves only opaque/structural
+  tombstones required for append-only evidence.
 - Immediate service-only rejection/minimization of recent provisional Auth identities that lack valid signed onboarding authority; completed accounts are excluded from this path.
 - Account/active-learner theme, motion, and serious-mode values hydrate the protected shell authoritatively; managed profiles cannot inherit stale guardian browser preferences and missing managed values fail closed to low stimulation.
+- Authenticated appearance controls persist the complete tuple through a same-origin self-context
+  mutation. A fresh pending/confirmed mutation marker temporarily outranks a stale protected render,
+  retries after reconnect, synchronizes tabs, and expires after 24 hours; rejection or expiry
+  restores the active learner's server projection. Identity-boundary cleanup clears that marker.
 - A successful profile switch always replaces the current document after best-effort learner/private browser-store cleanup, preventing a cleanup API failure from leaving guardian React state mounted under the new HttpOnly learner session.
 - Universal production child-profile shutdown plus production HTTPS origin validation and production-classified `Secure` cookies.
 
 ## Application controls required as later features arrive
 
 - Idempotency for offline reviews, imports, invitations, game answers, and ledger writes.
-- File size, decompression, MIME, magic-byte, image re-encoding, and malware-risk controls.
+- Archive decompression, imported-document malware-risk controls, and additional media scanning or
+  re-encoding required by future file/import types.
 - SSRF defenses for URL imports: approved protocols, DNS/IP checks before and after redirects, time/size limits, and no private-network targets.
-- Strict rich-document schema and render-time output encoding; never trust stored HTML.
-- Safe template DSL with bounded loops/components and no arbitrary JavaScript or network access.
 - Structured logs with correlation IDs and no tokens, private answer text, or child identifiers.
 - Append-only or compensating events for review, score, XP/currency, consent, and audit ledgers.
 - Short-lived signed URLs and guest tokens, rotation/versioning, and hashed stored token identifiers.
-- Scheduled and monitored execution for guest/rate-bucket cleanup, audit retention, export assembly/download expiry, and invocation of the implemented due-deletion boundary.
+- Scheduled and monitored execution for unreferenced media deletion, guest/rate-bucket cleanup,
+  audit retention, export assembly/download expiry, and invocation of the implemented due-deletion boundary.
 
 ## Privacy principles
 
@@ -268,7 +355,15 @@ See [DATA_MODEL.md](./DATA_MODEL.md) for the migration and RLS contract.
 
 ### Current lifecycle limits
 
-Phase 01 creates real export/deletion requests and job rows. It does not yet assemble an archive or publish an expiring download. It does implement `admin_process_account_deletion()` as a service-only, idempotent transaction for a due job: the Auth principal and secret/session material are removed; permissions, relationships, active school proofs, and consent grants are revoked; mutable account/learner fields become opaque tombstones; and required workflow plus append-only evidence remains minimized/immutable. A direct Auth deletion outside this transaction is rejected, and the deleted subject cannot be reused.
+Phase 01 creates real export/deletion requests and job rows. It does not yet assemble an archive or
+publish an expiring download. It implements `admin_process_account_deletion()` as a service-only,
+idempotent transaction for a due job: the Auth principal and secret/session material are removed;
+permissions, relationships, active school proofs, and consent grants are revoked; mutable
+account/learner fields become opaque tombstones; and required workflow plus append-only evidence
+remains minimized/immutable. Phase 02 extends that same guarded transaction to withdraw
+publications, redact/minimize owned authoring data and histories, clear private replay receipts, and
+set owned media `delete_after` to the completion time. A direct Auth deletion or direct profile
+status flip outside this transaction is rejected, and the deleted subject cannot be reused.
 
 No deletion or guest-purge scheduler is deployed. An owner-operated worker must select due jobs, call the deletion boundary with a stable per-attempt idempotency key, monitor terminal/failure state, and extend the data-deletion matrix as later phases add tables. UI and documentation must distinguish a queued grace-period request from a completed tombstoned job.
 

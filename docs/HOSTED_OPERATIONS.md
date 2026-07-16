@@ -1,8 +1,8 @@
 # Hosted operations runbook
 
-**Environment:** Phase 01 hosted beta  
+**Environment:** Phase 02 feature branch against the Phase 01 hosted beta baseline  
 **Last verified:** 2026-07-16  
-**Application phase:** Phase 01; Phase 02 has not started
+**Application phase:** Phase 02 implementation; consult [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) for the exact Preview promotion/verification state
 
 This runbook records the secret-free operating state of the hosted Preview and Production beta
 environments. It is not a public-launch approval. The authoritative variable inventory is
@@ -64,7 +64,7 @@ previous value.
 
 ## Hosted database state
 
-Both hosted projects have exactly the 21 committed migrations, ending with:
+The last completed shared-environment baseline has 21 migrations, ending with:
 
 ```text
 20260715006900_hosted_grant_parity.sql
@@ -72,7 +72,8 @@ Both hosted projects have exactly the 21 committed migrations, ending with:
 
 That final additive migration removes broad `service_role` table and sequence privileges and
 unsafe default privileges that the hosted platform restored independently of the migration SQL.
-It does not delete application data. Both remote histories match the local committed history.
+It does not delete application data. Both remote histories matched that local committed history at
+the Phase 01 verification point.
 
 The final hosted verification for each project confirmed:
 
@@ -89,6 +90,58 @@ The final hosted verification for each project confirmed:
 The deploy and verify wrappers link only the named project, confirm the resulting link, serialize
 hosted operations with a local lock, and unlink in a `finally` path. They do not read a database
 password from repository configuration.
+
+### Phase 02 Preview checkpoint
+
+Phase 02 adds these migration candidates after the 21-migration baseline:
+
+```text
+20260716000000_content_schema.sql
+20260716001000_content_authorization_and_rpcs.sql
+20260716002000_content_integration_hardening.sql
+20260716003000_content_rpc_parameter_names.sql
+20260716004000_content_guarded_read_volatility.sql
+20260716005000_content_security_audit_hardening.sql
+20260716006000_content_note_create_identity.sql
+20260716007000_content_conflict_sqlstate.sql
+```
+
+They create the content tables/transactions, frozen public projection, and private
+`lumen-content-media` bucket; compose note/media writes atomically; separate public metadata from
+service-only Storage locators; stabilize named lifecycle RPC parameters; correct guarded-read
+volatility; and harden expected versions, replay authorization, pending-object immutability, and
+embedded-media usage accounting. They also derive an ID-less new note from its idempotency UUID and
+raise typed stale-version outcomes as non-serialization user exceptions so hosted clients do not
+loop on automatic transaction retries. Their presence in a branch does not prove either hosted
+project has them. The exact Preview command results, remote migration count, Storage invariant
+result, deployed URL, hosted smoke count, and cleanup evidence must be recorded in
+[IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md). Until those results are present, report
+Phase 02 Preview as **not hosted-verified**.
+
+The feature branch may deploy these committed migrations only to Preview after complete local
+acceptance and a clean tracked migration directory. It must not apply them to Beta or deploy the
+Production application. A Preview validation may create a dedicated test account/deck/media object
+only when the test has an explicit cleanup path; afterwards verify that no fixture Auth identity,
+content row, publication, or Storage object remains.
+
+After Phase 02 promotion, `db:verify:preview` expects the Storage root inventory to contain exactly
+`lumen-content-media/` and its recursive object inventory to be empty. A missing bucket, extra
+bucket, or any remaining object is drift/failure. This intentionally differs from the historical
+Phase 01 baseline, which had no bucket.
+
+In addition to the non-mutating baseline smoke, the isolated Phase 02 Preview acceptance must
+verify the default post-authentication `/app` redirect, a retained valid safe return, explicit
+appearance across protected navigation/reload, the real empty library, deck creation, save and
+reopen of a representative basic note/card, public preview, and anonymous private-deck denial. The
+guarded runner confirms the one disposable reserved-address Auth identity through the Preview
+project's admin API, marks it with the generated run ID, and uses the normal application UI for
+onboarding/content/publication behavior. Its `finally` cleanup acquires the same hosted-operation
+lock, links only the fixed Preview project, processes the account through the existing
+provisional-rejection or due account-deletion boundary, and asserts Auth removal, publication
+withdrawal, content minimization, and an empty recursive bucket object inventory. Record the exact
+deployed URL, test count, cleanup result, and UTC time in
+[IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md); do not treat this persistent fixture flow
+as part of the safe read-only baseline suite.
 
 ## Safe database promotion workflow
 
@@ -114,6 +167,21 @@ Storage, schema-diff, and generated-type checks described above.
 
 After Preview database verification, use the Vercel Preview for the same branch and run the hosted
 smoke suite before approving the pull request.
+
+After the non-mutating baseline passes, run the isolated disposable content acceptance against the
+same exact deployment:
+
+```bash
+pnpm test:hosted:preview:content --url https://<exact-preview-host>.vercel.app
+pnpm db:verify:preview
+```
+
+The runner refuses Production, local, credential-bearing, non-HTTPS, and unrelated Vercel origins.
+It obtains the Preview server key in memory from the authenticated Supabase CLI and never reads,
+writes, or modifies `apps/web/.env.local`. Do not invoke its Playwright file directly: the wrapper
+is responsible for the reserved identity, secret lifetime, hosted lock, deletion cleanup, unlink,
+and recursive Storage assertion. If the test or cleanup fails, inspect and complete cleanup before
+another hosted content run; do not leave the generated identity or content behind.
 
 ### Merged `main` to Beta
 
@@ -191,15 +259,23 @@ value later; regenerate it in the project setting if no retained copy exists. Th
 configuration supplies the supported bypass header and cookie without exposing the value in test
 output. Do not weaken Deployment Protection merely to make a smoke test pass.
 
-The hosted suite refuses local or non-HTTPS targets. Its ten checks verify the landing page and
+The hosted suite refuses local or non-HTTPS targets. Its baseline checks verify the landing page and
 canonical link; safe health projection; signup/sign-in/recovery rendering; protected-route
 redirect; safe-return normalization; expired callback and confirmation behavior; a neutral
 recovery response with a host-only `Secure`, HttpOnly, SameSite=Lax state cookie; rejection of the
 retired Production origin for mutations; unauthenticated sign-out; security headers; and the
-site-wide robots policy. It intentionally does not create an account, learner, child identity,
-content row, Storage object, or fixture. Recovery initiation creates the normal bounded private
+site-wide robots policy. Phase 02 extends the baseline with random missing public-deck and embed
+projection checks and safe Auth fallback behavior without depending on persistent fixtures. The
+baseline intentionally does not create an account, learner, child identity, content row, Storage
+object, or fixture. Recovery initiation creates the normal bounded private
 rate-limit record under a server-HMACed subject; the record contains neither the reserved test
 email address nor personal information.
+
+The separate `test:hosted:preview:content` path creates one disposable adult account and deck only
+in Preview. It verifies signup confirmation handoff, `/app` onboarding fallback, empty real counts,
+durable dark appearance across settings/reload, deck creation, basic front/back/source save and
+reopen, the card browser, publish/anonymous flip/unpublish denial, and delete. Success is reported
+only after the wrapper's database/Auth/Storage cleanup completes.
 
 ## Supabase Auth URL configuration
 
@@ -406,6 +482,7 @@ No worker or scheduler was deployed by this bootstrap. Queued export and deletio
 must not be represented as completed processing until an owner-operated runner succeeds. Optional
 SMTP, OAuth, AI, analytics, and monitoring integrations remain absent rather than silently mocked.
 
-This bootstrap changed only hosted Phase 01 infrastructure, guarded operations, tests, and
-documentation. It did not implement decks, notes, cards, editors, media authoring, SRS, study
-modes, games, or any other Phase 02 scope.
+The historical bootstrap changed only hosted Phase 01 infrastructure, guarded operations, tests,
+and documentation; its statement that content was not yet implemented is historical evidence, not
+the current Phase 02 branch status. No Phase 03 scheduling, later study mode, or game scope is
+introduced by the Phase 02 promotion.

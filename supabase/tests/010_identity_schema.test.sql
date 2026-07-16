@@ -125,6 +125,22 @@ select is(
     join pg_catalog.pg_class as relation on relation.oid = policy.polrelid
     join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
     where namespace.nspname = 'public'
+      and relation.relname = any(array[
+        'profiles',
+        'privacy_preferences',
+        'account_capabilities',
+        'learner_profiles',
+        'learner_profile_access',
+        'guardian_relationships',
+        'consent_records',
+        'devices',
+        'profile_sessions',
+        'privacy_requests',
+        'data_export_jobs',
+        'deletion_jobs',
+        'audit_events',
+        'guest_sessions'
+      ])
   ),
   12,
   'only explicit safe read policies exist'

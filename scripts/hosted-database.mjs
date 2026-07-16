@@ -234,6 +234,17 @@ export function createHostedDatabaseCommandPlan(action, targetName) {
       ],
       [
         "supabase",
+        "storage",
+        "ls",
+        "--experimental",
+        "--linked",
+        "--recursive",
+        "--output-format",
+        "json",
+        "ss:///lumen-content-media/",
+      ],
+      [
+        "supabase",
         "db",
         "diff",
         "--linked",
@@ -364,7 +375,7 @@ function assertEmptySchemaDiff(output) {
   }
 }
 
-export function assertEmptyHostedStorage(output) {
+export function assertHostedStoragePaths(output, expectedPaths, label = "Hosted storage") {
   let parsed;
   try {
     parsed = JSON.parse(output.trim());
@@ -372,11 +383,28 @@ export function assertEmptyHostedStorage(output) {
     throw new Error("Supabase storage inventory was not valid JSON.");
   }
   if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.paths)) {
-    throw new Error("Supabase storage inventory did not contain a paths array.");
+    throw new Error(`${label} inventory did not contain a paths array.`);
   }
-  if (parsed.paths.length !== 0) {
-    throw new Error("Hosted storage contains a bucket or object outside the Phase 01 contract.");
+  const actualPaths = parsed.paths.map((path) =>
+    typeof path === "string"
+      ? path
+      : path && typeof path === "object" && typeof path.name === "string"
+        ? path.name
+        : null,
+  );
+  const actual = [...actualPaths].sort();
+  const expected = [...expectedPaths].sort();
+  if (
+    actual.some((path) => path === null) ||
+    actual.length !== expected.length ||
+    actual.some((path, index) => path !== expected[index])
+  ) {
+    throw new Error(`${label} does not match the committed Phase 02 contract.`);
   }
+}
+
+export function assertEmptyHostedStorage(output) {
+  assertHostedStoragePaths(output, [], "Hosted storage object");
 }
 
 async function deployHostedDatabase(expectedVersions) {
@@ -413,11 +441,25 @@ async function verifyHostedDatabase(expectedVersions) {
   await runSupabase(["test", "db", "--linked", HOSTED_INVARIANT_PATH], {
     label: "Hosted database invariants",
   });
-  const storage = await runSupabase(
+  const storageRoot = await runSupabase(
     ["storage", "ls", "--experimental", "--linked", "--output-format", "json", "ss:///"],
-    { capture: true, label: "Hosted storage inventory" },
+    { capture: true, label: "Hosted storage bucket inventory" },
   );
-  assertEmptyHostedStorage(storage);
+  assertHostedStoragePaths(storageRoot, ["lumen-content-media/"], "Hosted storage bucket");
+  const contentObjects = await runSupabase(
+    [
+      "storage",
+      "ls",
+      "--experimental",
+      "--linked",
+      "--recursive",
+      "--output-format",
+      "json",
+      "ss:///lumen-content-media/",
+    ],
+    { capture: true, label: "Hosted content-media object inventory" },
+  );
+  assertEmptyHostedStorage(contentObjects);
   const diff = await runSupabase(
     ["db", "diff", "--linked", "--schema", "public,private", "--output-format", "json"],
     { capture: true, label: "Hosted schema diff" },

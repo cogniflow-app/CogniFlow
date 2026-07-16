@@ -2,7 +2,9 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import {
+  isSafeAuthenticationReturnUrl,
   isSafeRelativeReturnUrl,
+  normalizeAuthenticationReturnUrl,
   normalizeReturnUrl,
   returnUrlInputSchema,
 } from "../src/redirects";
@@ -33,6 +35,37 @@ describe("safe return URL normalization", () => {
 
   it("never trusts an unsafe fallback", () => {
     expect(normalizeReturnUrl(undefined, "https://attacker.example")).toBe("/app");
+  });
+
+  it.each([
+    "/auth",
+    "/auth/sign-in?returnTo=%2Fauth%2Fsign-in",
+    "/onboarding",
+    "/onboarding?returnTo=%2Fonboarding",
+    "/api/auth/password",
+    "/_next/static/chunk.js",
+    "/safe/../auth/callback",
+    "/%2561uth%252fcallback",
+  ])("rejects the authentication lifecycle return %s to prevent loops", (candidate) => {
+    expect(normalizeAuthenticationReturnUrl(candidate)).toBe("/app");
+    expect(isSafeAuthenticationReturnUrl(candidate)).toBe(false);
+    expect(returnUrlInputSchema.parse(candidate)).toBe("/app");
+  });
+
+  it.each([
+    "/app",
+    "/app/library?view=grid",
+    "/deck/public-deck#preview",
+    "/join/ABCDEF",
+    "/privacy",
+    "/",
+  ])("preserves the authorized product return %s", (candidate) => {
+    expect(normalizeAuthenticationReturnUrl(candidate)).toBe(candidate);
+    expect(isSafeAuthenticationReturnUrl(candidate)).toBe(true);
+  });
+
+  it("never accepts a lifecycle fallback", () => {
+    expect(normalizeAuthenticationReturnUrl(undefined, "/auth/sign-in")).toBe("/app");
   });
 
   it("normalizes every arbitrary string to the fixed same origin", () => {
