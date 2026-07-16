@@ -81,7 +81,7 @@ pnpm test:db
 pnpm db:types
 ```
 
-`db:reset` applies the Phase 00 foundation followed by every additive Phase 01 migration through `20260715006800_profile_session_revocation_boundary.sql`, including the school-managed payload hardening in `20260715006700_school_managed_payload_hardening.sql`. `pnpm db:types` writes the generated public database contract; `pnpm db:types:check` verifies that the committed contract matches a fresh local schema.
+`db:reset` applies the Phase 00 foundation followed by every additive Phase 01 migration through `20260715006900_hosted_grant_parity.sql`, including the school-managed payload hardening, profile-session revocation boundary, and explicit hosted service-role grant parity. `pnpm db:types` writes the generated public database contract; `pnpm db:types:check` verifies that the committed contract matches a fresh local schema.
 
 `db:reset` is intentionally destructive to the local development database only. Never point the local command at a hosted database. Stop services without deleting local volumes using:
 
@@ -117,6 +117,11 @@ Forgot-password requests use independent signed pending state. Before requesting
 
 `.env.example` is the canonical inventory.
 
+For the exhaustive hosted scope, source, required/optional, and browser/server classification, see
+[HOSTED_ENVIRONMENT.md](./HOSTED_ENVIRONMENT.md). Do not infer a hosted variable from a feature
+name: session, recovery, CSRF, and worker secrets that the parser does not accept must not be
+invented.
+
 | Variable                                  | Visibility    | Local/default guidance                                                                                |
 | ----------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------- |
 | `NEXT_PUBLIC_APP_NAME`                    | Public        | Replaceable visible brand; defaults to `Lumen`                                                        |
@@ -124,7 +129,7 @@ Forgot-password requests use independent signed pending state. Before requesting
 | `NEXT_PUBLIC_SUPABASE_URL`                | Public        | Local API URL from `db:status`; HTTPS required in production                                          |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`    | Public        | Local publishable key only; safety depends on RLS                                                     |
 | `SUPABASE_SECRET_KEY`                     | Server secret | Local secret key; provisioning/infrastructure/admin adapters only; never import in client code        |
-| `DATABASE_URL`                            | Server secret | Local Postgres connection                                                                             |
+| `DATABASE_URL`                            | Server secret | Optional direct Postgres connection for local tooling or a future worker; leave absent on Vercel      |
 | `DEPLOYMENT_PROFILE`                      | Server config | `local`, `test`, `vercel_beta`, or provisional `cloudflare`                                           |
 | `ENABLE_CHILD_PROFILES`                   | Capability    | Keep false except explicit local/test verification; forced false in every production runtime          |
 | `ENABLE_PUBLIC_CHILD_CONTENT`             | Capability    | Keep false; Phase 01 creates no public child content; forced false in every production runtime        |
@@ -170,10 +175,10 @@ Email/password, local email capture, magic-link, recovery, conditional provider 
 
 ### URLs, email, and recovery
 
-1. In Supabase Auth URL Configuration, set the Site URL to the exact HTTPS `NEXT_PUBLIC_APP_URL` for the environment. Add the application's `/auth/callback` and `/auth/confirm` paths to the redirect allowlist. Preview origins must be explicit and must never point at production data.
+1. In Supabase Auth URL Configuration, set the Site URL to the stable HTTPS application origin for the environment. Add only the application's `/auth/callback**` path to the redirect allowlist. Use the minimum documented Vercel Preview wildcard and never point a Preview deployment at production data. Exact current values are in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md#supabase-auth-url-configuration).
 2. Enable email/password sign-in. Choose whether Confirm Email is required and set `AUTH_EMAIL_CONFIRMATION_REQUIRED` to the same value. The application renders pending-verification state only from that configuration; Supabase remains the enforcement authority.
 3. Configure a production SMTP provider and verified sender domain. Supabase's built-in sender is for limited evaluation, not a public beta. Disable provider link tracking that rewrites single-use Auth links.
-4. Review signup, magic-link, recovery, email-change, and security-notification templates. Preserve Supabase token/redirect variables and route the completed action to this application's allowlisted callback/confirm endpoints.
+4. Review signup, magic-link, recovery, email-change, and security-notification templates. The default templates must preserve `{{ .ConfirmationURL }}` because the application supplies its complete stateful `/auth/callback` RedirectTo. Do not replace it with `{{ .SiteURL }}` or append a hard-coded path. A custom token-hash template targeting `/auth/confirm` is a separate provider-gated configuration that requires live testing.
 5. Test a new signup, duplicate/unknown-email neutral response, confirmation, magic link, expired link, password reset with the pending nonce/email binding, forged query-only recovery denial, current-device sign-out, one learner-session revocation, and global sign-out in a non-production project.
 
 Current official references: [redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls), [email templates](https://supabase.com/docs/guides/auth/auth-email-templates), [custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp), and [password-based Auth](https://supabase.com/docs/guides/auth/passwords).
@@ -342,15 +347,20 @@ See [TESTING.md](./TESTING.md) for scope and failure artifacts.
 
 ### Vercel preview/beta
 
-- select Node `24.x`;
-- keep the monorepo root as the project root;
-- use the detected pnpm install and `pnpm build`;
+- use exactly one web project with Root Directory `apps/web` and framework preset Next.js;
+- select Node `24.x` and use the repository-pinned pnpm `11.13.0`;
+- install with `cd ../.. && pnpm install --frozen-lockfile`;
+- build with `cd ../.. && pnpm exec turbo run build --filter=@lumen/web` and use the default `.next` output;
 - set all required environment variables separately for preview and production;
 - use `DEPLOYMENT_PROFILE=vercel_beta` and keep all child/chat flags false;
 - set `PARENTAL_CONSENT_MODE=disabled` even if child code is present;
 - configure and live-test Auth redirects, SMTP/email confirmation, and each enabled OAuth provider before setting its application flag.
 
-Importing the project, applying hosted migrations, changing provider configuration, adding secrets, assigning the deletion worker, and promoting a deployment are owner/operator-only actions. The normal Phase 01 pull request must not deploy itself.
+The one-time Phase 01 hosted bootstrap and its explicit owner authorization created the current
+project, databases, secrets, and temporary deployments. Future database promotion, provider
+configuration, secret changes, worker assignment, custom-domain setup, and production promotion
+must use the guarded workflow in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md); an ordinary feature
+pull request must not deploy itself.
 
 ### Portable host
 

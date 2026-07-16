@@ -52,8 +52,9 @@ The additive migrations are:
 - `20260715006400_child_creation_and_global_signout_authorization.sql` — private child-creation proof ledger, proof-bearing authenticated child creation, current-device sign-out, and separately reauthenticated all-device sign-out;
 - `20260715006500_onboarding_and_learner_settings_authorization.sql` — private onboarding proof ledger, proof-bearing onboarding, provisional Auth-identity rejection/minimization, strict child-proof issuance, and explicit learner-preference mutation;
 - `20260715006600_child_payload_validation_hardening.sql` — fail-closed validation for missing, null, mistyped, or extra verified-child settings and consent payload fields;
-- `20260715006700_school_managed_payload_hardening.sql` — minor-only school-managed learner creation plus closed, privacy-safe settings validation and canonical reconstruction; and
-- `20260715006800_profile_session_revocation_boundary.sql` — authenticated, self-context, freshly reauthenticated revocation of one account-owned learner-profile session.
+- `20260715006700_school_managed_payload_hardening.sql` — minor-only school-managed learner creation plus closed, privacy-safe settings validation and canonical reconstruction;
+- `20260715006800_profile_session_revocation_boundary.sql` — authenticated, self-context, freshly reauthenticated revocation of one account-owned learner-profile session; and
+- `20260715006900_hosted_grant_parity.sql` — revocation of hosted platform default `service_role` table/sequence privileges and matching future default privileges so the hosted RPC-only boundary remains identical to local policy.
 
 No Phase 00 migration is edited. No storage bucket or product-content table is introduced.
 

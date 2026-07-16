@@ -43,7 +43,9 @@
     "RATE_LIMIT_WINDOW_SECONDS",
     "SUPABASE_SECRET_KEY",
     "VERCEL",
-    "VERCEL_ENV"
+    "VERCEL_ENV",
+    "VERCEL_GIT_COMMIT_SHA",
+    "VERCEL_URL"
   ],
   "tasks": {
     "build": {

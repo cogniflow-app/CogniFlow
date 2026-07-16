@@ -18,6 +18,7 @@ test-results/
 supabase/.branches/
 supabase/.temp/
 .wrangler/
+.vercel/
 
 # editors and operating systems
 .DS_Store

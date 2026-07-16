@@ -37,7 +37,7 @@ export interface ServerEnvironment {
   readonly deploymentProfile: DeploymentProfile;
   readonly public: PublicEnvironment;
   readonly supabaseSecretKey: string;
-  readonly databaseUrl: string;
+  readonly databaseUrl: string | null;
   readonly appEncryptionKey: string;
   readonly guestTokenSigningKey: string;
   readonly nextServerActionsEncryptionKey: string;
@@ -99,9 +99,13 @@ const boundedInteger = (minimum: number, maximum: number) =>
   z.coerce.number().int().min(minimum).max(maximum);
 const serverValueSchema = z.object({
   supabaseSecretKey: z.string().trim().min(24),
-  databaseUrl: z.url().refine((value) => /^postgres(?:ql)?:\/\//u.test(value), {
-    message: "DATABASE_URL must use postgres or postgresql",
-  }),
+  databaseUrl: z
+    .url()
+    .refine((value) => /^postgres(?:ql)?:\/\//u.test(value), {
+      message: "DATABASE_URL must use postgres or postgresql",
+    })
+    .optional()
+    .transform((value) => value ?? null),
   appEncryptionKey: z.string().min(32),
   guestTokenSigningKey: z.string().min(32),
   nextServerActionsEncryptionKey: z
@@ -227,7 +231,6 @@ function requiredServerValue(
   source: EnvironmentSource,
   name:
     | "SUPABASE_SECRET_KEY"
-    | "DATABASE_URL"
     | "APP_ENCRYPTION_KEY"
     | "GUEST_TOKEN_SIGNING_KEY"
     | "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY",
@@ -256,12 +259,8 @@ export function parseServerEnvironment(source: EnvironmentSource): ServerEnviron
       LOCAL_SECRETS.supabaseSecretKey,
       allowLocalDefaults,
     ),
-    databaseUrl: requiredServerValue(
-      source,
-      "DATABASE_URL",
-      LOCAL_SECRETS.databaseUrl,
-      allowLocalDefaults,
-    ),
+    databaseUrl:
+      source.DATABASE_URL?.trim() || (allowLocalDefaults ? LOCAL_SECRETS.databaseUrl : undefined),
     appEncryptionKey: requiredServerValue(
       source,
       "APP_ENCRYPTION_KEY",
@@ -281,6 +280,19 @@ export function parseServerEnvironment(source: EnvironmentSource): ServerEnviron
       allowLocalDefaults,
     ),
   });
+
+  if (
+    nodeEnvironment === "production" &&
+    new Set([
+      serverValues.appEncryptionKey,
+      serverValues.guestTokenSigningKey,
+      serverValues.nextServerActionsEncryptionKey,
+    ]).size !== 3
+  ) {
+    throw new Error(
+      "APP_ENCRYPTION_KEY, GUEST_TOKEN_SIGNING_KEY, and NEXT_SERVER_ACTIONS_ENCRYPTION_KEY must be distinct in production",
+    );
+  }
 
   const enabledOAuthProviders = Object.freeze(
     oauthProviders.filter((provider) => {

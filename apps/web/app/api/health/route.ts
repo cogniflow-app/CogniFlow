@@ -14,7 +14,10 @@ function runtimeProvider(deploymentProfile: string): RuntimeProvider {
 export function GET() {
   const serverCapabilities = getServerCapabilities();
   const capabilities = getPublicCapabilities();
-  const version = process.env.NEXT_PUBLIC_BUILD_VERSION?.trim() || "development";
+  const version =
+    process.env.NEXT_PUBLIC_BUILD_VERSION?.trim() ||
+    process.env.VERCEL_GIT_COMMIT_SHA?.trim() ||
+    "development";
   const health = createRuntimeHealth({
     buildVersion: version,
     provider: runtimeProvider(serverCapabilities.deploymentProfile),
