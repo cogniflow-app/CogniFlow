@@ -9,7 +9,10 @@ import type { Database } from "./database.types";
 
 export function createServerDatabaseClient(cookies: ServerCookieStore): DatabaseClient {
   const environment = getServerEnvironment();
-  return createCookieDatabaseClient(cookies, environment.public);
+  return createCookieDatabaseClient(cookies, {
+    ...environment.public,
+    secureCookies: environment.nodeEnvironment === "production",
+  });
 }
 
 /**
@@ -25,6 +28,26 @@ export function createPrivilegedDatabaseClient(): DatabaseClient {
       persistSession: false,
     },
   });
+}
+
+/**
+ * Isolated publishable-key client for credential verification. Its session is
+ * never persisted into the request cookie store and must be signed out after
+ * use so a reauthentication check cannot rotate the active browser session.
+ */
+export function createIsolatedAuthDatabaseClient(): DatabaseClient {
+  const environment = getServerEnvironment();
+  return createClient<Database>(
+    environment.public.supabaseUrl,
+    environment.public.supabasePublishableKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        persistSession: false,
+      },
+    },
+  );
 }
 
 export type {

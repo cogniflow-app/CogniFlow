@@ -1,10 +1,10 @@
 # Event protocol template
 
-**Scope:** Versioning and safety contract established in Phase 00  
-**Implemented product event catalogs:** None in Phase 00  
-**Last updated:** 2026-07-14
+**Scope:** Versioning/safety contract plus Phase 01 identity audit facts  
+**Implemented product event catalogs:** Phase 01 sensitive-change audit catalog  
+**Last updated:** 2026-07-15
 
-This document defines the template later phases must use for offline outbox events, realtime game/collaboration messages, immutable ledgers, and integration events. It does not claim those systems exist yet. Each owning phase must add its concrete event schemas, authorization rules, retention policy, and compatibility tests before exposing a producer.
+This document defines the template later phases must use for offline outbox events, realtime game/collaboration messages, immutable ledgers, and integration events. Phase 01 adds a private server-authored audit catalog; it is not a realtime transport or client event bus. Each owning phase must add its concrete event schemas, authorization rules, retention policy, and compatibility tests before exposing a producer.
 
 ## Commands are not facts
 
@@ -152,12 +152,57 @@ Internal logs may contain a structured cause and stack under the correlation ID,
 - a power-up or score event cannot change academic accuracy, mastery, or FSRS state;
 - retention/cleanup preserves required aggregates and audit evidence.
 
+## Phase 01 identity and privacy audit facts
+
+**Protocol name:** identity/privacy sensitive-change audit  
+**Owning package/phase:** database/server adapters, Phase 01  
+**Current version:** event names and bounded metadata defined by the Phase 01 migrations; no client wire version  
+**Producer authority:** specific security-definer RPCs, or the service-only generic audit RPC  
+**Consumers:** future owner security/privacy operations only; no authenticated/anonymous table read  
+**Transport:** transaction-local Postgres insert  
+**Ordering scope:** authoritative `received_at`; no global business ordering claim  
+**Delivery semantics:** atomic with the accepted mutation where the specific RPC writes it  
+**Idempotency key:** unique event type + complete actor identity + correlation ID (`NULLS NOT DISTINCT`)
+**Retention:** configured owner policy; cleanup worker not deployed in Phase 01  
+**PII classification:** actor/target opaque IDs and privacy-minimized metadata; no credentials or raw token values  
+**Authorization rule:** browser roles cannot insert/read; service role reaches only audited server boundaries  
+**Schema source:** `public.audit_events` and `private.write_audit_event()`
+
+The row stores an opaque event ID, actor type (`account`, `learner_profile`, `guest`, or `system`), nullable actor identifiers, stable event/target types, optional target ID, correlation ID, bounded JSON metadata, and server receipt time. Metadata must be an object no larger than 16 KiB. An append-only trigger rejects update/delete. Idempotency is scoped to event type, actor type, all nullable actor identifiers, and correlation ID; null actor columns compare consistently. A retry returns the original fact only when the original target type and ID also match. This permits different actors to reuse an independently generated correlation UUID without colliding and rejects a same-actor replay aimed at another target.
+
+Accepted event names are:
+
+| Area         | Event names                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Account      | `account.provisioned`, `account.onboarding_authorization_issued`, `account.onboarding_completed`, `account.provisional_identity_rejected`, `account.profile_updated`, `account.privacy_preferences_updated`, `account.device_registered`, `account.device_revoked`, `account.auth_devices_signed_out`, `account.reauthentication_verified`                                                                                                                                                     |
+| Learner      | `learner.child_creation_authorization_issued`, `learner.child_creation_authorization_consumed`, `learner.child_profile_created`, `learner.child_profile_configured`, `learner.school_authorization_issued`, `learner.school_profile_created`, `learner.profile_updated`, `learner.access_granted`, `learner.access_revoked`, `learner.credentials_rotated`, `learner.profile_access_configured`, `learner.profile_session_created`, `learner.profile_session_revoked`, `learner.guardian_exit` |
+| Consent      | `consent.granted`, `consent.revoked`                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Privacy jobs | `privacy.export_requested`, `privacy.deletion_requested`, `privacy.deletion_cancelled`, `privacy.account_deletion_completed`                                                                                                                                                                                                                                                                                                                                                                   |
+| Guest        | `guest.session_created`                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+
+Specific account/learner RPCs assemble their own privacy-minimized metadata. The generic audit writer accepts bounded actor, target, and metadata fields only from a validated service-role adapter; browser roles cannot execute it, and a server route must never forward an arbitrary client payload into it. Neither path may attach an Auth metadata role, plaintext PIN/family code, profile/guest token, password, email-link token, raw network address, or Supabase credential. Guest-session audit IDs deliberately have no foreign key to the ephemeral guest row, so purge retains the opaque historical ID without rewriting the append-only audit fact.
+
+`account.auth_devices_signed_out` distinguishes `scope: "current"` from `scope: "all"` in bounded metadata. Current scope is accepted for the exact JWT-bound application device even during managed mode; all scope requires self context and consumes a fresh `security_change` reauthentication proof. The fact is written only after the corresponding application device/profile sessions are revoked in the same transaction. Supabase provider sign-out happens afterward and is not represented as though it were the database authority.
+
+`learner.profile_session_revoked` also covers the self-context, password-reauthenticated revocation of one selected account-owned learner session. The accepted transaction records the selected session target once, leaves the containing application device and unrelated sessions active, and never includes the password or proof digest in metadata. An ownership mismatch or consumed/missing reauthentication proof produces no accepted audit fact.
+
+`consent_records` is a separate append-only legal/authorization evidence ledger, not generic audit metadata. A revocation is a new row with `prior_consent_record_id`; the original grant is never rewritten. Privacy requests and export/deletion jobs are mutable workflow state, not past-tense event streams. The implemented deletion-worker transaction appends `privacy.account_deletion_completed` when a due job reaches its tombstoned terminal state. Future export assembly and any future status-owning worker must add equivalent accepted transition facts; no scheduler is deployed by Phase 01.
+
+`private.school_authorization_proofs` is another specialized authorization ledger rather than a client event stream. A service adapter records only proof/evidence digests after upstream verification, and the database permits one terminal consume or approved revoke transition. Issuance and successful learner creation are audited, but the raw school/provider evidence, bearer proof, and family/PIN credentials never enter audit metadata.
+
+The school-profile creation fact is emitted only after the consumer accepts a minor age band and reconstructs the canonical seven-key privacy-safe learner settings document. Rejected adult/unknown age bands and missing, null, mistyped, extra, or unsafe settings do not consume the proof or emit `learner.school_profile_created`.
+
+`private.onboarding_authorizations` and `private.child_creation_authorizations` are short-lived command-authorization ledgers, not login sessions or client event streams. Each service-issued row binds a random proof digest and canonical payload digest to the account, exact verified Auth session, issue idempotency key, and an expiry no more than ten minutes away. The authenticated consumer recomputes the payload digest, obtains an advisory/row lock, and either returns the stable prior result for an exact replay or consumes the proof once. Finalization clears the proof digest and a trigger prevents later changes to identity, payload, expiry, or terminal state. Child authorization also records the created learner ID.
+
+The signed onboarding cookie and consent-verifier response are inputs to proof issuance; neither is written to these ledgers or accepted directly by the mutation RPC. The strict verified-child issuer accepts only the exact minimized consent scope and closed settings schema, including all required keys with correct JSON types and no extras. The lower-level child issuer/creator is not service-callable. Audit facts record issuance/consumption IDs and bounded age/target context, never the raw proof, payload digest, verifier credential, or guardian bearer token.
+
 ## Catalog ownership
 
-The catalog is intentionally empty in Phase 00. Later phases add sections here rather than creating undocumented payloads:
+Later phases add sections here rather than creating undocumented payloads:
 
 | Protocol                | Owning phase          | Status          |
 | ----------------------- | --------------------- | --------------- |
+| Identity/privacy audit  | Phase 01              | Implemented     |
 | Review/offline sync     | Phase 03 and Phase 05 | Not implemented |
 | Collaboration           | Phase 07              | Not implemented |
 | Assignment/reporting    | Phase 08              | Not implemented |

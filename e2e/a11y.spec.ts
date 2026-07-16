@@ -1,10 +1,28 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-for (const route of ["/", "/dev/design-system"] as const) {
+for (const route of [
+  "/",
+  "/join",
+  "/auth/sign-in",
+  "/auth/sign-up",
+  "/auth/magic-link",
+  "/auth/forgot-password",
+  "/auth/check-email",
+  "/auth/guardian-required",
+  "/auth/error?reason=expired",
+  "/onboarding",
+  "/privacy",
+  "/terms",
+  "/safety",
+  "/copyright",
+  "/dev/design-system",
+] as const) {
   test(`${route} has no serious or critical axe violations`, async ({ page }) => {
     await page.goto(route);
-    await expect(page.locator("main")).toBeVisible();
+    const main = page.locator("main");
+    await expect(main).toHaveCount(1);
+    await expect(main).toBeVisible();
 
     const result = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
@@ -26,7 +44,7 @@ test("keyboard focus reaches the primary call to action", async ({ page }) => {
 });
 
 test("the skip link focuses a secondary route", async ({ page }) => {
-  await page.goto("/auth");
+  await page.goto("/auth/sign-in");
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: /skip to main content/i })).toBeFocused();
   await page.keyboard.press("Enter");

@@ -29,6 +29,17 @@ describe("server-only configuration entry points", () => {
       childProfiles: false,
       publicChildContent: false,
       freeTextGameChat: false,
+      emailConfirmationRequired: false,
+      oauthProviders: [],
+      privacyRetention: {
+        auditEventDays: 365,
+        deletionGraceDays: 30,
+        exportDownloadDays: 7,
+        guestSessionHours: 24,
+        profileSessionMinutes: 30,
+      },
+      parentalConsentMode: "disabled",
+      childConsentReady: false,
     });
   });
 });

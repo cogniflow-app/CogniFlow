@@ -6,6 +6,7 @@ import type { Database } from "./database.types";
 export interface CookieDatabaseEnvironment {
   readonly supabaseUrl: string;
   readonly supabasePublishableKey: string;
+  readonly secureCookies: boolean;
 }
 
 export function createCookieDatabaseClient(
@@ -13,6 +14,12 @@ export function createCookieDatabaseClient(
   environment: CookieDatabaseEnvironment,
 ): DatabaseClient {
   return createServerClient<Database>(environment.supabaseUrl, environment.supabasePublishableKey, {
+    cookieOptions: {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure: environment.secureCookies,
+    },
     cookies: {
       getAll() {
         return [...cookies.getAll()];

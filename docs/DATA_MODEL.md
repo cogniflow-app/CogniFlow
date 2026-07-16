@@ -1,10 +1,10 @@
 # Data model conventions
 
-**Scope:** Phase 00 database foundation  
+**Scope:** Phase 00 foundation and Phase 01 identity/privacy model  
 **Canonical target:** [PRODUCT_BLUEPRINT.md, section 8](./PRODUCT_BLUEPRINT.md#8-database-model)  
-**Last updated:** 2026-07-14
+**Last updated:** 2026-07-15
 
-Phase 00 establishes how data will be modeled; it intentionally does not create the identity, content, scheduling, mastery, sharing, class, game, progression, or AI tables owned by later phases. If this document and the blueprint differ on product meaning, the blueprint wins and the mapping must be recorded here when the owning migration is added.
+Phase 00 establishes the modeling conventions. Phase 01 adds the identity, learner-access, consent, device/session, privacy-job, audit, rate-limit, and guest-identity foundation. Content, scheduling, mastery, sharing, class, game-room, progression, and AI tables remain owned by later phases. If this document and the blueprint differ on product meaning, the blueprint wins and the mapping must be recorded here when the owning migration is added.
 
 ## Schema ownership
 
@@ -30,6 +30,134 @@ Migration `20260714000000_foundation.sql` creates only the reusable foundation:
 - `private.set_updated_at()`, a security-invoker trigger with an empty `search_path` and no execute grant to browser roles.
 
 The pgTAP foundation suite contains 11 assertions covering extension availability, helper security mode/search path, and schema/function privilege denial. Phase 00 creates no application tables, public RPCs, or storage buckets, so there is not yet a product RLS matrix. The executable seed inserts no rows.
+
+## Phase 01 identity and privacy objects
+
+The additive migrations are:
+
+- `20260715000000_identity_privacy_schema.sql` — enums, 14 exposed/RLS-enabled tables, three initial private support tables, constraints, indexes, grants revoked by default, and sensitive-column comments;
+- `20260715001000_identity_privacy_functions.sql` — triggers, authorization helpers, transactional RPCs, explicit grants, read policies, and audit/consent append-only enforcement;
+- `20260715002000_identity_privacy_hardening.sql` — service-only, proof-consuming deletion cancellation;
+- `20260715002500_managed_learner_session_boundary.sql` — verified Auth-session binding for application devices and managed learner sessions, managed-mode RLS isolation, and server-only managed-session resolution;
+- `20260715002700_managed_session_idempotency.sql` — initial exact-replay ordering for managed-session creation;
+- `20260715002800_learner_credential_hardening.sql` — 16-character family codes, slow salted family-code hashing, and atomic access configuration;
+- `20260715002900_profile_session_transaction_hardening.sql` — per-Auth-session advisory locking, exact idempotent replay, and committed invalid-PIN rate-limit counters;
+- `20260715003000_school_authorization.sql` — private, short-lived, one-time school-authorization proof ledger and service-only issue/consume boundaries;
+- `20260715004000_account_deletion_path.sql` — due-job deletion worker, live Auth-subject separation, minimized account/learner tombstones, and deletion idempotency;
+- `20260715005000_authorization_audit_hardening.sql` — stale-JWT denial plus actor-scoped audit idempotency and exact-target replay;
+- `20260715006000_atomic_self_context.sql` — authenticated atomic `current_*` account/learner mutations and restored observer projection;
+- `20260715006100_guardian_exit_context.sql` — authenticated, proof-consuming managed-mode guardian exit;
+- `20260715006200_sign_out_device_revocation.sql` — application-device revocation before Supabase Auth sign-out;
+- `20260715006300_runtime_session_boundaries.sql` — RPC-only authentication-profile lookup, verified Auth-session device registration, and an authenticated self-context assertion;
+- `20260715006400_child_creation_and_global_signout_authorization.sql` — private child-creation proof ledger, proof-bearing authenticated child creation, current-device sign-out, and separately reauthenticated all-device sign-out;
+- `20260715006500_onboarding_and_learner_settings_authorization.sql` — private onboarding proof ledger, proof-bearing onboarding, provisional Auth-identity rejection/minimization, strict child-proof issuance, and explicit learner-preference mutation;
+- `20260715006600_child_payload_validation_hardening.sql` — fail-closed validation for missing, null, mistyped, or extra verified-child settings and consent payload fields;
+- `20260715006700_school_managed_payload_hardening.sql` — minor-only school-managed learner creation plus closed, privacy-safe settings validation and canonical reconstruction; and
+- `20260715006800_profile_session_revocation_boundary.sql` — authenticated, self-context, freshly reauthenticated revocation of one account-owned learner-profile session.
+
+No Phase 00 migration is edited. No storage bucket or product-content table is introduced.
+
+### Account and learner mapping
+
+| Blueprint concept            | Phase 01 object(s)                                        | Important invariant                                                                                                               |
+| ---------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Application account          | `profiles`                                                | One row per eligible non-anonymous `auth.users` row; exact birthday is not stored; an independent account cannot be under 13      |
+| Account privacy defaults     | `privacy_preferences`                                     | One row per account; targeted advertising and data sale are constrained false                                                     |
+| Overlapping account ability  | `account_capabilities`                                    | Separate `learn`, `create`, `host`, and `teach` rows; user metadata cannot grant them                                             |
+| Study identity               | `learner_profiles`                                        | Exactly one immutable-identity `self` profile per account; child and school-managed kinds are distinct                            |
+| Learner authorization        | `learner_profile_access`                                  | Role plus explicit permissions; active rows are indexed and revocable                                                             |
+| Guardian boundary            | `guardian_relationships`, `consent_records`               | Guardian access also requires an active relationship; consent grants/revocations are append-only                                  |
+| Browser/device inventory     | `devices`                                                 | Opaque device ID bound one-to-one to the account's verified Supabase Auth `session_id`; descriptive platform and revocation state |
+| Learner switch               | `profile_sessions`, `private.learner_profile_credentials` | Auth-session-bound hashed token; bcrypt PIN and independent bcrypt 16-character family code                                       |
+| Privacy request lifecycle    | `privacy_requests`, `data_export_jobs`, `deletion_jobs`   | Durable request/job state; one active deletion job per account                                                                    |
+| Sensitive-change evidence    | `audit_events`                                            | Append-only, bounded metadata, server receipt time, actor-scoped correlation-key deduplication                                    |
+| Ephemeral game identity      | `guest_sessions`                                          | No email/account requirement; safe nickname, game reference, expiry, and hashed reconnect token only                              |
+| Abuse prevention             | `private.rate_limit_buckets`                              | Fixed-window counts keyed by an opaque digest, never a raw network address                                                        |
+| Destructive-action proof     | `private.reauthentication_grants`                         | Short-lived, single-purpose, single-use proof digest                                                                              |
+| School authorization proof   | `private.school_authorization_proofs`                     | Hashed upstream evidence plus a hashed, at-most-15-minute, single-use creation proof; never a general teach-capability shortcut   |
+| Onboarding authorization     | `private.onboarding_authorizations`                       | Hashed, at-most-10-minute, account/Auth-session/payload-bound proof exchanged from the signed age gate and consumed once          |
+| Child creation authorization | `private.child_creation_authorizations`                   | Hashed, at-most-10-minute, guardian/Auth-session/payload-bound proof issued only after strict deployment/consent/payload checks   |
+
+### Transactional provisioning
+
+`private.handle_auth_user_created()` runs after eligible `auth.users` inserts and calls `private.provision_account()`. Pre-existing or retried Auth flows converge on the same implementation through the server-only `admin_ensure_account()` adapter boundary. The earlier direct authenticated ensure function is not granted after the managed-session hardening migration.
+
+Provisioning uses transaction advisory locks and conflict-safe inserts to create the account, privacy defaults, all four capability rows, the self learner, and explicit self access. A partial unique index makes a second self learner impossible even under concurrency. Supabase anonymous Auth identities are deliberately skipped; guest games use `guest_sessions` instead of creating persistent profiles.
+
+Onboarding accepts only the `teen` or `adult` age band for an independent account. The final request body does not carry the age band: a signed, short-lived, account-bound onboarding cookie supplies the eligible value after the password/OAuth callback age gate. Before mutation, the server exchanges that cookie and the exact validated profile payload for a fresh random proof through `admin_issue_onboarding_authorization()`. Only the digest is stored, bound to the verified Auth session, eligible age band, canonical payload digest, and a maximum ten-minute lifetime. The authenticated `current_complete_account_onboarding()` RPC recomputes the payload digest and consumes the matching proof once in the same transaction that persists display name, handle, locale, IANA time zone, study-day boundary, goals, theme, motion, serious mode, and reading style. Authorization-critical status, age, and capability values cannot be updated directly from the browser.
+
+An incomplete recent Auth identity without valid signup/onboarding authority is rejected through `admin_reject_provisional_account()`. The service-only boundary accepts only an uncompleted, child-free onboarding profile, revokes its application state, removes the Auth principal, minimizes the account and self learner into opaque tombstones, and records an idempotent audit fact. It cannot be used as a shortcut around the normal deletion-grace workflow for a completed account.
+
+### Authorization and projection model
+
+`private.can_access_learner_profile(account, learner, permission)` checks account/learner state, owner/self rules, unrevoked permission rows, and the additional active relationship required for guardians. Policy-supporting account, learner, role, status, session, and expiry lookups are indexed in the schema migration.
+
+The authenticated role receives RLS-scoped `SELECT` only for:
+
+- its own profile, privacy preferences, capabilities, devices, privacy requests, export jobs, and deletion jobs;
+- learner/access/guardian/consent rows permitted by the helper; and
+- a column-limited profile-session summary that omits `token_hash`.
+
+`audit_events` and `guest_sessions` have RLS enabled but no client read policy or table grant. No exposed table has an insert/update/delete policy. Account-level mutations use signature-specific authenticated `current_*` RPCs. Each one derives the actor from `auth.uid()`, validates the JWT `session_id` against an unrevoked `devices` row, and holds the per-session managed-mode lock through authorization and mutation. `current_assert_self_context()` exposes only the successful account UUID after the same atomic check; it is used as a route precondition, not as mutation authority. Service-only runtime lookups use `admin_get_authentication_profile_state()` and `admin_register_request_device()` rather than direct reads; the latter verifies the requested session against `auth.sessions` and returns the canonical existing/new device row. The service role deliberately has no broad identity-table `SELECT` grant. Other `admin_*` functions remain implementation/infrastructure boundaries and are not client pass-throughs. The teacher-observer placeholder can call `get_observed_learner_profiles()` for a narrow projection, but managed mode, a missing/revoked device registration, or a non-live account makes the projection empty.
+
+The same session state constrains reads. A live managed-session row restricts RLS to the exact managed learner and hides guardian account, device, consent, provider, privacy, and job rows. This lock intentionally ignores the short study expiry until a guardian performs a proof-consuming exit or another explicit revocation. Current-device sign-out remains available in managed mode so the child-facing browser can terminate its exact session without gaining account settings; all-device sign-out requires self context plus a fresh `security_change` reauthentication proof. `private.is_current_auth_session_revoked()` also denies a stale JWT when the account is deleted/suspended, its Auth subject is gone, or its exact Auth session has no active application device.
+
+From self context, `current_revoke_profile_session()` can revoke one selected account-owned profile-session row after consuming a fresh `security_change` proof. The wrapper locks the selected row and its target Auth-session advisory boundary before delegating to `admin_revoke_profile_session()`. It cannot target another account, does not grant browser access to the actor-selecting implementation function, and leaves the containing device and unrelated learner sessions active.
+
+### Credential and token storage
+
+| Credential/context        | Raw value location                                                  | Stored database representation                             | Lifetime/control                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Supabase Auth session     | Supabase SSR HttpOnly cookies                                       | Supabase-managed Auth state plus verified JWT `session_id` | Refreshed best-effort by Edge middleware; account and session claims are verified at protected boundaries                         |
+| Device identifier         | HttpOnly, SameSite=Lax cookie                                       | UUID device primary key plus Auth `session_id`             | One active registration per account/Auth session; revocation immediately denies that access token and linked learner sessions     |
+| Learner-profile session   | HttpOnly, SameSite=Strict cookie                                    | 32-byte SHA-256 digest plus Auth `session_id`              | Study access expires within 30 minutes; the unrevoked managed-mode lock remains until guardian exit or explicit revocation        |
+| Learner PIN               | Submitted only to the guarded switch route/RPC                      | Cost-12 bcrypt hash in `private`                           | Rotating credentials revoke existing profile sessions                                                                             |
+| Family code               | Returned once/entered only in the guardian-managed flow             | Cost-12 salted bcrypt hash in `private`                    | 16 unambiguous characters (80 random bits); legacy 32-byte SHA values are read only until guardian rotation                       |
+| Re-authentication proof   | Held inside one server mutation                                     | 32-byte digest in `private`                                | Maximum 10 minutes, purpose-scoped, single-use for the destructive/security action that consumes it                               |
+| Onboarding proof          | Generated and consumed inside one onboarding Route Handler          | 32-byte proof and canonical payload digests in `private`   | Maximum 10 minutes; account/Auth-session/age/payload-bound; finalized once and proof digest cleared                               |
+| Child-creation proof      | Generated and consumed inside one guardian Route Handler            | 32-byte proof and canonical payload digests in `private`   | Maximum 10 minutes; guardian/Auth-session/payload-bound; finalized once with the created learner ID and proof digest cleared      |
+| Guest reconnect token     | Signed token in an HttpOnly, SameSite=Strict `/` cookie             | 32-byte SHA-256 digest                                     | No longer than room expiry or configured guest retention; no persistent XP/account linkage                                        |
+| Rate-limit subject        | Derived transiently from request context or authorized resource ID  | 32-byte digest in `private.rate_limit_buckets`             | Server request contexts use HMAC; internal per-profile/account buckets use SHA-256(UUID); raw network addresses are never written |
+| Pending password recovery | Signed HttpOnly, SameSite=Lax cookie issued before requesting email | Not stored in product tables                               | At most 15 minutes; binds safe return path, callback nonce hash, and normalized-email HMAC; consumed only by callback/confirm     |
+| Password-recovery intent  | Signed HttpOnly, SameSite=Strict recovery cookie                    | Not stored in product tables                               | At most ten minutes; account-bound and issued only after pending state matches the recovered Supabase Auth session                |
+
+Hashing a token is not a substitute for issuing high entropy. Routes use cryptographically random opaque values, fixed cookie paths, production-classified secure cookies, and bounded expiry. Production configuration requires HTTPS application and Supabase origins. Secret/service credentials never enter these tables or browser bundles.
+
+### Consent, audit, export, and deletion lifecycle
+
+`consent_records` stores a policy version, bounded scope, verification method, optional external evidence reference, and idempotency key. Revocation inserts a new row pointing to the original grant. The database trigger rejects any update or delete, including a privileged direct rewrite. Revoking guardian/child consent also revokes guardian access and active learner-profile sessions; a child with no remaining active guardian is locked.
+
+Child creation uses two distinct authorities and is available only in local/test runtimes; every production runtime forces the managed-profile capability off until an independent opaque child-facing identity exists. The server first enforces that runtime gate and obtains `local_test` or nonproduction external-verifier evidence. It then calls the strict `admin_issue_verified_child_creation_authorization()` wrapper with the complete canonical payload and an independent proof digest. The wrapper accepts only child consent, the exact minimized consent scope, a closed seven-key learner-settings object, bounded evidence/pseudonym/avatar values, a live guardian Auth session/device, and no managed-session lock. Missing keys, JSON null, wrong types, extra keys, malformed scope, and expired/oversized proof state fail closed. The authenticated `current_create_child_learner_configured()` consumes the session/payload-bound authorization once and atomically creates the learner, access, guardian relationship, and consent row. Lower-level child issuers/creators are not service-callable.
+
+Managed learner edits no longer accept an arbitrary settings document. `current_update_learner_profile()` accepts only display/pseudonym/avatar plus theme, reduced-motion, serious-mode, and reading-style fields, reconstructs the stored settings server-side, and preserves the mandatory minimized analytics, private-content, and disabled-social values.
+
+`audit_events` is also append-only. Specific RPCs write privacy-minimized accepted facts through `private.write_audit_event()`. Metadata is constrained to a JSON object of at most 16 KiB. Idempotency is unique by event type, complete actor identity, and correlation ID with null actor columns treated consistently; a replay returns the original row only when its target also matches.
+
+An export request creates a `privacy_requests` row and a queued `data_export_jobs` row. Authenticated `current_request_account_deletion()` atomically verifies self context, consumes recent re-authentication evidence through its implementation boundary, applies the configured grace period, creates the request and queued job, marks the account `pending_deletion`, and revokes profile sessions. `current_cancel_account_deletion()` performs the equivalent atomic self-context/proof check, refuses cancellation at or after `execute_after`, restores active account state, and appends its own audit event.
+
+`admin_process_account_deletion()` is the service-only, idempotent due-job worker transaction. It requires an elapsed grace period and pending account, then removes the Supabase Auth principal, provider identities/Auth sessions, devices, learner credentials, re-authentication grants, and profile sessions; revokes capabilities/access/relationships and active school proofs; appends consent revocations; cancels open exports/requests; minimizes account/learner fields; and completes the job/request. `profiles.id` remains a durable opaque application identity while `auth_subject_id` becomes null and a separate deletion tombstone/receipt ID is recorded. This preserves append-only audit and consent referential integrity without preserving a live login or mutable personal profile. Auth deletion outside this transaction is rejected, and a deleted Auth subject cannot be recreated.
+
+The worker boundary is implemented, but no scheduler is deployed. The owner must invoke and monitor it after the configured 1–90 day grace period. Archive assembly and expiring download storage remain later portability work. Future data-owning phases must extend the deletion transaction/worker for their tables before promotion. Audit/export/guest retention values likewise require scheduled cleanup or completion workers; configuration alone does not delete records.
+
+### School-managed learner proof boundary
+
+The default `teach` capability does not directly create a school-managed learner. A trusted service adapter must first verify provider/school evidence outside Postgres and call `admin_issue_school_authorization()` with only a proof digest and evidence-reference digest. The private proof lasts at most 15 minutes, is immutable except for one terminal consume/revoke transition, and is scoped to actor and owner accounts. `admin_create_school_managed_learner()` atomically consumes the matching unexpired proof and records the resulting learner ID; exact idempotent replay returns that learner, while reuse, expiry, actor/owner mismatch, or raw proof absence is denied. Creation accepts only `under_13` or `teen`, bounded name/pseudonym/avatar fields, and a closed seven-key settings object. Analytics must be `essential_only`, public content and social interactions must be false, and theme/reading-style/boolean values must use their exact allowed types and values. Missing keys, JSON null, wrong types, extra keys, unsafe values, `adult`, and `unknown` fail closed. The function reconstructs the persisted settings document from validated scalars rather than copying caller JSON. Raw provider evidence and bearer credentials never enter the table.
+
+### Guest identity and cleanup
+
+`admin_create_guest_session()` is service-only and may run only after an injected room adapter accepts the code and room policy. The Phase 01 production adapter intentionally returns no room; deterministic fixture rooms live only in tests. Unavailable, expired, locked, full, and unknown rooms collapse to a non-enumerating public result.
+
+The guest row contains a safe nickname, opaque game reference, reconnect-token digest, status, and expiry—no email, account profile, device fingerprint, XP, or currency. `redeem_guest_session()` accepts only the reconnect digest and can return the bounded guest projection to anonymous/authenticated callers. `admin_purge_expired_guest_sessions()` can remove expired/revoked guests and expired rate-limit buckets, but Phase 01 does not deploy a scheduler; the owning game/operations phase must schedule and monitor it.
+
+## Phase 01 RPC ownership
+
+The public schema uses three privilege groups:
+
+- **Authenticated atomic self-context:** proof-consuming onboarding; profile/privacy updates; export/deletion request and deletion cancellation; proof-consuming child creation; explicit learner/access updates; device/consent revocation; one-session profile revocation; guardian exit; current-device sign-out; reauthenticated all-device sign-out; safe observed-learner projection; and reconnect-token redemption. Every account mutation derives `auth.uid()` and, where applicable, validates/locks the exact Auth-session/device context in the transaction.
+- **Server/service-only administration and infrastructure:** Auth-trigger/backfill provisioning, RPC-only authentication-profile lookup and Auth-session device registration, profile-session creation/resolution, onboarding/verified-child authorization issuance, provisional-account rejection, re-authentication-grant issuance, school authorization/profile creation, due deletion processing, shared rate limiting, guest creation/purge, and generic audit writing. Actor-accepting implementation functions are not browser entry points, and service role is not granted general identity-table reads.
+- **Private helpers:** provisioning, learner authorization, capability checks, credential verification, audit insertion, and rate-limit mutation. Browser roles have no `private` schema usage.
+
+Every privileged function fixes an empty `search_path`, schema-qualifies referenced objects, and receives only its explicitly granted role. Self-service and account/learner administrative functions validate their own actor/resource authorization. Service-infrastructure functions validate bounded state while relying on the server-only adapter and service-role grant for caller authority. [ADR-0012](./ARCHITECTURE_DECISIONS.md#adr-0012-narrow-public-rpc-entry-points-for-postgrest) documents why the smallest callable transaction wrappers live in `public` while reusable policy/credential helpers remain in `private`.
 
 ## Migration contract
 
@@ -70,7 +198,7 @@ The pgTAP foundation suite contains 11 assertions covering extension availabilit
 
 RLS is defense in depth, not the only authorization layer. Mutations authorize in server/domain code or an atomic RPC and are independently constrained by RLS.
 
-Policy tests added in later phases must cover at least:
+The Phase 01 matrix covers anonymous visitors, authenticated self/guardian, unrelated accounts, attacker metadata/tampered learner IDs, teacher-observer projection/revocation, child-profile session expiry/revocation, guest redemption, and the service/admin path. Later phases extend it for at least:
 
 - owner/self;
 - authorized collaborator and each distinct permission;
@@ -88,16 +216,16 @@ Never derive authorization from `raw_user_meta_data` or any client-editable meta
 Before a security-definer function can ship, verify all of the following:
 
 1. It is required for an atomic or policy-safe boundary; a normal invoker function is insufficient.
-2. It lives in `private` or another non-exposed schema.
+2. Its implementation lives in `private` or another non-exposed schema, unless it is the smallest intentionally callable PostgREST transaction wrapper allowed by ADR-0012.
 3. It sets `search_path` to an empty or tightly controlled list and schema-qualifies every object.
-4. It validates untrusted inputs and obtains caller identity from trusted database context.
-5. It performs its own authorization check before reading or mutating protected rows.
+4. It validates untrusted inputs and obtains self-service identity from trusted database context; service-only infrastructure input has an explicit server-adapter precondition.
+5. It performs its own actor/resource authorization before account/learner access or mutation. A service-infrastructure wrapper that has no end-user actor is granted only to `service_role` and must not accept unsanitized client payloads.
 6. Execute privilege is revoked from `public` and granted only to the required roles.
 7. pgTAP tests cover success, denial, malformed input, replay/idempotency, and relevant concurrency behavior.
 
 ## Generated types and repositories
 
-`pnpm db:types` generates the database contract from the local schema. Generated types are inputs to `packages/database`; UI code does not instantiate a Supabase client or use generated table types as an authorization mechanism.
+`pnpm db:types` generates the database contract from the local schema. `pnpm db:types:check` regenerates to a temporary location and fails when committed types drift from migrations. Generated types are inputs to `packages/database`; UI code does not instantiate a Supabase client or use generated table types as an authorization mechanism.
 
 Repositories/services:
 
@@ -110,7 +238,7 @@ Repositories/services:
 
 ## Seed strategy
 
-`supabase/seed.sql` is a real, repeatable entry point but Phase 00 does not fabricate product users or content. Later deterministic fixtures belong in test-only seed files/factories and must not require production credentials. Seed operations are idempotent or run only after an explicit local reset.
+`supabase/seed.sql` is a real, repeatable entry point but does not fabricate product users, children, consent, guests, or content. Phase 01 actor matrices create transaction-scoped test users and rows inside pgTAP files. Browser/unit fixture rooms are injected through a test-only adapter and cannot be discovered by the production room adapter. Fixtures never require production credentials.
 
 ## Change checklist for later phases
 

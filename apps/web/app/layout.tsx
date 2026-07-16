@@ -6,6 +6,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
 
+import { AppearanceProvider } from "@/components/appearance-provider.client";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
@@ -32,7 +33,7 @@ const newsreader = localFont({
 export const metadata: Metadata = {
   applicationName: brandConfig.name,
   description:
-    "A focused foundation for durable recall, adaptive practice, and learning games—designed to keep each kind of progress honest.",
+    "An evolving learning platform for durable recall, adaptive practice, and purposeful games, built on secure account and privacy boundaries.",
   metadataBase: new URL(appUrl),
   openGraph: {
     description:
@@ -81,12 +82,14 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en" suppressHydrationWarning>
       <body className={`${manrope.variable} ${newsreader.variable}`}>
         <script dangerouslySetInnerHTML={{ __html: appearanceScript }} />
-        <a className="skip-link" href="#main-content">
-          Skip to main content
-        </a>
-        <SiteHeader />
-        {children}
-        <SiteFooter />
+        <AppearanceProvider>
+          <a className="skip-link" href="#main-content">
+            Skip to main content
+          </a>
+          <SiteHeader />
+          {children}
+          <SiteFooter />
+        </AppearanceProvider>
       </body>
     </html>
   );

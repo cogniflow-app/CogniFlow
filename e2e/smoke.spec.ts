@@ -1,21 +1,124 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 test("the public landing page exposes only real destinations", async ({ page }) => {
   await page.goto("/");
 
   await expect(page).toHaveTitle(/learn for the long term/i);
-  await expect(page.getByRole("heading", { level: 1, name: /make knowledge stay/i })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: /learn from a foundation you control/i }),
+  ).toBeVisible();
   const primaryNavigation = page.getByRole("navigation", { name: "Primary" });
   await expect(primaryNavigation).toBeVisible();
-  await expect(primaryNavigation.getByRole("link", { name: "App shell" })).toBeVisible();
-  await expect(primaryNavigation.getByRole("link", { name: "Access" })).toBeVisible();
+  await expect(primaryNavigation.getByRole("link", { name: "Join a game" })).toBeVisible();
+  await expect(primaryNavigation.getByRole("link", { name: "Safety" })).toBeVisible();
 
-  await page.getByRole("link", { name: /explore the app foundation/i }).click();
+  await page.getByRole("link", { name: /create an account/i }).click();
+  await expect(page).toHaveURL(/\/auth\/sign-up$/u);
+  await expect(page.getByRole("heading", { level: 2, name: /create your account/i })).toBeVisible();
+});
+
+test("the public guest shell checks a host code without pretending a room exists", async ({
+  page,
+}) => {
+  await page.goto("/join/ABCDEF");
+
+  await expect(
+    page.getByRole("heading", { level: 1, name: /room code is all you need/i }),
+  ).toBeVisible();
+  const roomCode = page.getByRole("textbox", { name: "Room code" });
+  await expect(roomCode).toHaveValue("ABCDEF");
+  await expect(page.getByRole("button", { name: "Check room code" })).toBeVisible();
+  await expect(page.getByText("No pretend rooms")).toBeVisible();
+
+  await roomCode.clear();
+  await page.getByRole("button", { name: "Check room code" }).click();
+  await expect(page.getByText("Enter the room code")).toBeVisible();
+  await expect(page.getByText(/you joined/i)).toHaveCount(0);
+});
+
+test("protected account routes preserve a safe return destination", async ({ page }) => {
+  await page.goto("/app/settings/privacy");
+
+  await expect(page).toHaveURL(/\/auth\/sign-in\?returnTo=%2Fapp%2Fsettings%2Fprivacy$/u);
+  await expect(page.getByRole("heading", { level: 2, name: "Sign in" })).toBeVisible();
+  await expect(page.getByText(/privacy and data controls/i)).toHaveCount(0);
+
+  await page.goto("/onboarding");
+  await expect(page).toHaveURL(/\/auth\/sign-in\?returnTo=%2Fonboarding$/u);
+});
+
+test("an under-13 signup follows the guardian path without creating an account", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium-desktop", "One browser covers this server gate.");
+  const authMutations: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().includes("/api/auth/")) {
+      authMutations.push(request.url());
+    }
+  });
+  await page.goto("/auth/sign-up?returnTo=%2Fapp");
+
+  await expect(page.getByRole("textbox", { name: "Email address" })).toHaveCount(0);
+  await expect(page.getByLabel("Password")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /continue with/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Create account" })).toHaveCount(0);
+  await page.getByRole("combobox", { name: /which age range describes you/i }).click();
+  await page.getByRole("option", { name: "Under 13" }).click();
+
+  await expect(page).toHaveURL(/\/auth\/guardian-required$/u);
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Ask a guardian to continue" }),
+  ).toBeVisible();
+  await expect(page.getByText(/does not collect a child email/i)).toBeVisible();
+  expect(authMutations).toEqual([]);
+});
+
+test("local email signup provisions, onboards, and opens real settings", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium-desktop",
+    "One local account is enough for the integration path.",
+  );
+  await page.setExtraHTTPHeaders({ "X-Forwarded-For": "198.51.100.41" });
+  const suffix = crypto.randomUUID().replaceAll("-", "");
+  const email = `phase01-${suffix}@example.test`;
+  const handle = `learner_${suffix.slice(0, 12)}`;
+
+  await page.goto("/auth/sign-up?returnTo=%2Fapp");
+  await page.getByRole("combobox", { name: /which age range describes you/i }).click();
+  await page.getByRole("option", { name: "18 or older" }).click();
+  await page.getByRole("textbox", { name: "Email address" }).fill(email);
+  await page.getByLabel("Password").fill(`Local-only-password-${suffix}`);
+  await page.getByRole("button", { name: "Create account" }).click();
+
+  await expect(page).toHaveURL(/\/onboarding\?returnTo=%2Fapp$/u);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Make the workspace yours." }),
+  ).toBeVisible();
+  const onboardingAxe = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(
+    onboardingAxe.violations.filter(({ impact }) => impact === "serious" || impact === "critical"),
+    JSON.stringify(onboardingAxe.violations, null, 2),
+  ).toEqual([]);
+
+  await page.getByRole("textbox", { name: "Display name" }).fill("Local learner");
+  await page.getByRole("textbox", { name: "Handle" }).fill(handle);
+  await page.getByRole("button", { name: "Finish account setup" }).click();
+
   await expect(page).toHaveURL(/\/app$/u);
   await expect(
-    page.getByRole("heading", { level: 1, name: /a calm place to begin/i }),
+    page.getByRole("heading", { level: 1, name: "Welcome, Local learner." }),
   ).toBeVisible();
-  await expect(page.getByText(/does not create an account session/i)).toBeVisible();
+  await page.getByRole("link", { name: "Learner profiles" }).click();
+  await expect(page).toHaveURL(/\/app\/settings\/learners$/u);
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Guardian-managed profiles unavailable" }),
+  ).toBeVisible();
 });
 
 test("the design-system gallery renders interactive foundations", async ({ page }) => {

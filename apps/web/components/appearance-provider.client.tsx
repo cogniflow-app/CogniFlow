@@ -11,13 +11,9 @@ import {
   type ReactNode,
 } from "react";
 
-export type ColorPreference = "light" | "dark" | "system";
+import type { AppearancePreferences, ColorPreference } from "@/lib/appearance";
 
-interface AppearancePreferences {
-  color: ColorPreference;
-  reduceMotion: boolean;
-  seriousMode: boolean;
-}
+export type { AppearancePreferences, ColorPreference } from "@/lib/appearance";
 
 interface AppearanceContextValue extends AppearancePreferences {
   setColor: (color: ColorPreference) => void;
@@ -26,6 +22,7 @@ interface AppearanceContextValue extends AppearancePreferences {
 }
 
 const STORAGE_KEY = "lumen:appearance:v1";
+const SYNC_EVENT = "lumen:appearance-sync";
 const defaults: AppearancePreferences = {
   color: "system",
   reduceMotion: false,
@@ -60,7 +57,17 @@ function readStoredPreferences(): AppearancePreferences {
   }
 }
 
-function applyPreferences(preferences: AppearancePreferences) {
+function isAppearancePreferences(value: unknown): value is AppearancePreferences {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<AppearancePreferences>;
+  return (
+    isColorPreference(candidate.color) &&
+    typeof candidate.reduceMotion === "boolean" &&
+    typeof candidate.seriousMode === "boolean"
+  );
+}
+
+export function applyAppearancePreferences(preferences: AppearancePreferences) {
   const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const systemReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const resolvedColor =
@@ -90,27 +97,54 @@ function applyPreferences(preferences: AppearancePreferences) {
   }
 }
 
+function preferencesMatch(left: AppearancePreferences, right: AppearancePreferences): boolean {
+  return (
+    left.color === right.color &&
+    left.reduceMotion === right.reduceMotion &&
+    left.seriousMode === right.seriousMode
+  );
+}
+
+/**
+ * Applies a trusted preference projection and keeps the global provider in
+ * sync. Signed-in server projections and successful settings mutations use
+ * this path so browser-local state cannot override the active learner.
+ */
+export function synchronizeAppearancePreferences(preferences: AppearancePreferences): void {
+  applyAppearancePreferences(preferences);
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+  window.dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: preferences }));
+}
+
 export function AppearanceProvider({ children }: { children: ReactNode }) {
   const [preferences, setPreferences] = useState<AppearancePreferences>(defaults);
-  const restoredPreferences = useRef(false);
+  const skipInitialPreferenceCommit = useRef(true);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      restoredPreferences.current = true;
-      setPreferences(readStoredPreferences());
-    }, 0);
-    return () => window.clearTimeout(timeout);
+    const synchronize = (event: Event) => {
+      const next = (event as CustomEvent<unknown>).detail;
+      if (!isAppearancePreferences(next)) return;
+      setPreferences((current) => (preferencesMatch(current, next) ? current : next));
+    };
+    window.addEventListener(SYNC_EVENT, synchronize);
+    const restore = window.setTimeout(() => setPreferences(readStoredPreferences()), 0);
+    return () => {
+      window.clearTimeout(restore);
+      window.removeEventListener(SYNC_EVENT, synchronize);
+    };
   }, []);
 
   useEffect(() => {
-    if (!restoredPreferences.current) return;
+    if (skipInitialPreferenceCommit.current) {
+      skipInitialPreferenceCommit.current = false;
+      return;
+    }
 
-    applyPreferences(preferences);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+    synchronizeAppearancePreferences(preferences);
 
     const colorQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const reapply = () => applyPreferences(preferences);
+    const reapply = () => applyAppearancePreferences(preferences);
     colorQuery.addEventListener("change", reapply);
     motionQuery.addEventListener("change", reapply);
     return () => {
