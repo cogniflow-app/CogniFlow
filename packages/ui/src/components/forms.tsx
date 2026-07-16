@@ -34,7 +34,7 @@ export interface FormFieldProps extends Omit<HTMLAttributes<HTMLDivElement>, "ch
   children: ReactNode;
   controlId?: string;
   description?: ReactNode;
-  error?: string;
+  error?: string | undefined;
   group?: boolean;
   label: ReactNode;
   required?: boolean;

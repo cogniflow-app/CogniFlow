@@ -1,12 +1,12 @@
 import { brandConfig } from "@lumen/config/brand";
 
 import { AppearanceControls } from "./appearance-controls.client";
-import { AppearanceProvider } from "./appearance-provider.client";
+import { HeaderAccountAction } from "./header-account-action";
 
 const navigation = [
   { href: "/", label: "Overview" },
-  { href: "/app", label: "App shell" },
-  { href: "/auth", label: "Access" },
+  { href: "/join", label: "Join a game" },
+  { href: "/safety", label: "Safety" },
 ] as const;
 
 export function SiteHeader() {
@@ -28,10 +28,9 @@ export function SiteHeader() {
               {item.label}
             </a>
           ))}
+          <HeaderAccountAction />
         </nav>
-        <AppearanceProvider>
-          <AppearanceControls />
-        </AppearanceProvider>
+        <AppearanceControls />
       </div>
     </header>
   );

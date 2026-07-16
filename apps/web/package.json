@@ -13,6 +13,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hookform/resolvers": "5.4.0",
+    "@lumen/auth": "workspace:*",
     "@fontsource-variable/manrope": "5.2.8",
     "@fontsource-variable/newsreader": "5.2.10",
     "@lumen/config": "workspace:*",
@@ -21,7 +23,8 @@
     "@lumen/ui": "workspace:*",
     "next": "16.2.10",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "react-hook-form": "7.81.0"
   },
   "devDependencies": {
     "@lumen/test-utils": "workspace:*",

@@ -22,6 +22,15 @@ const requiredProductionValues = [
   "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY",
 ] as const;
 
+function createProductionEnvironmentFixture(overrides: Readonly<Record<string, string>> = {}) {
+  return createEnvironmentFixture({
+    DEPLOYMENT_PROFILE: "cloudflare",
+    NEXT_PUBLIC_APP_URL: "https://learn.example.test",
+    NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.test",
+    ...overrides,
+  });
+}
+
 describe("Next environment validation", () => {
   it.each(requiredProductionValues)(
     "rejects a production build without %s even when NODE_ENV says test",
@@ -39,7 +48,7 @@ describe("Next environment validation", () => {
   it.each([PHASE_PRODUCTION_BUILD, PHASE_PRODUCTION_SERVER, PHASE_EXPORT])(
     "forces production semantics for %s",
     (phase) => {
-      const environment = validateNextEnvironment(phase, createEnvironmentFixture());
+      const environment = validateNextEnvironment(phase, createProductionEnvironmentFixture());
 
       expect(environment.nodeEnvironment).toBe("production");
     },
@@ -50,5 +59,20 @@ describe("Next environment validation", () => {
       "development",
     );
     expect(validateNextEnvironment(PHASE_TEST, {}).nodeEnvironment).toBe("test");
+  });
+
+  it("forwards the provider-owned Vercel marker into the child safety gate", () => {
+    const environment = validateNextEnvironment(PHASE_PRODUCTION_BUILD, {
+      ...createProductionEnvironmentFixture(),
+      ENABLE_CHILD_PROFILES: "true",
+      PARENTAL_CONSENT_MODE: "external_verified",
+      VERCEL: "1",
+    });
+
+    expect(environment).toMatchObject({
+      enableChildProfiles: false,
+      parentalConsentMode: "disabled",
+      vercelRuntime: true,
+    });
   });
 });

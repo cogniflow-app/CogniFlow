@@ -39,18 +39,27 @@ function requiredValue(
 }
 
 export function parsePublicEnvironment(source: EnvironmentSource): PublicEnvironment {
-  return Object.freeze(
-    publicEnvironmentSchema.parse({
-      appName: source.NEXT_PUBLIC_APP_NAME?.trim() || DEFAULT_APP_NAME,
-      appUrl: requiredValue(source, "NEXT_PUBLIC_APP_URL", LOCAL_APP_URL),
-      supabaseUrl: requiredValue(source, "NEXT_PUBLIC_SUPABASE_URL", LOCAL_SUPABASE_URL),
-      supabasePublishableKey: requiredValue(
-        source,
-        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-        LOCAL_PUBLISHABLE_KEY,
-      ),
-    }),
-  );
+  const environment = publicEnvironmentSchema.parse({
+    appName: source.NEXT_PUBLIC_APP_NAME?.trim() || DEFAULT_APP_NAME,
+    appUrl: requiredValue(source, "NEXT_PUBLIC_APP_URL", LOCAL_APP_URL),
+    supabaseUrl: requiredValue(source, "NEXT_PUBLIC_SUPABASE_URL", LOCAL_SUPABASE_URL),
+    supabasePublishableKey: requiredValue(
+      source,
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+      LOCAL_PUBLISHABLE_KEY,
+    ),
+  });
+
+  if (readNodeEnvironment(source) === "production") {
+    if (new URL(environment.appUrl).protocol !== "https:") {
+      throw new Error("NEXT_PUBLIC_APP_URL must use HTTPS in production");
+    }
+    if (new URL(environment.supabaseUrl).protocol !== "https:") {
+      throw new Error("NEXT_PUBLIC_SUPABASE_URL must use HTTPS in production");
+    }
+  }
+
+  return Object.freeze(environment);
 }
 
 /** Uses explicit public references so Next.js can replace them safely. */

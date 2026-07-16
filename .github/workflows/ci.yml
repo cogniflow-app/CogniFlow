@@ -17,15 +17,31 @@ env:
   NEXT_TELEMETRY_DISABLED: 1
   SUPABASE_TELEMETRY_DISABLED: true
   NEXT_PUBLIC_APP_NAME: Lumen
-  NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
-  NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+  NEXT_PUBLIC_APP_URL: https://verification.example.test
+  NEXT_PUBLIC_SUPABASE_URL: https://supabase.verification.example.test
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-public-placeholder
+  AUTH_EMAIL_CONFIRMATION_REQUIRED: false
+  AUTH_OAUTH_GOOGLE_ENABLED: false
+  AUTH_OAUTH_GITHUB_ENABLED: false
+  AUTH_OAUTH_AZURE_ENABLED: false
   SUPABASE_SECRET_KEY: ci-server-placeholder-at-least-24-characters
   DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-  DEPLOYMENT_PROFILE: local
+  DEPLOYMENT_PROFILE: cloudflare
   ENABLE_CHILD_PROFILES: false
   ENABLE_PUBLIC_CHILD_CONTENT: false
   ENABLE_FREE_TEXT_GAME_CHAT: false
+  PARENTAL_CONSENT_MODE: disabled
+  PROFILE_SESSION_TTL_MINUTES: 30
+  GUEST_SESSION_RETENTION_HOURS: 24
+  EXPORT_DOWNLOAD_RETENTION_DAYS: 7
+  DELETION_GRACE_PERIOD_DAYS: 30
+  AUDIT_EVENT_RETENTION_DAYS: 365
+  RATE_LIMIT_WINDOW_SECONDS: 900
+  RATE_LIMIT_SIGNUP_ATTEMPTS: 5
+  RATE_LIMIT_PASSWORD_RESET_ATTEMPTS: 5
+  RATE_LIMIT_PROFILE_PIN_ATTEMPTS: 5
+  RATE_LIMIT_GUEST_CREATION_ATTEMPTS: 20
+  RATE_LIMIT_DESTRUCTIVE_REQUEST_ATTEMPTS: 3
   APP_ENCRYPTION_KEY: ci-only-app-encryption-key-at-least-32-bytes
   GUEST_TOKEN_SIGNING_KEY: ci-only-guest-signing-key-at-least-32-bytes
   NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -121,7 +137,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Start local Supabase
-        run: pnpm db:start
+        run: pnpm db:start >/dev/null 2>&1
 
       - name: Apply migrations from empty
         run: pnpm db:reset
@@ -132,6 +148,9 @@ jobs:
           mkdir -p test-results/database
           set -o pipefail
           pnpm test:db 2>&1 | tee test-results/database/pgtap.log
+
+      - name: Verify generated database types
+        run: pnpm db:types:check
 
       - name: Upload database diagnostics on failure
         if: failure()
@@ -166,11 +185,21 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Install pinned Chromium
         run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start and reset local Supabase
+        run: |
+          pnpm db:start >/dev/null 2>&1
+          pnpm db:reset
 
       - name: Run Playwright
         run: pnpm test:e2e
@@ -186,10 +215,14 @@ jobs:
             test-results/e2e/**
           retention-days: 7
 
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
+
   accessibility:
     name: Axe accessibility
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -206,11 +239,21 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Install pinned Chromium
         run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start and reset local Supabase
+        run: |
+          pnpm db:start >/dev/null 2>&1
+          pnpm db:reset
 
       - name: Run axe checks
         run: pnpm test:a11y
@@ -225,6 +268,10 @@ jobs:
             playwright-report/a11y/**
             test-results/a11y/**
           retention-days: 7
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
 
   performance:
     name: Lighthouse and load smoke

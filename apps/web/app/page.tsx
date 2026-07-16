@@ -7,42 +7,42 @@ export const metadata: Metadata = {
 const principles = [
   {
     number: "01",
-    title: "Memory stays auditable",
+    title: "Identity stays bounded",
     description:
-      "Dedicated review will own long-term scheduling. Practice, assessment, and game results remain separate evidence instead of blurring into one score.",
+      "An account and a learner profile are different things. The active learner is obvious, authorized on the server, and isolated from private account controls.",
   },
   {
     number: "02",
-    title: "Practice adapts with purpose",
+    title: "Child access stays gated",
     description:
-      "Recognition can introduce an idea, but genuine recall is what moves learning forward. Every transition is designed to be explainable.",
+      "The public beta is 13+. Guardian-managed profiles are local/test-only until child browsers have an independent identity boundary and every launch gate is complete.",
   },
   {
     number: "03",
-    title: "Play never rewrites truth",
+    title: "Privacy is a workflow",
     description:
-      "Games can be expressive, social, and strategic while academic accuracy remains untouched by speed bonuses, streaks, or power-ups.",
+      "Preferences, device sessions, export requests, and deletion requests use real account state—not decorative toggles or success messages.",
   },
 ] as const;
 
 const foundations = [
   {
-    tag: "Long-term memory",
-    title: "Review that can be inspected",
+    tag: "Secure access",
+    title: "Choose how you sign in",
     description:
-      "Notes, generated cards, scheduling state, and review history will form one traceable system—with learner control over every meaningful change.",
+      "Use email and password, a magic link, or a configured identity provider—with verified callbacks, safe return paths, recovery, and session controls.",
   },
   {
-    tag: "Adaptive study",
-    title: "From seeing to recalling",
+    tag: "Learner context",
+    title: "Know who is learning",
     description:
-      "Study experiences will progress from a gentle introduction to independent retrieval without confusing short-term familiarity for durable memory.",
+      "Every eligible account receives one self learner profile. Guardian-managed behavior is fully tested but cannot be activated in a production runtime.",
   },
   {
-    tag: "Purposeful games",
-    title: "Energy with boundaries",
+    tag: "Account control",
+    title: "See and change real state",
     description:
-      "A shared question layer will support calm solo modes and lively rooms while keeping scoring, mastery, and scheduling distinct.",
+      "Review profile choices, provider connections, devices, privacy preferences, and the actual status of export or deletion requests.",
   },
 ] as const;
 
@@ -52,32 +52,32 @@ export default function LandingPage() {
       <section className="hero">
         <div className="site-container hero__grid">
           <div>
-            <span className="eyebrow">Learning, with a longer horizon</span>
+            <span className="eyebrow">A trustworthy place to begin</span>
             <h1>
-              Make knowledge <em>stay.</em>
+              Learn from a foundation <em>you control.</em>
             </h1>
             <p className="hero__lead">
-              A thoughtful learning platform in formation—bringing durable recall, adaptive
-              practice, and purposeful play together without letting one kind of progress
-              impersonate another.
+              Set up secure account access, choose the right learner context, and manage privacy
+              before study history enters the picture. Durable recall, adaptive practice, and
+              purposeful play build on these boundaries in later phases.
             </p>
             <div className="hero__actions">
-              <a className="hero-action hero-action--primary" href="/app">
-                Explore the app foundation
+              <a className="hero-action hero-action--primary" href="/auth/sign-up">
+                Create an account
               </a>
-              <a className="hero-action hero-action--secondary" href="/auth">
-                Understand account access
+              <a className="hero-action hero-action--secondary" href="/auth/sign-in">
+                Sign in
               </a>
             </div>
           </div>
           <div
-            aria-label="Recall, practice, and play orbit durable learning"
+            aria-label="Authentication, learner profiles, and privacy surround one account"
             className="memory-map"
           >
-            <span className="memory-map__core">Learning</span>
-            <span className="memory-map__node memory-map__node--recall">Recall</span>
-            <span className="memory-map__node memory-map__node--practice">Practice</span>
-            <span className="memory-map__node memory-map__node--play">Play</span>
+            <span className="memory-map__core">Account</span>
+            <span className="memory-map__node memory-map__node--recall">Access</span>
+            <span className="memory-map__node memory-map__node--practice">Profiles</span>
+            <span className="memory-map__node memory-map__node--play">Privacy</span>
           </div>
         </div>
       </section>
@@ -100,11 +100,11 @@ export default function LandingPage() {
       <section aria-labelledby="foundation-heading" className="foundation-section">
         <div className="site-container">
           <div className="section-heading">
-            <h2 id="foundation-heading">Three systems. One honest foundation.</h2>
+            <h2 id="foundation-heading">Trust comes before study data.</h2>
             <p>
-              The platform is being built from stable, accessible primitives first. It already
-              supports responsive themes, reduced motion, serious mode, typed runtime boundaries,
-              and a local database workflow—before any account or learning data is introduced.
+              Phase 01 establishes the identity, authorization, and privacy boundaries that later
+              notes, reviews, classes, sharing, and games must respect. The controls below describe
+              implemented account behavior, not sample metrics or promised study results.
             </p>
           </div>
           <div className="foundation-grid">

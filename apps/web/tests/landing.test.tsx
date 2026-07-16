@@ -7,14 +7,16 @@ describe("public landing page", () => {
   it("renders the product truthfully with working implemented destinations", () => {
     render(<LandingPage />);
 
-    expect(screen.getByRole("heading", { level: 1, name: /make knowledge stay/i })).toBeVisible();
-    expect(screen.getByRole("link", { name: /explore the app foundation/i })).toHaveAttribute(
+    expect(
+      screen.getByRole("heading", { level: 1, name: /learn from a foundation you control/i }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: /create an account/i })).toHaveAttribute(
       "href",
-      "/app",
+      "/auth/sign-up",
     );
-    expect(screen.getByRole("link", { name: /understand account access/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /^sign in$/i })).toHaveAttribute(
       "href",
-      "/auth",
+      "/auth/sign-in",
     );
     expect(screen.queryByText(/coming soon/i)).not.toBeInTheDocument();
   });
