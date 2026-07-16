@@ -17,13 +17,13 @@ export default async function SignInPage({
   return (
     <AuthShell
       eyebrow="Welcome back"
-      story="Your account identifies who may act. Your active learner profile identifies whose learning data is in view. We keep those boundaries explicit."
-      title="Continue where learning left off."
+      story="Your account controls access. Your active learner profile stays separate from private account settings."
+      title="Return to your private workspace."
     >
       <div className="auth-card">
         <h2>Sign in</h2>
         <p className="auth-card__intro">
-          Use your password, a secure email link, or a configured provider.
+          Use your password, a secure email link, or an available sign-in provider.
         </p>
         <AuthForm mode="sign_in" providers={getConfiguredAuthProviders()} returnTo={safeReturnTo} />
         <div className="mt-4 flex flex-wrap justify-between gap-3 text-sm font-semibold">

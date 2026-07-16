@@ -1,11 +1,12 @@
 import { brandConfig } from "@lumen/config/brand";
+import { PageContainer } from "@lumen/ui/shells";
 
-import { AppearanceControls } from "./appearance-controls.client";
 import { HeaderAccountAction } from "./header-account-action";
+import { SiteNavigation } from "./site-navigation.client";
 
 const navigation = [
   { href: "/", label: "Overview" },
-  { href: "/join", label: "Join a game" },
+  { href: "/join", label: "Enter a room code" },
   { href: "/safety", label: "Safety" },
 ] as const;
 
@@ -17,21 +18,13 @@ export function SiteHeader() {
 
   return (
     <header className="site-header">
-      <div className="site-container site-header__inner">
+      <PageContainer className="site-header__inner" width="site">
         <a className="brand-lockup" href="/" aria-label={`${brandConfig.name} home`}>
           <span aria-hidden="true" className="brand-lockup__mark" />
           <span>{brandConfig.name}</span>
         </a>
-        <nav aria-label="Primary" className="site-nav">
-          {links.map((item) => (
-            <a href={item.href} key={item.href}>
-              {item.label}
-            </a>
-          ))}
-          <HeaderAccountAction />
-        </nav>
-        <AppearanceControls />
-      </div>
+        <SiteNavigation accountAction={<HeaderAccountAction />} links={links} />
+      </PageContainer>
     </header>
   );
 }

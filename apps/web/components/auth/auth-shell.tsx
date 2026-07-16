@@ -17,8 +17,8 @@ export function AuthShell({ children, eyebrow, story, title }: AuthShellProps) {
           <p>{story}</p>
         </div>
         <p className="text-sm">
-          No advertising. No sale of learner data. Under-13 learners use a reviewed,
-          guardian-managed profile—not an independent email account.
+          No advertising. No sale of learner data. This beta is for ages 13 and older; child
+          profiles are not available.
         </p>
       </section>
       <section className="auth-panel">{children}</section>

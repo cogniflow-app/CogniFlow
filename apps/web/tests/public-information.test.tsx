@@ -9,12 +9,12 @@ import { SiteFooter } from "../components/site-footer";
 
 const pages = [
   { component: PrivacyPage, current: "Privacy", heading: /your data should serve your learning/i },
-  { component: TermsPage, current: "Terms", heading: /clear rules for a shared learning space/i },
+  { component: TermsPage, current: "Terms", heading: /clear rules for using the service/i },
   { component: SafetyPage, current: "Safety", heading: /learning should feel focused/i },
   {
     component: CopyrightPage,
     current: "Copyright",
-    heading: /create, import, and share responsibly/i,
+    heading: /respect ownership and attribution/i,
   },
 ] as const;
 
@@ -27,7 +27,7 @@ describe("public information pages", () => {
       expect(screen.getByRole("heading", { level: 1, name: heading })).toBeVisible();
       expect(screen.getByRole("navigation", { name: "Public information" })).toBeVisible();
       expect(screen.getByRole("link", { name: current })).toHaveAttribute("aria-current", "page");
-      expect(screen.getByText(/last updated july 15, 2026/i)).toBeVisible();
+      expect(screen.getByText(/last updated july 16, 2026/i)).toBeVisible();
     },
   );
 

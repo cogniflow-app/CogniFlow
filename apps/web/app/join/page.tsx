@@ -5,8 +5,9 @@ import { readPublicViewerContext } from "@/lib/server/public-viewer";
 import { JoinPageContent } from "./join-page-content";
 
 export const metadata: Metadata = {
-  description: "Check an active room code and join as an ephemeral game guest.",
-  title: "Join a game",
+  description:
+    "Enter a six-character room code to check whether temporary guest access is available.",
+  title: "Check a room code",
 };
 
 export default async function JoinPage() {

@@ -1,14 +1,28 @@
 "use client";
 
+import { useRef, type KeyboardEvent } from "react";
+
 import { useAppearance, type ColorPreference } from "./appearance-provider.client";
 
 export function AppearanceControls() {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
   const { color, reduceMotion, seriousMode, setColor, setReduceMotion, setSeriousMode } =
     useAppearance();
 
+  function handleKeyDown(event: KeyboardEvent<HTMLDetailsElement>) {
+    if (event.key !== "Escape" || !detailsRef.current?.open) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    detailsRef.current.open = false;
+    detailsRef.current.querySelector("summary")?.focus();
+  }
+
   return (
-    <details className="appearance-panel">
-      <summary aria-label="Open appearance preferences">
+    <details ref={detailsRef} className="appearance-panel" onKeyDown={handleKeyDown}>
+      <summary>
         <span aria-hidden="true">◐</span>
         <span>Appearance</span>
       </summary>

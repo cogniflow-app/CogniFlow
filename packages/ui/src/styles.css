@@ -60,6 +60,13 @@
     --space-12: 3rem;
     --space-16: 4rem;
 
+    /* Page layout */
+    --page-container-gutter: clamp(16px, 4vw, 64px);
+    --page-container-width-reading: 48rem;
+    --page-container-width-content: 72rem;
+    --page-container-width-site: 78rem;
+    --page-container-width-wide: 90rem;
+
     /* Shape, depth, motion, stacking */
     --radius-sm: 0.45rem;
     --radius-md: 0.7rem;
@@ -171,6 +178,38 @@
 }
 
 @layer components {
+  .lumen-page-container {
+    --page-container-content-width: var(--page-container-width-site);
+
+    box-sizing: border-box;
+    width: 100%;
+    max-width: calc(
+      var(--page-container-content-width) + var(--page-container-gutter) +
+        var(--page-container-gutter)
+    );
+    min-width: 0;
+    margin-inline: auto;
+    padding-inline: var(--page-container-gutter);
+    padding-inline-start: max(var(--page-container-gutter), env(safe-area-inset-left, 0px));
+    padding-inline-end: max(var(--page-container-gutter), env(safe-area-inset-right, 0px));
+  }
+
+  .lumen-page-container--reading {
+    --page-container-content-width: var(--page-container-width-reading);
+  }
+
+  .lumen-page-container--content {
+    --page-container-content-width: var(--page-container-width-content);
+  }
+
+  .lumen-page-container--site {
+    --page-container-content-width: var(--page-container-width-site);
+  }
+
+  .lumen-page-container--wide {
+    --page-container-content-width: var(--page-container-width-wide);
+  }
+
   .lumen-surface-grain {
     background-image:
       radial-gradient(

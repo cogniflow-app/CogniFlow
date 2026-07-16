@@ -11,19 +11,19 @@ export function JoinPageContent({ initialJoinCode, viewer }: JoinPageContentProp
     <main className="join-shell" id="main-content" tabIndex={-1}>
       <section className="join-story" aria-labelledby="join-title">
         <span className="eyebrow">Guest access</span>
-        <h1 id="join-title">A room code is all you need.</h1>
+        <h1 id="join-title">Have a room code? Check it here.</h1>
         <p>
-          Guest play is temporary by design. We use a safe nickname and an expiring reconnect
-          secret—never an email address, persistent XP, or a tracking profile.
+          Enter the code you received. If the room is active and accepts guests, we create a
+          temporary guest identity with a safe nickname and no email address.
         </p>
         <dl className="join-privacy-list">
           <div>
             <dt>No account required</dt>
-            <dd>A host can allow ephemeral guests for an active room.</dd>
+            <dd>An active room can allow temporary guest access.</dd>
           </div>
           <div>
-            <dt>No pretend rooms</dt>
-            <dd>The server checks a real room provider before issuing guest access.</dd>
+            <dt>Active rooms only</dt>
+            <dd>Guest access continues only after the room code is verified.</dd>
           </div>
           <div>
             <dt>Short-lived by default</dt>
@@ -42,13 +42,13 @@ export function JoinPageContent({ initialJoinCode, viewer }: JoinPageContentProp
           <p className="join-account-note">
             {viewer.authenticated ? (
               <>
-                Your account can keep study history and persistent progress.{" "}
-                <a href={viewer.accountHref}>Open your workspace</a>.
+                You are signed in. <a href={viewer.accountHref}>Open your workspace</a> to manage
+                your account.
               </>
             ) : (
               <>
-                Want study history or persistent progress?{" "}
-                <a href={viewer.signUpHref}>Create an account</a>; you will return to this room page
+                Want secure account access and privacy controls?{" "}
+                <a href={viewer.signUpHref}>Create an account</a>; you will return to this page
                 afterward.
               </>
             )}

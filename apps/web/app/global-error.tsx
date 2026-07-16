@@ -21,8 +21,8 @@ export default function GlobalError({
       >
         <main style={{ margin: "10vh auto", maxWidth: "42rem" }}>
           <p style={{ color: "#5b4ce0", fontWeight: 800 }}>{brandConfig.name}</p>
-          <h1>Something interrupted the application.</h1>
-          <p>The page can be retried safely. No success state has been assumed.</p>
+          <h1>Something went wrong.</h1>
+          <p>Try the page again. No changes are assumed to have succeeded.</p>
           <button
             onClick={reset}
             style={{

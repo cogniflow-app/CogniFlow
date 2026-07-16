@@ -1,5 +1,7 @@
 "use client";
 
+import { PageContainer } from "@lumen/ui/shells";
+
 export default function RouteError({
   reset,
 }: {
@@ -8,13 +10,13 @@ export default function RouteError({
 }) {
   return (
     <main className="plain-page" id="main-content" tabIndex={-1}>
-      <div className="site-container">
+      <PageContainer width="site">
         <div className="plain-page__card" role="alert">
           <span className="eyebrow">Page interrupted</span>
-          <h1>That surface did not load.</h1>
+          <h1>This page didn&apos;t load.</h1>
           <p>
-            Your data was not changed. Try this page once more, or return to the working public
-            overview.
+            Try again or return home. If you were making a change, check its current state before
+            repeating it.
           </p>
           <div className="plain-page__actions">
             <button className="hero-action hero-action--primary" onClick={reset} type="button">
@@ -25,7 +27,7 @@ export default function RouteError({
             </a>
           </div>
         </div>
-      </div>
+      </PageContainer>
     </main>
   );
 }

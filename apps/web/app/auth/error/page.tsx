@@ -14,11 +14,11 @@ export default async function AuthErrorPage({
   return (
     <AuthShell
       eyebrow="Link not accepted"
-      story="Account links can expire, be used already, or fail an integrity check. We do not expose provider details on this screen."
+      story="Account links can expire or be used only once. Start again to receive a fresh link."
       title={expired ? "That link has expired." : "That link could not be completed."}
     >
       <div className="auth-card" role="alert">
-        <h2>{expired ? "Request a new link" : "Try a safe route"}</h2>
+        <h2>{expired ? "Request a new link" : "Choose another sign-in option"}</h2>
         <p className="auth-card__intro">
           No account changes were made. Return to sign in, magic link, or recovery and start again.
         </p>

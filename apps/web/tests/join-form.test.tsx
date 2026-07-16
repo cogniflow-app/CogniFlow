@@ -16,7 +16,7 @@ describe("public guest join shell", () => {
     render(<JoinPageContent initialJoinCode="ABCDEF" viewer={visitor} />);
 
     expect(
-      screen.getByRole("heading", { level: 1, name: /room code is all you need/i }),
+      screen.getByRole("heading", { level: 1, name: /have a room code\? check it here/i }),
     ).toBeVisible();
     expect(screen.getByLabelText(/Room code/u)).toHaveValue("ABCDEF");
     expect(screen.getByLabelText(/Nickname/u)).toHaveAttribute(
@@ -24,9 +24,9 @@ describe("public guest join shell", () => {
       "Generated if left blank",
     );
     expect(screen.getByRole("button", { name: "Check room code" })).toBeEnabled();
-    expect(screen.getByText("No pretend rooms")).toBeVisible();
+    expect(screen.getByText("Active rooms only")).toBeVisible();
     expect(
-      screen.getByText(/never an email address, persistent XP, or a tracking profile/i),
+      screen.getByText(/temporary guest identity with a safe nickname and no email address/i),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "Create an account" })).toHaveAttribute(
       "href",

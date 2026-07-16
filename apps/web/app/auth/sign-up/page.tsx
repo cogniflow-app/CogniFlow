@@ -17,7 +17,7 @@ export default async function SignUpPage({
   return (
     <AuthShell
       eyebrow="A private beginning"
-      story="Create one account for learning, making decks, hosting games, and teaching. Capabilities can overlap; we do not force people into a single role."
+      story="Create one account for secure access, a private self learner profile, and user-controlled privacy settings."
       title="Start with less data, not more."
     >
       <div className="auth-card">
