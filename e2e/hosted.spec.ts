@@ -30,6 +30,13 @@ test.describe("hosted, controlled deployment smoke", () => {
       page.getByRole("heading", { level: 1, name: /learn from a foundation you control/i }),
     ).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    const canonicalHref = await page.locator('link[rel="canonical"]').getAttribute("href");
+    expect(canonicalHref).not.toBeNull();
+    const canonicalUrl = new URL(canonicalHref!, hostedOrigin);
+    expect(canonicalUrl.origin).toBe(hostedOrigin);
+    expect(canonicalUrl.pathname).toBe("/");
+    expect(canonicalUrl.search).toBe("");
+    expect(canonicalUrl.hash).toBe("");
   });
 
   test("reports a safe Vercel beta health projection", async ({ request }) => {
@@ -156,6 +163,32 @@ test.describe("hosted, controlled deployment smoke", () => {
       message: "If that address can use this flow, a secure email will arrive shortly.",
       status: "email_sent",
     });
+    expect(JSON.stringify(body)).not.toContain(email);
+
+    const pendingCookie = (await response.headersArray()).find(
+      ({ name, value }) =>
+        name.toLowerCase() === "set-cookie" && value.startsWith("lumen_pending_recovery_intent="),
+    )?.value;
+    expect(pendingCookie).toBeDefined();
+    expect(pendingCookie).toMatch(/(?:^|;\s*)HttpOnly(?:;|$)/iu);
+    expect(pendingCookie).toMatch(/(?:^|;\s*)Secure(?:;|$)/iu);
+    expect(pendingCookie).toMatch(/(?:^|;\s*)SameSite=Lax(?:;|$)/iu);
+    expect(pendingCookie).not.toMatch(/(?:^|;\s*)Domain=/iu);
+  });
+
+  test("rejects a mutation from the retired production origin", async ({ request }) => {
+    const email = `hosted-smoke-${crypto.randomUUID()}@example.invalid`;
+    const response = await request.post("/api/auth/email-link", {
+      data: { email, intent: "forgot_password", returnTo: "/auth/update-password" },
+      headers: {
+        ...mutationHeaders,
+        Origin: "https://cogniflow-pearl.vercel.app",
+      },
+    });
+
+    expect(response.status()).toBe(400);
+    const body = asRecord(await response.json());
+    expect(body).toMatchObject({ code: "INVALID_INPUT", retryable: true });
     expect(JSON.stringify(body)).not.toContain(email);
   });
 

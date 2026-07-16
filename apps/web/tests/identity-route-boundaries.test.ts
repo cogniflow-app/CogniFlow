@@ -208,6 +208,8 @@ describe("identity route boundaries", () => {
     const options = mocks.signUp.mock.calls[0]?.[0]?.options as
       { emailRedirectTo?: string } | undefined;
     const callback = new URL(options?.emailRedirectTo ?? "");
+    expect(callback.origin).toBe("http://127.0.0.1:3100");
+    expect(callback.pathname).toBe("/auth/callback");
     expect(callback.searchParams.get("authFlow")).toBe("password_signup");
     expect(callback.searchParams.get("ageGate")).toMatch(/^[A-Za-z0-9_-]{40,}$/u);
   });
@@ -282,6 +284,11 @@ describe("identity route boundaries", () => {
       message: expect.stringMatching(/if that address can use this flow/i),
       status: "email_sent",
     });
+    for (const call of mocks.signInWithOtp.mock.calls) {
+      const callback = new URL(call[0]?.options?.emailRedirectTo as string);
+      expect(callback.origin).toBe("http://127.0.0.1:3100");
+      expect(callback.pathname).toBe("/auth/callback");
+    }
   });
 
   it("binds a recovery email callback to an HttpOnly pending state", async () => {
@@ -299,6 +306,8 @@ describe("identity route boundaries", () => {
       sameSite: "lax",
     });
     const callback = new URL(mocks.resetPasswordForEmail.mock.calls[0]?.[1]?.redirectTo as string);
+    expect(callback.origin).toBe("http://127.0.0.1:3100");
+    expect(callback.pathname).toBe("/auth/callback");
     expect(callback.searchParams.get("intent")).toBe("recovery");
     expect(callback.searchParams.get("recoveryState")).toMatch(/^[A-Za-z0-9_-]{40,}$/u);
   });
@@ -332,6 +341,8 @@ describe("identity route boundaries", () => {
     const options = mocks.signInWithOAuth.mock.calls[0]?.[0]?.options as
       { redirectTo?: string } | undefined;
     const callback = new URL(options?.redirectTo ?? "");
+    expect(callback.origin).toBe("http://127.0.0.1:3100");
+    expect(callback.pathname).toBe("/auth/callback");
     expect(callback.searchParams.get("returnTo")).toBe("/app");
     expect(callback.searchParams.get("authFlow")).toBe("oauth");
     expect(callback.searchParams.get("provider")).toBe("microsoft");

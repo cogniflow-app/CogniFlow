@@ -1,6 +1,6 @@
 # Hosted environment contract
 
-This is the secret-free environment inventory for the Phase 01 hosted bootstrap. It maps the
+This is the secret-free environment inventory for the Phase 01 hosted deployment. It maps the
 variables accepted by the application, repository tools, Vercel, and the local Supabase helper.
 The runtime parsers remain authoritative; `.env.example` is the copyable local template. Do not
 put real values in either file.
@@ -19,8 +19,9 @@ Supabase project `qccbaynfvtyxigiikpmq`.
   valid `VERCEL_URL` are present, the application derives the exact deployment origin as
   `https://<deployment>.vercel.app`. An explicitly configured `NEXT_PUBLIC_APP_URL` takes
   precedence, so do not set a shared production origin in the Preview scope.
-- Vercel Production must set `NEXT_PUBLIC_APP_URL` to the stable temporary Production
-  `vercel.app` origin. Replace it with the custom HTTPS origin when the custom domain is launched.
+- Vercel Production sets `NEXT_PUBLIC_APP_URL` to `https://recallflash.com`. The variable is
+  Production-scoped only; `www.recallflash.com` and the retired stable `vercel.app` alias redirect
+  to that apex origin with status `308` and are not additional application origins.
 - Both scopes use `DEPLOYMENT_PROFILE=vercel_beta`. That profile and Vercel Preview both emit
   no-index behavior. There is no separate search-indexing environment variable.
 - Preview and Production must use their own Supabase URL, publishable key, and server secret key.
@@ -168,6 +169,11 @@ repository:
 
 - Supabase Auth Site URL, additional redirect URLs, email-confirmation behavior, email templates,
   and custom SMTP are configured independently in each Supabase project.
+- Beta Auth uses Site URL `https://recallflash.com`. Its allowlist contains
+  `https://recallflash.com/auth/callback**` plus the temporary, path-limited
+  `https://cogniflow-pearl.vercel.app/auth/callback**` rollback entry. Preview retains its existing
+  deployment-specific Site URL and restricted callback wildcard; local callbacks remain only in
+  `supabase/config.toml`.
 - Google, GitHub, and Microsoft OAuth client IDs and secrets live in Supabase Auth and the OAuth
   provider. The three `AUTH_OAUTH_*_ENABLED` flags only control application affordances. Keep the
   flags false and the providers disabled until valid credentials and callbacks are configured.
@@ -203,8 +209,8 @@ CLI tokens, signing keys, and encryption keys are always server/tool secrets.
 The Vercel automation bypass is not an application environment value. Supply it only through a
 transient operator shell/keychain, or an approved GitHub Actions secret if hosted smoke is later
 automated. Never add it to the Vercel application environment, `.env.local`, `.env.example`, or a
-tracked runbook. The runner sends it only to the fixed `cogniflow` project hostname family and
-disables Playwright trace capture while it is present.
+tracked runbook. The runner sends it only to the exact `recallflash.com` apex or the fixed
+`cogniflow` project hostname family and disables Playwright trace capture while it is present.
 
 ## Intentionally absent variables
 

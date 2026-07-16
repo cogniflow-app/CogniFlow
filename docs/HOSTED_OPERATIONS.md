@@ -1,6 +1,6 @@
 # Hosted operations runbook
 
-**Environment:** Phase 01 hosted bootstrap  
+**Environment:** Phase 01 hosted beta  
 **Last verified:** 2026-07-16  
 **Application phase:** Phase 01; Phase 02 has not started
 
@@ -16,18 +16,17 @@ sessions remain operator-local.
 
 ## Current hosted topology
 
-| Boundary                        | Preview                                                               | Production beta                                                       |
-| ------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Supabase project reference      | `cfwddajyjbueggpzfomh`                                                | `qccbaynfvtyxigiikpmq`                                                |
-| Database role                   | Feature-branch migration proving ground                               | Post-merge beta database                                              |
-| Vercel deployment               | `https://cogniflow-5x77sm1wj-cogniflow-app-3471s-projects.vercel.app` | Stable: `https://cogniflow-pearl.vercel.app`                          |
-| Generated Production deployment | Not applicable                                                        | `https://cogniflow-91ytfxf2d-cogniflow-app-3471s-projects.vercel.app` |
-| Application data                | No seeded, fixture, test-user, identity, or product data              | No seeded, fixture, test-user, identity, or product data              |
-| Search indexing                 | Site-wide `noindex`, `nofollow`                                       | Site-wide `noindex`, `nofollow` while the beta profile remains active |
+| Boundary                   | Preview                                                               | Production beta                                                       |
+| -------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Supabase project reference | `cfwddajyjbueggpzfomh`                                                | `qccbaynfvtyxigiikpmq`                                                |
+| Database role              | Feature-branch migration proving ground                               | Post-merge beta database                                              |
+| Vercel deployment          | `https://cogniflow-5x77sm1wj-cogniflow-app-3471s-projects.vercel.app` | Canonical: `https://recallflash.com`                                  |
+| Canonical redirects        | Not applicable                                                        | `www` and `cogniflow-pearl.vercel.app` use `308` to the apex          |
+| Application data           | No seeded, fixture, test-user, identity, or product data              | No seeded, fixture, test-user, identity, or product data              |
+| Search indexing            | Site-wide `noindex`, `nofollow`                                       | Site-wide `noindex`, `nofollow` while the beta profile remains active |
 
 The two Supabase projects are independent. Vercel Preview always uses the Preview project, and
-Vercel Production always uses the Beta project. A future custom Production domain must continue
-to use the Beta project.
+Vercel Production, including `recallflash.com`, always uses the Beta project.
 
 ### Vercel project configuration
 
@@ -50,6 +49,12 @@ Exactly one Vercel project is linked:
 The checked-in `apps/web/vercel.json` mirrors the root, install, and build assumptions without
 containing a project ID, account ID, token, or environment value. Vercel's local `.vercel/`
 metadata is ignored and must stay uncommitted.
+
+Both `recallflash.com` and `www.recallflash.com` are verified on this existing project. Vercel's
+project-domain configuration redirects `www.recallflash.com` and the retired stable
+`cogniflow-pearl.vercel.app` alias to `recallflash.com` with status `308`. The apex is the only
+serving/canonical Production origin; do not add either redirecting host to application origin or
+CSRF allowlists.
 
 The project retains Vercel Standard Deployment Protection. Automated checks against a protected
 deployment may use a project-scoped automation bypass secret loaded into the operator process as
@@ -169,7 +174,7 @@ Use either an explicit URL or the target-specific environment variable. The curr
 HOSTED_PREVIEW_URL=https://cogniflow-5x77sm1wj-cogniflow-app-3471s-projects.vercel.app \
   pnpm test:hosted:preview
 
-HOSTED_PRODUCTION_URL=https://cogniflow-pearl.vercel.app \
+HOSTED_PRODUCTION_URL=https://recallflash.com \
   pnpm test:hosted:production
 ```
 
@@ -177,7 +182,7 @@ The equivalent explicit form is:
 
 ```bash
 pnpm test:hosted:preview --url https://cogniflow-5x77sm1wj-cogniflow-app-3471s-projects.vercel.app
-pnpm test:hosted:production --url https://cogniflow-pearl.vercel.app
+pnpm test:hosted:production --url https://recallflash.com
 ```
 
 If the target is protected, load `VERCEL_AUTOMATION_BYPASS_SECRET` from an approved operator
@@ -186,13 +191,15 @@ value later; regenerate it in the project setting if no retained copy exists. Th
 configuration supplies the supported bypass header and cookie without exposing the value in test
 output. Do not weaken Deployment Protection merely to make a smoke test pass.
 
-The hosted suite refuses local or non-HTTPS targets. It verifies the landing page, safe health
-projection, signup/sign-in/recovery page rendering, protected-route redirect, safe-return
-normalization, expired callback and confirmation behavior, neutral recovery response,
-unauthenticated sign-out, security headers, and the site-wide robots policy. It intentionally does
-not create an account, learner, child identity, content row, Storage object, or fixture. Recovery
-initiation does create the normal bounded private rate-limit record under a server-HMACed subject;
-the record contains neither the reserved test email address nor personal information.
+The hosted suite refuses local or non-HTTPS targets. Its ten checks verify the landing page and
+canonical link; safe health projection; signup/sign-in/recovery rendering; protected-route
+redirect; safe-return normalization; expired callback and confirmation behavior; a neutral
+recovery response with a host-only `Secure`, HttpOnly, SameSite=Lax state cookie; rejection of the
+retired Production origin for mutations; unauthenticated sign-out; security headers; and the
+site-wide robots policy. It intentionally does not create an account, learner, child identity,
+content row, Storage object, or fixture. Recovery initiation creates the normal bounded private
+rate-limit record under a server-HMACed subject; the record contains neither the reserved test
+email address nor personal information.
 
 ## Supabase Auth URL configuration
 
@@ -222,14 +229,18 @@ Set the Beta project's Auth URL Configuration to exactly:
 
 ```text
 Site URL
-https://cogniflow-pearl.vercel.app
+https://recallflash.com
 
 Redirect URLs
+https://recallflash.com/auth/callback**
 https://cogniflow-pearl.vercel.app/auth/callback**
 ```
 
-Do not add the Preview wildcard to Beta. Do not add an unrestricted `*.vercel.app` wildcard to
-either project.
+The old callback remains temporarily as an intentional rollback entry. It is path-limited and its
+host currently redirects to the apex, so it is not a second canonical origin. Retain it until the
+post-cutover rollback window and live custom-SMTP confirmation/magic-link/recovery exercise are
+complete; then remove it in a deliberate owner operation. Do not add the Preview wildcard to Beta
+or an unrestricted `*.vercel.app` wildcard to either project.
 
 ### Local Auth
 
@@ -267,25 +278,21 @@ Email confirmation is required in both hosted Supabase projects and
 `AUTH_EMAIL_CONFIRMATION_REQUIRED=true` is aligned in both Vercel scopes. Anonymous Auth and
 Google, GitHub, and Azure/Microsoft Auth providers remain disabled.
 
-## Future custom-domain cutover
+## Custom-domain operating posture
 
-Perform this only after the owner selects and verifies the domain:
+The custom-domain cutover uses these fixed boundaries:
 
-1. Attach the domain to the existing Vercel project `cogniflow`; do not create another Vercel
-   application.
-2. Verify DNS and TLS, then set the Production-scoped `NEXT_PUBLIC_APP_URL` to the exact HTTPS
-   custom origin. Do not add it to Preview.
-3. Deploy the reviewed `main` commit and confirm `/api/health`, headers, redirects, and cookies on
-   the custom origin.
-4. In Beta Supabase Auth URL Configuration, replace the Site URL with the exact custom origin and
-   add only `https://<custom-domain>/auth/callback**` to the redirect allowlist.
-5. Retain `https://cogniflow-pearl.vercel.app/auth/callback**` temporarily only when it is an
-   intentional rollback target. Remove it when the rollback window closes.
-6. Keep the email template on `{{ .ConfirmationURL }}` so the environment's reviewed
-   `redirectTo` remains authoritative.
-7. Configure custom SMTP and a verified sender, then live-test confirmation, magic link, recovery,
-   email change, expired-link handling, and neutral account-existence responses.
-8. Rerun the Production hosted smoke suite against the custom origin.
+1. `recallflash.com` and `www.recallflash.com` remain attached to the existing Vercel project
+   `cogniflow`; no second application exists.
+2. Production-scoped `NEXT_PUBLIC_APP_URL` is `https://recallflash.com`; Preview omits it and keeps
+   deriving its deployment origin.
+3. Vercel redirects `www` and the retired stable alias to the apex with `308`.
+4. Beta Supabase Auth uses the apex Site URL and the two path-limited callback entries above;
+   Preview and local Auth settings are unchanged.
+5. Hosted email templates stay on `{{ .ConfirmationURL }}` so the application's stateful
+   `/auth/callback` `redirectTo` remains authoritative.
+6. Production smoke runs only against the apex. Custom SMTP and delivered confirmation, magic
+   link, recovery, and email-change flows remain a separate owner-gated live exercise.
 
 The `vercel_beta` deployment profile currently forces site-wide no-index behavior. Attaching a
 domain does not authorize indexing. Search-engine indexing requires a separate explicit launch
@@ -306,7 +313,7 @@ are non-negotiable:
   `GUEST_TOKEN_SIGNING_KEY`, and `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` values. The three keys are
   also distinct within each environment.
 - Preview omits `NEXT_PUBLIC_APP_URL` and derives its exact origin from Vercel metadata. Production
-  uses `https://cogniflow-pearl.vercel.app` until the custom-domain cutover.
+  uses `https://recallflash.com`.
 - `DEPLOYMENT_PROFILE=vercel_beta`, managed child profiles, independent child public publishing,
   unrestricted free-text game chat, and parental consent remain disabled in both scopes.
 - Direct messaging has no implementation or enablement variable and remains disabled.
@@ -339,12 +346,46 @@ This evidence verifies the deployed Phase 01 architecture without custom SMTP. I
 email delivery, a successful real confirmation/recovery link, OAuth, identity linking, a custom
 domain, worker schedules, backup restoration, incident response, or legal launch readiness.
 
+## Custom-domain finalization evidence
+
+On 2026-07-16, the custom-domain finalization added this evidence without creating an Auth user,
+child profile, fixture, or product row:
+
+- Vercel Production deployment
+  `https://cogniflow-mns48tw69-cogniflow-app-3471s-projects.vercel.app` reached `READY` and was
+  aliased to `https://recallflash.com` using the Production-scoped environment.
+- `https://recallflash.com/api/health` returned `200`, and the expanded Production hosted suite
+  passed 10 of 10 checks against the apex. Protected Preview independently passed the same 10 of
+  10 checks through the configured automation bypass.
+- `www.recallflash.com` and `cogniflow-pearl.vercel.app` each returned a path- and query-preserving
+  `308` redirect to `recallflash.com`.
+- The landing canonical resolves to the apex. The recovery state cookie is host-only, HttpOnly,
+  `Secure`, and SameSite=Lax; the application accepts same-origin mutations and rejects the former
+  Production origin. Callback/confirmation errors, unsafe returns, protected routes, sign-out,
+  security headers, and site-wide no-index behavior all passed.
+- Beta Supabase Auth re-read exactly as the apex Site URL plus the apex and temporary old-host
+  path-limited callbacks. Preview's Site URL and restricted callback wildcard were unchanged.
+  Both projects still require email confirmation and keep anonymous Auth and all three optional
+  OAuth providers disabled.
+- Confirmation, email-change, invite, magic-link, and recovery templates still use
+  `{{ .ConfirmationURL }}` and do not directly replace it with `{{ .RedirectTo }}`. Custom SMTP is
+  not configured, so delivered-link testing and subsequent removal of the rollback callback remain
+  owner actions.
+- Vercel Protection Bypass for Automation remained configured and worked without exposing or
+  persisting its credential. Current GitHub Actions workflows do not invoke hosted smoke and do not
+  require the bypass secret.
+
+This evidence supersedes only the bootstrap's old-domain/9-test deployment result. The historical
+database and data-emptiness evidence remains valid, and the owner-gated email-delivery, worker,
+backup, monitoring, incident-response, and legal-launch limitations still apply.
+
 ## Remaining owner actions
 
 The following actions remain owner-controlled and are not blockers to retaining the private beta
 bootstrap, but they are gates for the capability they affect:
 
-- attach and verify the custom domain, then perform the cutover above;
+- close the temporary old-callback rollback window after custom SMTP and delivered Auth-link
+  verification, then remove that one Beta allowlist entry;
 - configure a custom SMTP provider and verified sender domain, review every Supabase Auth email
   template, and record end-to-end delivery evidence;
 - leave Google, GitHub, and Azure/Microsoft OAuth disabled until separate provider credentials,

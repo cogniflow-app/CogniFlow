@@ -1,7 +1,7 @@
 # Security and privacy baseline
 
 **Scope:** Phase 00 foundation, Phase 01 identity/privacy controls, hosted bootstrap, and launch gates  
-**Last updated:** 2026-07-15
+**Last updated:** 2026-07-16
 
 This document is an engineering control baseline, not a certification or legal opinion. The provider and child-safety decisions in the [product blueprint](./PRODUCT_BLUEPRINT.md) remain mandatory.
 
@@ -11,11 +11,11 @@ Phase 01 implements Supabase Auth account access, self learner profiles, locally
 
 It still does not implement deck content, review history, classes, sharing, public creator profiles, live games, analytics transport, AI processing, or export-archive assembly. Phase 01 implements an idempotent due-deletion transaction, but does not deploy its scheduler. Later phases must add authorization, RLS, retention, export/deletion coverage, and policy tests with each data-owning feature. Existing account permissions never imply access to a future content table.
 
-The controlled hosted bootstrap uses separate Supabase projects for Vercel Preview and the temporary
-Production beta. Both databases contain only the committed Phase 00/01 schema: verification found no
+The controlled hosted deployment uses separate Supabase projects for Vercel Preview and the
+`https://recallflash.com` Production beta. Both databases contain only the committed Phase 00/01 schema: verification found no
 Auth users, public identity/product rows, storage buckets, fixture identities, or test content. The
 neutral recovery smoke creates the expected bounded private rate-limit record using a server-HMACed
-subject; it stores no email address or personal information. The temporary beta remains site-wide
+subject; it stores no email address or personal information. The custom-domain beta remains site-wide
 `noindex, nofollow`; it is deployment evidence, not completion of the public launch gate below.
 
 ## Trust boundaries
@@ -63,9 +63,10 @@ Server environment access lives in the server-only config module. Client modules
 
 Secrets are set in the deployment provider, not committed to `.env*`, `wrangler.jsonc`, fixtures, or docs. Local `.env.local` remains ignored. Secretlint scans tracked project content; the CI examples use clearly non-production placeholders.
 
-`VERCEL_AUTOMATION_BYPASS_SECRET` is an operator-only Playwright input for the protected Preview
-deployment. It is not an application environment variable and must remain transient or in an
-approved CI secret store. It must never be logged, documented by value, or placed in `.env.local`.
+`VERCEL_AUTOMATION_BYPASS_SECRET` is an operator-only Playwright input for this Vercel project's
+protected deployments. It is not an application environment variable and must remain transient or
+in an approved CI secret store. It must never be logged, documented by value, or placed in
+`.env.local`.
 
 Non-secret server configuration also includes OAuth button flags, email-confirmation state, rate-limit bounds, retention windows, parental-consent mode, and the external verifier URL. Only the explicit sanitized capability projection may reach a rendered page; rate-limit settings, verifier configuration, and credential values are not part of it.
 
@@ -136,12 +137,14 @@ The application does not emit HSTS during local development. Production parsing 
 
 ### Hosted bootstrap posture
 
-- Vercel Standard Deployment Protection remains enabled for generated deployment URLs; the stable
-  temporary Production alias is the deliberately tested public endpoint.
+- Vercel Standard Deployment Protection remains enabled for generated deployment URLs;
+  `https://recallflash.com` is the deliberately tested Production endpoint.
+- `www.recallflash.com` and the retired `cogniflow-pearl.vercel.app` alias redirect to the apex with
+  `308`, preventing either from becoming a second canonical or Auth origin.
 - Hosted Playwright can receive a project-scoped automation bypass only through the transient
   `VERCEL_AUTOMATION_BYPASS_SECRET` process variable. The tracked runner never contains its value.
 - `DEPLOYMENT_PROFILE=vercel_beta` and Vercel Preview both produce an `X-Robots-Tag` no-index policy;
-  `/robots.txt` disallows all crawling for the temporary beta.
+  `/robots.txt` disallows all crawling for the custom-domain beta.
 - Preview and Production use independently generated application-owned keys and separate Supabase
   projects. No database password or service credential has a `NEXT_PUBLIC_` name.
 - Managed child profiles, independent child publication, unrestricted free-text game chat, direct
@@ -152,6 +155,11 @@ Exact provider configuration and repeatable verification commands are in
 [HOSTED_ENVIRONMENT.md](./HOSTED_ENVIRONMENT.md).
 
 Every JSON mutation Route Handler validates a bounded body and enforces same-origin `Origin`; cross-site `Sec-Fetch-Site` is rejected when present. This supplements SameSite cookies. Authentication, authorization, and RLS still run after origin validation. Safe error codes/messages avoid reflecting credentials, provider errors, unsafe nicknames, or protected resource existence.
+
+The custom-domain smoke contract asserts the apex canonical link, a host-only `Secure`, HttpOnly,
+SameSite=Lax recovery-state cookie, and rejection of the retired Production host as a mutation
+origin. The repository currently contains no Server Actions; Next.js's default Origin-versus-Host
+validation remains unmodified, and no secondary `allowedOrigins` entry is configured.
 
 ### CSP evolution plan
 
