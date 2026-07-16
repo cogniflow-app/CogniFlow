@@ -20,6 +20,7 @@ function readHostedBaseUrl(): string {
     parsed.protocol !== "https:" ||
     parsed.username ||
     parsed.password ||
+    parsed.port ||
     parsed.pathname !== "/" ||
     parsed.search ||
     parsed.hash ||
@@ -39,12 +40,13 @@ const baseURL = readHostedBaseUrl();
 const protectionBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
 const bypassHostname = new URL(baseURL).hostname;
 const trustedBypassOrigin =
+  bypassHostname === "recallflash.com" ||
   bypassHostname === "cogniflow-pearl.vercel.app" ||
   /^cogniflow-[a-z0-9]+-cogniflow-app-3471s-projects\.vercel\.app$/u.test(bypassHostname);
 
 if (protectionBypass && !trustedBypassOrigin) {
   throw new Error(
-    "VERCEL_AUTOMATION_BYPASS_SECRET may be sent only to this repository's trusted Vercel project origins.",
+    "VERCEL_AUTOMATION_BYPASS_SECRET may be sent only to this repository's trusted project origins.",
   );
 }
 

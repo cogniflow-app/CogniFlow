@@ -183,6 +183,13 @@ Email/password, local email capture, magic-link, recovery, conditional provider 
 
 Current official references: [redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls), [email templates](https://supabase.com/docs/guides/auth/auth-email-templates), [custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp), and [password-based Auth](https://supabase.com/docs/guides/auth/passwords).
 
+The current Production contract is Site URL `https://recallflash.com` with
+`https://recallflash.com/auth/callback**` plus the temporary, path-limited old Production callback
+kept for rollback. Vercel redirects the old host and `www.recallflash.com` to the apex with `308`.
+Preview retains its deployment Site URL and restricted Preview callback wildcard, and the local
+localhost redirects earlier in this guide remain unchanged. Keep the old Beta callback only until
+the rollback window and delivered custom-SMTP Auth-link checks close.
+
 ### Optional OAuth providers
 
 Each provider's OAuth application uses the **Supabase Auth callback**, not the Next.js callback, as its provider redirect URI:
@@ -352,15 +359,17 @@ See [TESTING.md](./TESTING.md) for scope and failure artifacts.
 - install with `cd ../.. && pnpm install --frozen-lockfile`;
 - build with `cd ../.. && pnpm exec turbo run build --filter=@lumen/web` and use the default `.next` output;
 - set all required environment variables separately for preview and production;
+- omit `NEXT_PUBLIC_APP_URL` in Preview and set it to `https://recallflash.com` in Production;
 - use `DEPLOYMENT_PROFILE=vercel_beta` and keep all child/chat flags false;
 - set `PARENTAL_CONSENT_MODE=disabled` even if child code is present;
 - configure and live-test Auth redirects, SMTP/email confirmation, and each enabled OAuth provider before setting its application flag.
 
-The one-time Phase 01 hosted bootstrap and its explicit owner authorization created the current
-project, databases, secrets, and temporary deployments. Future database promotion, provider
-configuration, secret changes, worker assignment, custom-domain setup, and production promotion
-must use the guarded workflow in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md); an ordinary feature
-pull request must not deploy itself.
+The one-time Phase 01 hosted bootstrap and the authorized custom-domain finalization created the
+current project, databases, scoped secrets, and canonical `https://recallflash.com` Production
+origin. Future database promotion, provider configuration, secret changes, worker assignment,
+domain changes, and production promotion must use the guarded workflow in
+[HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md); an ordinary feature pull request must not deploy
+itself.
 
 ### Portable host
 

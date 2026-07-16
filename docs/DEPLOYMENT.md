@@ -2,7 +2,7 @@
 
 **Initial target:** Vercel preview and 13+ beta  
 **Portable candidate:** Cloudflare Workers through OpenNext  
-**Last updated:** 2026-07-15
+**Last updated:** 2026-07-16
 
 A successful build proves compile-time compatibility only. It does not prove a live provider configuration, legal compliance, child eligibility, quotas, backup readiness, or production security.
 
@@ -86,6 +86,12 @@ For a new provider import or a configuration audit:
 The exact project identity, URLs, scoped environment assignments, Deployment Protection behavior,
 and smoke commands are recorded in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). The complete
 secret-free variable contract is [HOSTED_ENVIRONMENT.md](./HOSTED_ENVIRONMENT.md).
+
+The Production canonical origin is `https://recallflash.com`. Production-scoped
+`NEXT_PUBLIC_APP_URL`, Beta Supabase Auth Site URL, and the application callback all use that apex.
+Vercel redirects `www.recallflash.com` and `cogniflow-pearl.vercel.app` to the apex with `308`, so
+they are not additional cookie, callback, CSRF, or canonical origins. Preview continues to derive
+its deployment-specific origin and remains connected only to Preview Supabase.
 
 Do not place a secret key in Vercel variables whose name begins `NEXT_PUBLIC_`. Do not expose production data to forked preview builds.
 
@@ -191,6 +197,12 @@ stateful, allowlisted `/auth/callback` RedirectTo for signup, magic-link, and re
 that value with `{{ .SiteURL }}` or appending a hard-coded path discards the signed flow state. A
 custom token-hash template targeting `/auth/confirm` is a separate provider-gated change and must be
 live-tested before use.
+
+Beta currently retains the path-limited
+`https://cogniflow-pearl.vercel.app/auth/callback**` entry solely for rollback. The host redirects to
+the apex during normal operation. Remove that entry only after the rollback window and delivered
+custom-SMTP confirmation, magic-link, and recovery checks close; do not remove the Preview wildcard
+or local callback entries as part of that Beta-only operation.
 
 See [SETUP.md](./SETUP.md#hosted-supabase-auth-configuration) for the provider checklist and current official references.
 

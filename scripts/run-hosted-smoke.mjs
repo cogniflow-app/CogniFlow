@@ -10,13 +10,26 @@ const targetVariables = Object.freeze({
 });
 
 export function isTrustedVercelAutomationOrigin(origin) {
-  let hostname;
+  let parsed;
   try {
-    hostname = new URL(origin).hostname;
+    parsed = new URL(origin);
   } catch {
     return false;
   }
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.username ||
+    parsed.password ||
+    parsed.port ||
+    parsed.pathname !== "/" ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    return false;
+  }
+  const { hostname } = parsed;
   return (
+    hostname === "recallflash.com" ||
     hostname === "cogniflow-pearl.vercel.app" ||
     /^cogniflow-[a-z0-9]+-cogniflow-app-3471s-projects\.vercel\.app$/u.test(hostname)
   );
@@ -47,6 +60,7 @@ export function normalizeHostedBaseUrl(untrusted) {
     parsed.protocol !== "https:" ||
     parsed.username ||
     parsed.password ||
+    parsed.port ||
     parsed.pathname !== "/" ||
     parsed.search ||
     parsed.hash ||
@@ -86,7 +100,7 @@ export function resolveHostedSmokeRun(argv, environment = process.env) {
     !isTrustedVercelAutomationOrigin(baseURL)
   ) {
     throw usageError(
-      "The Vercel automation bypass may be sent only to this repository's trusted Vercel project origins.",
+      "The Vercel automation bypass may be sent only to this repository's trusted project origins.",
     );
   }
   return Object.freeze({ baseURL, target });

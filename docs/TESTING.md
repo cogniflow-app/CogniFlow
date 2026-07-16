@@ -137,19 +137,27 @@ CI always stops the local Supabase stack, including on failure. It does not uplo
 ## Hosted deployment smoke tests
 
 The hosted Playwright configuration has no local fallback and rejects non-HTTPS, credential-bearing,
-or non-origin targets. Its nine checks cover the public landing page, safe health/capability
-projection, auth-page rendering with OAuth disabled, protected-route redirect, unsafe-return
-normalization, neutral invalid callback/confirmation routing, neutral recovery initiation for a
-reserved nonexistent address, unauthenticated sign-out, security headers, and site-wide no-index.
-It creates no Auth user and submits no personal information. Recovery initiation creates the normal
-bounded private rate-limit record under a server-HMACed subject; it does not store the reserved test
-address. A protected Vercel deployment may use `VERCEL_AUTOMATION_BYPASS_SECRET` as a transient
-test-process value; the runner never prints or stores it, accepts only this project's Vercel
-hostname family, and disables Playwright traces while the credential is present.
+or non-origin targets. Its ten checks cover the public landing page and canonical apex; safe
+health/capability projection; auth-page rendering with OAuth disabled; protected-route redirect;
+unsafe-return normalization; neutral invalid callback/confirmation routing; neutral recovery
+initiation for a reserved nonexistent address plus host-only production cookie attributes;
+rejection of the retired Production origin for a mutation; unauthenticated sign-out; security
+headers; and site-wide no-index. It creates no Auth user and submits no personal information.
+Recovery initiation creates the normal bounded private rate-limit record under a server-HMACed
+subject; it does not store the reserved test address. A protected Vercel deployment may use
+`VERCEL_AUTOMATION_BYPASS_SECRET` as a transient test-process value; the runner never prints or
+stores it, accepts only the exact `recallflash.com` apex or this project's Vercel hostname family,
+and disables Playwright traces while the credential is present.
 
 Use `HOSTED_PREVIEW_URL` or `HOSTED_PRODUCTION_URL`, or pass an explicit `--url` through the runner
 as documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). Live email confirmation, delivered
 recovery mail, custom SMTP, and OAuth remain provider-gated and are not simulated by this suite.
+
+The canonical Production invocation is:
+
+```bash
+pnpm test:hosted:production --url https://recallflash.com
+```
 
 ## Playwright end-to-end tests
 

@@ -26,6 +26,7 @@ describe("hosted smoke runner", () => {
     "https://127.0.0.1",
     "https://[::1]",
     "https://preview.local",
+    "https://preview.example.test:444",
     "https://preview.example.test/path",
     "https://preview.example.test?target=other",
     "https://user:password@preview.example.test",
@@ -47,13 +48,17 @@ describe("hosted smoke runner", () => {
     ).toThrow(/unknown or repeated option/iu);
   });
 
-  it("sends an automation bypass only to this repository's Vercel project", () => {
+  it("sends an automation bypass only to this repository's trusted project origins", () => {
+    expect(isTrustedVercelAutomationOrigin("https://recallflash.com")).toBe(true);
     expect(isTrustedVercelAutomationOrigin("https://cogniflow-pearl.vercel.app")).toBe(true);
     expect(
       isTrustedVercelAutomationOrigin(
         "https://cogniflow-abc123-cogniflow-app-3471s-projects.vercel.app",
       ),
     ).toBe(true);
+    expect(isTrustedVercelAutomationOrigin("https://www.recallflash.com")).toBe(false);
+    expect(isTrustedVercelAutomationOrigin("http://recallflash.com")).toBe(false);
+    expect(isTrustedVercelAutomationOrigin("https://recallflash.com:444")).toBe(false);
     expect(isTrustedVercelAutomationOrigin("https://attacker.vercel.app")).toBe(false);
     expect(
       isTrustedVercelAutomationOrigin(
@@ -64,6 +69,6 @@ describe("hosted smoke runner", () => {
       resolveHostedSmokeRun(["preview", "--url", "https://attacker.example"], {
         VERCEL_AUTOMATION_BYPASS_SECRET: "operator-secret",
       }),
-    ).toThrow(/trusted Vercel project origins/u);
+    ).toThrow(/trusted project origins/u);
   });
 });
