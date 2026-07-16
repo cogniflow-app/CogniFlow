@@ -93,6 +93,7 @@
   margin: 0;
   font-size: 1.75rem;
   letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
 }
 
 .auth-card__intro {
@@ -292,6 +293,7 @@
   margin: 0;
   font-size: 1.75rem;
   letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
 }
 
 .join-code-input {
