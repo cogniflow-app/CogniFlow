@@ -1,7 +1,7 @@
 # Implementation status
 
 **Current phase:** Post-Phase 01 landing and public-surface UI polish  
-**Status:** Implementation and local acceptance complete; Git-linked Preview evidence is recorded after deployment  
+**Status:** Implementation/local acceptance complete; Preview is READY; hosted smoke is blocked by the unavailable protection-bypass credential  
 **Evidence date:** 2026-07-16 UTC  
 **Next phase:** Phase 02 has not started
 
@@ -67,9 +67,18 @@ landing pages plus the full 390px dark serious-mode landing page.
 | `pnpm test:lighthouse`                                   | Exit 0; performance `99`, accessibility `100`, best practices `96`, SEO `100`; FCP `0.757 s`, LCP `2.162 s`, TBT `2.5 ms`, CLS `0`, 189,870 bytes / 13 requests                    |
 | `pnpm test:load`                                         | Exit 0; 15/15 k6 checks, 3/3 requests, `0%` failures, request-duration p95 `5.7 ms` against `<1000 ms`                                                                             |
 | `pnpm verify`                                            | Exit 0 under pinned Node `24.18.0` and pnpm `11.13.0`; the aggregate reran formatting, secrets, lint, types, unit/DB checks, type drift, both builds, E2E, axe, Lighthouse, and k6 |
+| `pnpm test:hosted:preview --url <PR Preview>`            | Blocked before application assertions: Vercel Deployment Protection redirected anonymous automation to its login page because `VERCEL_AUTOMATION_BYPASS_SECRET` was not present    |
 
-The exact immutable Vercel Preview URL and hosted smoke result are appended after the Git-linked
-deployment.
+Commit `a0d99c3` reached Vercel `READY` at the PR Preview URL
+`https://cogniflow-git-codex-phase-0-12dd39-cogniflow-app-3471s-projects.vercel.app`. The GitHub
+integration exposes that stable PR alias and the Vercel deployment record, but not the immutable
+generated hostname to an unauthenticated operator. The guarded hosted suite was attempted against
+the PR URL and confirmed the remaining blocker is Deployment Protection, not an application
+failure: the landing, health, Auth, and redirect checks received Vercel's login surface. The run was
+stopped after four such failures rather than repeating the same credential failure six more times.
+Complete the 10-check hosted smoke by supplying the existing project-scoped bypass credential only
+as the transient `VERCEL_AUTOMATION_BYPASS_SECRET` process value; do not weaken protection or store
+the secret in this repository.
 
 This task changed no authentication or email behavior, Supabase Auth setting, migration, RLS policy,
 hosted database, hosted environment variable, SMTP/domain configuration, or provider secret. The
