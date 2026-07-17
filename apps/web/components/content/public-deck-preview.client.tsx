@@ -22,7 +22,8 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
   const [back, setBack] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(() => {
     if (typeof window === "undefined") return false;
-    return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    return mediaQuery?.matches ?? false;
   });
   const touchStart = useRef<number | null>(null);
   const card = deck.cards[index];
@@ -37,10 +38,8 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
 
   useEffect(() => {
     const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (!mediaQuery) {
-      setReducedMotion(false);
-      return undefined;
-    }
+    if (!mediaQuery) return undefined;
+
     const updateReducedMotion = () => setReducedMotion(mediaQuery.matches);
     updateReducedMotion();
     mediaQuery.addEventListener?.("change", updateReducedMotion);

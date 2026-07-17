@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Badge, LinkButton } from "@lumen/ui";
 
 import { requireAccountContext } from "@/lib/server/account-context";
