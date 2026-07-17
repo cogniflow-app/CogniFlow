@@ -1,22 +1,21 @@
 # Implementation status
 
 **Current phase:** Phase 02 — content model, editor, media, and card types  
-**Status:** Complete local acceptance; Phase 02 Preview promotion and hosted acceptance are pending  
+**Status:** Complete; local and Phase 02 Preview acceptance verified  
 **Evidence date:** 2026-07-17 UTC  
 **Next phase:** Phase 03 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
 
-## Phase 02 implementation accepted locally; Preview verification pending
+## Phase 02 complete and Preview-verified
 
 The active branch is `codex/phase-02-content-editor-card-types`, created from the freshly fetched
 `origin/main`. The complete post-audit tree passes the required local acceptance gate through
 migration `11000`, including the aggregate verifier, production builds, database tests, browser
-acceptance, accessibility, Lighthouse, and load checks. The sections below this one retain the
-completed Phase 01 and hosted-baseline evidence; they do not represent current Phase 02 hosted
-verification. Phase 02 remains open only for committed migration promotion to Preview, the linked
-Vercel Preview deployment, and guarded hosted acceptance. No Beta or Production promotion and no
-merge is part of this phase-branch record.
+acceptance, accessibility, Lighthouse, and load checks. The same committed migration chain is
+deployed only to Preview, and the final branch deployment passed both the guarded hosted baseline
+and the disposable content acceptance with verified minimization. Beta and Production were not
+changed, the branch was not merged, and Phase 03 was not started.
 
 ### Implemented and locally accepted branch scope
 
@@ -87,6 +86,11 @@ merge is part of this phase-branch record.
   `noindex` metadata.
 - Changed Auth/onboarding fallback to `/app`, retained validated public/protected returns, and
   rejects Auth/API/onboarding lifecycle loops plus encoded/open-redirect hazards.
+- Preserved a confirmed password-signup continuation without weakening the age boundary. Only
+  after successful password authentication may an incomplete identity exchange the still-valid
+  signed password-signup decision bound to its exact normalized email for the separate
+  account-bound onboarding gate. A raw Auth identity without either valid gate is still signed out,
+  rejected, and minimized.
 - Fixed explicit account appearance persistence. A fresh pending/confirmed complete-tuple write
   survives stale protected renders, retries after reconnect, synchronizes tabs, and expires or
   yields to the active learner projection on rejection. Managed contexts cannot save guardian
@@ -114,6 +118,11 @@ schema mapping is [DATA_MODEL.md](./DATA_MODEL.md), and security boundaries are 
 | `20260716010000_content_version_media_graph.sql`                 | Schema-two immutable version snapshots and exact media-graph restore; deterministic legacy reconstruction; direct-RPC media validation; owner-only media-safe duplication; internal-media-ID removal from frozen card and deck projections; exact same-command version finalization                                         | Reset and pgTAP pass |
 | `20260716011000_content_function_volatility.sql`                 | Hosted-catalog-safe `STABLE` classification for public-payload filtering, public-card ID derivation, and embedded-media graph collection helpers                                                                                                                                                                            | Reset and pgTAP pass |
 
+All twelve Phase 02 migrations are also applied and independently verified in the fixed Preview
+project. Preview has the exact 33-file local history through `11000`, an empty push dry run, no
+`public` or `private` lint findings, a passing hosted invariant, empty schema drift, and current
+generated types.
+
 Earlier applied migrations remain unchanged. `supabase/seed.sql` still inserts no product user,
 deck, card, publication, or media object. Generated database types were regenerated from the
 complete local schema and the deterministic drift check passes.
@@ -125,14 +134,17 @@ requires applying the full migration chain; the private content bucket and polic
 migration-owned. The guarded hosted-content runner captures the existing Preview project server
 key in memory through an authenticated operator CLI and never writes it to application
 configuration. Hosted setup must use the guarded Preview database promotion after the migrations
-are committed and locally accepted; no dashboard-created bucket, Beta promotion, or Production
-environment change is authorized here.
+are committed and locally accepted. That promotion completed through the repository guard; no
+dashboard-created bucket, Beta promotion, or Production environment change was made.
 
 ### Phase 02 validation evidence
 
 Final local acceptance completed on 2026-07-17 UTC under pinned Node `24.18.0`, pnpm `11.13.0`,
 local Docker/Supabase, Chromium, and k6 `2.1.0`. The aggregate verifier exited successfully on the
-settled implementation tree. Preview promotion and hosted rows remain explicitly pending.
+settled implementation tree. Final hosted evidence is from commit `af2d818` at
+`https://cogniflow-emqndkvn7-cogniflow-app-3471s-projects.vercel.app` (deployment
+`dpl_JC1wg64ZwKh5W1ZNSy2MSTAtrD36`). Browser evidence is automated Playwright acceptance; no manual
+visual-inspection claim is made.
 
 | Command                                             | Final local result                                                                  |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------- |
@@ -141,8 +153,8 @@ settled implementation tree. Preview promotion and hosted rows remain explicitly
 | `pnpm secret:scan`                                  | Exit 0; no secretlint findings                                                      |
 | `pnpm lint`                                         | Exit 0; ESLint has zero warnings and dependency boundaries pass                     |
 | `pnpm typecheck`                                    | Exit 0; 8/8 workspace projects pass strict TypeScript                               |
-| `pnpm test`                                         | Exit 0; 75 files and 570 tests pass                                                 |
-| Coverage                                            | 79.59% statements, 68.60% branches, 80.29% functions, and 83.30% lines              |
+| `pnpm test`                                         | Exit 0; 76 files and 583 tests pass                                                 |
+| Coverage                                            | 80.01% statements, 68.82% branches, 80.72% functions, and 83.75% lines              |
 | `pnpm db:reset`                                     | Exit 0; all 33 migrations and the product-data-empty seed apply from scratch        |
 | `pnpm test:db`                                      | Exit 0; 19 pgTAP files and 795 assertions pass                                      |
 | `pnpm db:types` / `pnpm db:types:check`             | Exit 0; generated schema types are deterministic and current                        |
@@ -150,11 +162,12 @@ settled implementation tree. Preview promotion and hosted rows remain explicitly
 | `pnpm build` / `pnpm build:portable`                | Exit 0; 59 Next route/static-generation entries and OpenNext worker bundle complete |
 | `pnpm test:e2e`                                     | Exit 0; 24 pass and 15 intentional project skips                                    |
 | `pnpm test:a11y`                                    | Exit 0; 27 axe, keyboard, motion, theme, and authoring checks pass                  |
-| `pnpm test:lighthouse`                              | Exit 0; scores 98/100/96/100, LCP 2312.37 ms, CLS 0, and TBT 4 ms                   |
-| `pnpm test:load`                                    | Exit 0; 15/15 checks, 3/3 requests, 0 failures, and p95 3.81 ms                     |
+| `pnpm test:lighthouse`                              | Exit 0; scores 98/100/96/100, LCP 2312.06 ms, CLS 0, and TBT 4 ms                   |
+| `pnpm test:load`                                    | Exit 0; 15/15 checks, 3/3 requests, 0 failures, and p95 7.39 ms                     |
 | `pnpm verify`                                       | Exit 0 on the complete post-audit tree                                              |
-| `pnpm db:deploy:preview` / `pnpm db:verify:preview` | Pending committed Preview-only promotion and final parity verification              |
-| Phase 02 Vercel Preview + hosted suites             | Pending linked deployment, guarded baseline/content acceptance, and cleanup proof   |
+| `pnpm db:deploy:preview` / `pnpm db:verify:preview` | Exit 0; exact 33 migrations, lint/invariant/Storage/diff/types all pass             |
+| `pnpm test:hosted:preview`                          | Exit 0; 11/11 final-head Preview baseline cases pass                                |
+| `pnpm test:hosted:preview:content`                  | Exit 0; 1/1 full content path plus verified Auth/publication/Storage cleanup passes |
 
 ### Phase 02 known later owners
 

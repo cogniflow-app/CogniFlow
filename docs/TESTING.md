@@ -46,7 +46,7 @@ Phase 00 foundation coverage remains in place. Phase 01 unit/property/UI coverag
 - valid/invalid parental-consent modes and server-only verifier configuration; deterministic local evidence; and the external verifier's HMAC-subject/no-email request, timeout signal, accepted evidence, transport denial, streaming size limit, malformed response, and negative-evidence paths;
 - email/password, magic-link, recovery, re-authentication, onboarding, provider, profile, privacy, family-code/PIN, and deletion input schemas;
 - two-stage recovery state: signed pending nonce/normalized-email/return-path binding, lifetime and tamper rejection, callback/confirm denial for query-only recovery intent, and issuance of the account-bound reset capability only after the pending state matches;
-- signed signup/onboarding age-gate structure, provider/normalized-email binding, callback nonce and expiry enforcement, under-13 pre-Auth refusal, provisional Auth-identity rejection/minimization, final onboarding rejection of a client age field, and exchange for a separate Auth-session/payload-bound proof;
+- signed signup/onboarding age-gate structure, provider/normalized-email binding, callback nonce and expiry enforcement, exact-email and lifetime enforcement when a successfully password-authenticated incomplete identity exchanges its pending signup decision, raw Auth-identity rejection/minimization without that authority, under-13 pre-Auth refusal, final onboarding rejection of a client age field, and exchange for a separate Auth-session/payload-bound proof;
 - safe relative redirects, neutral provider/account errors, and configured-provider descriptors;
 - public viewer normalization for the canonical public-shell families, denial of external/API/auth/account/traversal/double-encoded returns, anonymous fallback when Auth is unavailable, return-aware visitor links, verified workspace CTA, and middleware matcher coverage for every public family;
 - generated and filtered safe nicknames, room-code normalization, non-enumerating room resolution, expiry/lock/capacity rules, and the empty production room adapter;
@@ -318,6 +318,8 @@ settings/reload, deck creation, basic front/back/source save and reopen, card-br
 publish/anonymous reveal, and anonymous denial of both the exact slug and public ID after
 unpublish, followed by deck deletion. The successful sign-in against the parent-provisioned Preview
 identity also proves the application is using Preview Auth rather than the Beta project.
+The reopen assertion parses the created note ID from the 201 response and waits for that exact
+`?note=<id>` navigation before reloading, so it cannot accidentally assert against a fresh draft.
 
 Normal test failure and the first graceful `SIGINT`/`SIGTERM` reach one cleanup attempt. It
 serializes with other hosted database operations, links only the fixed Preview project, finds only

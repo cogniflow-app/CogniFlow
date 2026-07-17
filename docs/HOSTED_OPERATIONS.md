@@ -1,8 +1,8 @@
 # Hosted operations runbook
 
-**Environment:** Phase 02 feature branch against the Phase 01 hosted beta baseline  
-**Last verified:** 2026-07-16  
-**Application phase:** Phase 02 implementation; consult [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) for the exact Preview promotion/verification state
+**Environment:** Phase 02 Preview verified; Production remains on the Phase 01 beta baseline  
+**Last verified:** 2026-07-17  
+**Application phase:** Phase 02 complete on its feature branch; not merged or promoted to Beta
 
 This runbook records the secret-free operating state of the hosted Preview and Production beta
 environments. It is not a public-launch approval. The authoritative variable inventory is
@@ -16,14 +16,14 @@ sessions remain operator-local.
 
 ## Current hosted topology
 
-| Boundary                   | Preview                                                               | Production beta                                                       |
-| -------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Supabase project reference | `cfwddajyjbueggpzfomh`                                                | `qccbaynfvtyxigiikpmq`                                                |
-| Database role              | Feature-branch migration proving ground                               | Post-merge beta database                                              |
-| Vercel deployment          | `https://cogniflow-5x77sm1wj-cogniflow-app-3471s-projects.vercel.app` | Canonical: `https://recallflash.com`                                  |
-| Canonical redirects        | Not applicable                                                        | `www` and `cogniflow-pearl.vercel.app` use `308` to the apex          |
-| Application data           | No seeded, fixture, test-user, identity, or product data              | No seeded, fixture, test-user, identity, or product data              |
-| Search indexing            | Site-wide `noindex`, `nofollow`                                       | Site-wide `noindex`, `nofollow` while the beta profile remains active |
+| Boundary                   | Preview                                                                                                              | Production beta                                                       |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Supabase project reference | `cfwddajyjbueggpzfomh`                                                                                               | `qccbaynfvtyxigiikpmq`                                                |
+| Database role              | Phase 02 feature-branch migration proving ground                                                                     | Post-merge beta database                                              |
+| Vercel deployment          | `https://cogniflow-emqndkvn7-cogniflow-app-3471s-projects.vercel.app`                                                | Canonical: `https://recallflash.com`                                  |
+| Canonical redirects        | Not applicable                                                                                                       | `www` and `cogniflow-pearl.vercel.app` use `308` to the apex          |
+| Application data           | No live acceptance identity, publication, or Storage object; minimized tombstones and required audit evidence remain | No seeded, fixture, test-user, identity, or product data              |
+| Search indexing            | Site-wide `noindex`, `nofollow`                                                                                      | Site-wide `noindex`, `nofollow` while the beta profile remains active |
 
 The two Supabase projects are independent. Vercel Preview always uses the Preview project, and
 Vercel Production, including `recallflash.com`, always uses the Beta project.
@@ -72,7 +72,7 @@ token. Neither Vercel credential is inherited by Playwright.
 
 ## Hosted database state
 
-The last completed shared-environment baseline has 21 migrations, ending with:
+The unchanged Production beta baseline has 21 migrations, ending with:
 
 ```text
 20260715006900_hosted_grant_parity.sql
@@ -81,9 +81,10 @@ The last completed shared-environment baseline has 21 migrations, ending with:
 That final additive migration removes broad `service_role` table and sequence privileges and
 unsafe default privileges that the hosted platform restored independently of the migration SQL.
 It does not delete application data. Both remote histories matched that local committed history at
-the Phase 01 verification point.
+the Phase 01 verification point. Preview now has twelve additional Phase 02 migrations; Beta was
+not changed.
 
-The final hosted verification for each project confirmed:
+At the Phase 01 verification point, both projects confirmed:
 
 - migration history is an exact local/remote match and a subsequent push dry run is empty;
 - database lint has no errors in `public` or `private`;
@@ -101,7 +102,7 @@ password from repository configuration.
 
 ### Phase 02 Preview checkpoint
 
-Phase 02 adds these twelve migration candidates after the 21-migration baseline:
+Phase 02 applies these twelve migration files after the 21-migration baseline in Preview only:
 
 ```text
 20260716000000_content_schema.sql
@@ -131,22 +132,32 @@ service-only claim/complete RPCs. The last three migrations bind every browser-r
 idempotency receipt to the complete canonical command, capture/restore the exact schema-v2 media
 reference graph in immutable deck versions (including legacy reconstruction and
 frozen-publication identifier remediation), and align helper volatility with the strict hosted
-catalog contract. Their presence in a branch does not prove either hosted project has them.
-The exact Preview command results, remote migration count, Storage invariant result, deployed URL,
-hosted smoke count, and cleanup evidence must be recorded in
-[IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md). Until those results are present, report
-Phase 02 Preview as **not hosted-verified**.
+catalog contract.
 
-The feature branch may deploy these committed migrations only to Preview after complete local
-acceptance and a clean tracked migration directory. It must not apply them to Beta or deploy the
+On 2026-07-17, the guarded Preview deployment and independent verification completed successfully:
+
+- the remote history exactly matches all 33 committed migrations through `11000`, and the push dry
+  run is empty;
+- database lint reports no `public` or `private` findings, and the hosted invariant passes 1/1;
+- Storage contains exactly the private `lumen-content-media/` root and zero recursive objects;
+- the `public`/`private` schema diff is empty and generated database types match;
+- final deployment `dpl_JC1wg64ZwKh5W1ZNSy2MSTAtrD36` at
+  `https://cogniflow-emqndkvn7-cogniflow-app-3471s-projects.vercel.app` passed the baseline 11/11;
+  and
+- the isolated content path passed 1/1, after which the wrapper verified removal of the disposable
+  Auth principal, frozen publication, and Storage objects plus privacy minimization of retained
+  content tombstones.
+
+The feature branch deployed these committed migrations only to Preview after complete local
+acceptance and a clean tracked migration directory. It did not apply them to Beta or deploy the
 Production application. A Preview validation may create a dedicated test account/deck/media object
 only when the test has an explicit cleanup path. Afterwards, verify removal of the fixture Auth
 principal, frozen publication, and Storage objects plus privacy minimization of retained content
 tombstones. Append-only/structural audit evidence and opaque minimized rows remain by design; do
 not claim zero content rows or zero product data.
 
-After Phase 02 promotion, `db:verify:preview` expects the Storage root inventory to contain exactly
-`lumen-content-media/` and its recursive object inventory to be empty. A missing bucket, extra
+The final `db:verify:preview` confirmed that the Storage root inventory contains exactly
+`lumen-content-media/` and its recursive object inventory is empty. A missing bucket, extra
 bucket, or any remaining object is drift/failure. This intentionally differs from the historical
 Phase 01 baseline, which had no bucket.
 
@@ -302,7 +313,7 @@ The normal future-phase path is Git-based:
 Use either an explicit URL or the target-specific environment variable. The current targets are:
 
 ```bash
-HOSTED_PREVIEW_URL=https://cogniflow-5x77sm1wj-cogniflow-app-3471s-projects.vercel.app \
+HOSTED_PREVIEW_URL=https://cogniflow-emqndkvn7-cogniflow-app-3471s-projects.vercel.app \
   pnpm test:hosted:preview
 
 HOSTED_PRODUCTION_URL=https://recallflash.com \
@@ -313,7 +324,7 @@ The equivalent explicit form is:
 
 ```bash
 npx vercel@56.3.0 whoami
-pnpm test:hosted:preview --url https://cogniflow-5x77sm1wj-cogniflow-app-3471s-projects.vercel.app
+pnpm test:hosted:preview --url https://cogniflow-emqndkvn7-cogniflow-app-3471s-projects.vercel.app
 npx vercel@56.3.0 whoami
 pnpm test:hosted:production --url https://recallflash.com
 ```
@@ -352,7 +363,8 @@ The separate `test:hosted:preview:content` path creates one disposable adult acc
 in Preview. It verifies signup confirmation handoff, `/app` onboarding fallback, empty real counts,
 durable dark appearance across settings/reload, deck creation, basic front/back/source save and
 reopen, the card browser, publish/anonymous flip/unpublish denial, and delete. Success is reported
-only after the wrapper's database/Auth/Storage cleanup completes.
+only after the wrapper's database/Auth/Storage cleanup completes. The final-head result is 1/1,
+following an 11/11 non-mutating baseline on the same deployment.
 
 ## Supabase Auth URL configuration
 
@@ -375,6 +387,8 @@ https://cogniflow-*-cogniflow-app-3471s-projects.vercel.app/auth/callback**
 The first entry is the verified deployment. The second is the minimum Vercel Preview wildcard
 needed for this project's generated deployment hostnames; it is path-limited to
 `/auth/callback**` and must not be widened to an entire origin.
+The final Phase 02 deployment matched that existing path-limited wildcard. This phase did not
+change Preview or Beta Auth settings.
 
 ### Beta project
 

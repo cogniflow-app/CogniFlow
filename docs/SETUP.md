@@ -82,7 +82,7 @@ pnpm db:types
 ```
 
 `db:reset` applies the Phase 00 foundation, every additive Phase 01 migration through
-`20260715006900_hosted_grant_parity.sql`, and the eleven-migration Phase 02 content chain:
+`20260715006900_hosted_grant_parity.sql`, and the twelve-migration Phase 02 content chain:
 
 ```text
 20260716000000_content_schema.sql
@@ -96,6 +96,7 @@ pnpm db:types
 20260716008000_content_atomic_authoring_and_media_deletion.sql
 20260716009000_content_receipt_payload_binding.sql
 20260716010000_content_version_media_graph.sql
+20260716011000_content_function_volatility.sql
 ```
 
 The content chain creates the 17 system note types, folders/decks/notes/generated cards, immutable
@@ -109,10 +110,11 @@ identities and automatic serialization retry loops. Migration 080 makes a custom
 field/template definition and note/media graph one copy-on-write transaction, makes optional deck
 settings and publication state one transaction, and adds a private leased physical-media cleanup
 queue with service-only claim/complete RPCs. The receipt-binding migration then fingerprints every
-browser-reachable content command, and the final migration captures/restores an exact schema-v2
-version media graph while reconstructing legacy snapshots safely. It does not create learner
-scheduling state or seed product rows. `pnpm db:types` writes the generated public database contract;
-`pnpm db:types:check` verifies that the committed contract matches a fresh local schema.
+browser-reachable content command, the version-graph migration captures/restores an exact schema-v2
+media graph while reconstructing legacy snapshots safely, and the final volatility migration aligns
+the hosted catalog contract. It does not create learner scheduling state or seed product rows.
+`pnpm db:types` writes the generated public database contract; `pnpm db:types:check` verifies that
+the committed contract matches a fresh local schema.
 
 `db:reset` is intentionally destructive to the local development database only. Never point the local command at a hosted database. Stop services without deleting local volumes using:
 
@@ -140,7 +142,7 @@ To exercise required confirmation locally, set both values to `true`, restart th
 
 The local Auth Site URL is `http://127.0.0.1:3100`, and the checked-in redirect allowlist accepts the local application callback routes. The application handles PKCE/code callbacks at `/auth/callback`, token-hash verification at `/auth/confirm`, and expired links at `/auth/error`. Return destinations are revalidated as same-origin relative paths by the server.
 
-Password/OAuth signup signs the eligible teen/adult decision before starting Auth. When email confirmation or a provider redirect requires a round trip, the pending state is an HttpOnly cookie bound to a callback nonce and to the normalized email subject or configured provider. An immediate password session receives the account-bound onboarding gate directly. A recent new callback identity without matching signed signup state is signed out, rejected through the service-only provisional-account minimization boundary, and denied. Final onboarding receives the account-bound signed cookie and does not accept an age band in its profile request body. The route exchanges that cookie and the exact validated payload for a separate random proof bound to the account, live Auth session, payload digest, and a maximum ten-minute expiry; the authenticated RPC consumes it once. Under-13 selection never starts an independent-account Auth mutation. `APP_ENCRYPTION_KEY` must therefore remain stable across instances during an in-flight signup/onboarding window.
+Password/OAuth signup signs the eligible teen/adult decision before starting Auth. When email confirmation or a provider redirect requires a round trip, the pending state is an HttpOnly cookie bound to a callback nonce and to the normalized email subject or configured provider. An immediate password session receives the account-bound onboarding gate directly. After a later successful password authentication, an incomplete identity can continue only by exchanging the still-valid password-signup decision bound to that exact normalized email; a password without the signed decision is not onboarding authority. A recent new callback or password-authenticated identity without its required matching state is signed out, rejected through the service-only provisional-account minimization boundary, and denied. Final onboarding receives the account-bound signed cookie and does not accept an age band in its profile request body. The route exchanges that cookie and the exact validated payload for a separate random proof bound to the account, live Auth session, payload digest, and a maximum ten-minute expiry; the authenticated RPC consumes it once. Under-13 selection never starts an independent-account Auth mutation. `APP_ENCRYPTION_KEY` must therefore remain stable across instances during an in-flight signup/onboarding window.
 
 Forgot-password requests use independent signed pending state. Before requesting the email, the server sets an at-most-15-minute SameSite=Lax HttpOnly cookie bound to a callback nonce hash, normalized-email HMAC, and safe return path; the email redirect contains only the random nonce. `/auth/callback` and `/auth/confirm` must match all of that state after Supabase verifies the link before they create the separate account-bound, SameSite=Strict, ten-minute password-update capability. Missing/expired state, a different email subject or nonce, and a query-only `intent=recovery` sign out the recovered session and go to the neutral expired-link surface. Keep `APP_ENCRYPTION_KEY` stable for the complete request/callback/update window.
 
