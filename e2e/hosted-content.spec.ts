@@ -126,7 +126,7 @@ test("Preview supports the complete disposable Phase 02 account and content path
   await createDialog
     .getByRole("textbox", { name: "Description" })
     .fill("A disposable hosted acceptance deck.");
-  await createDialog.getByRole("button", { name: "Create deck" }).click();
+  await createDialog.getByRole("button", { name: "Create and add notes" }).click();
   const created = await createResponse;
   expect(created.status()).toBe(201);
   const createdBody = (await created.json()) as { data: { id: string } };
@@ -147,8 +147,13 @@ test("Preview supports the complete disposable Phase 02 account and content path
       response.request().method() === "POST",
   );
   await page.getByRole("button", { name: "Save note" }).click();
-  expect((await noteResponse).status()).toBe(201);
+  const saved = await noteResponse;
+  expect(saved.status()).toBe(201);
+  const savedBody = (await saved.json()) as { data: { id: string } };
   await expect(page.getByText("All changes saved.")).toBeVisible();
+  await expect(page).toHaveURL(
+    new RegExp(`/app/decks/${deckId}/edit\\?note=${savedBody.data.id}$`, "u"),
+  );
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Front / prompt" })).toContainText(
     "What molecule carries cellular energy?",

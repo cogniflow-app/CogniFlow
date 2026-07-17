@@ -290,6 +290,8 @@ describe("hosted content acceptance guard", () => {
     expect(sql).toContain("public.admin_request_account_deletion");
     expect(sql).toContain("public.admin_process_account_deletion");
     expect(sql).toContain("lumen_hosted_acceptance");
+    expect(sql).toContain("requested_at = pg_catalog.now() - interval '2 seconds'");
+    expect(sql).toContain("execute_after = pg_catalog.now() - interval '1 second'");
     expect(sql).toContain("deck.title <> 'Deleted deck ' || pg_catalog.left(deck.id::text, 8)");
     expect(sql).not.toContain("deck.title <> 'Deleted deck'\n");
     expect(sql).not.toMatch(/truncate|drop table|delete\s+from\s+public\.decks/iu);

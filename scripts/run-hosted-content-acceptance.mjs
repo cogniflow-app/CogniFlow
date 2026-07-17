@@ -377,7 +377,9 @@ begin
         v_account_id, v_proof, 1, extensions.gen_random_uuid()
       );
       update public.deletion_jobs
-      set execute_after = pg_catalog.now() - interval '1 second'
+      set
+        requested_at = pg_catalog.now() - interval '2 seconds',
+        execute_after = pg_catalog.now() - interval '1 second'
       where id = v_job_id;
       perform public.admin_process_account_deletion(v_job_id, extensions.gen_random_uuid());
     elsif exists(select 1 from auth.users where id = v_account_id) then
