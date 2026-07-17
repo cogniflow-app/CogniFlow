@@ -73,19 +73,20 @@ export function validateNextEnvironment(phase: string, source: EnvironmentSource
   });
 }
 
-function createContentSecurityPolicy(isDevelopment: boolean): string {
+function createContentSecurityPolicy(isDevelopment: boolean, isEmbed: boolean): string {
   return [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    "img-src 'self' data: blob: https://*.supabase.co",
     "font-src 'self' data:",
     "connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* https://*.supabase.co wss://*.supabase.co",
-    "media-src 'self' blob:",
+    "media-src 'self' blob: https://*.supabase.co",
+    "frame-src https://www.youtube-nocookie.com https://player.vimeo.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
+    isEmbed ? "frame-ancestors 'self' https:" : "frame-ancestors 'none'",
     ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
   ].join("; ");
 }
@@ -99,17 +100,28 @@ export function createNextConfigForEnvironment(
   const withBundleAnalyzer = withBundleAnalyzerFactory({
     enabled: source.ANALYZE === "true",
   });
-  const contentSecurityPolicy = createContentSecurityPolicy(phase === PHASE_DEVELOPMENT_SERVER);
-  const securityHeaders = [
-    { key: "Content-Security-Policy", value: contentSecurityPolicy },
+  const isDevelopment = phase === PHASE_DEVELOPMENT_SERVER;
+  const contentSecurityPolicy = createContentSecurityPolicy(isDevelopment, false);
+  const embedContentSecurityPolicy = createContentSecurityPolicy(isDevelopment, true);
+  const sharedSecurityHeaders = [
     { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-    { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=()" },
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
     { key: "X-Content-Type-Options", value: "nosniff" },
-    { key: "X-Frame-Options", value: "DENY" },
     ...(shouldPreventSearchIndexing(source)
       ? [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }]
       : []),
+  ];
+  const securityHeaders = [
+    { key: "Content-Security-Policy", value: contentSecurityPolicy },
+    ...sharedSecurityHeaders,
+    // Recording is still browser-permission gated and starts only after an explicit editor action.
+    { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=(self)" },
+    { key: "X-Frame-Options", value: "DENY" },
+  ];
+  const embedSecurityHeaders = [
+    { key: "Content-Security-Policy", value: embedContentSecurityPolicy },
+    ...sharedSecurityHeaders,
+    { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=()" },
   ];
   const nextConfig: NextConfig = {
     env: {
@@ -129,7 +141,11 @@ export function createNextConfigForEnvironment(
       return [
         {
           headers: securityHeaders,
-          source: "/(.*)",
+          source: "/((?!embed/deck/).*)",
+        },
+        {
+          headers: embedSecurityHeaders,
+          source: "/embed/deck/:publicId",
         },
         {
           headers: [{ key: "Cache-Control", value: "no-store" }],

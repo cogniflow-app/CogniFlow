@@ -82,8 +82,8 @@ export default async function PrivacySettingsPage() {
                 Data export
               </h2>
               <p className="mt-2 mb-0 text-sm text-[var(--color-text-muted)]">
-                The request and job status are live. Phase 01 queues the portable JSON archive job;
-                download assembly remains isolated behind the job boundary.
+                Export requests and their job status are live. Portable archive creation remains
+                isolated behind the queued export job boundary.
               </p>
             </div>
             <ExportRequestAction />

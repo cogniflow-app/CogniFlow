@@ -1,5 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import {
+  assertHostedPreflightAttestation,
+  readHostedPreflightFile,
+} from "./scripts/hosted-preflight.cjs";
+
 function readHostedBaseUrl(): string {
   const untrusted = process.env.PLAYWRIGHT_BASE_URL;
   if (!untrusted) {
@@ -37,18 +42,32 @@ function readHostedBaseUrl(): string {
 }
 
 const baseURL = readHostedBaseUrl();
-const protectionBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
-const bypassHostname = new URL(baseURL).hostname;
-const trustedBypassOrigin =
-  bypassHostname === "recallflash.com" ||
-  bypassHostname === "cogniflow-pearl.vercel.app" ||
-  /^cogniflow-[a-z0-9]+-cogniflow-app-3471s-projects\.vercel\.app$/u.test(bypassHostname);
-
-if (protectionBypass && !trustedBypassOrigin) {
-  throw new Error(
-    "VERCEL_AUTOMATION_BYPASS_SECRET may be sent only to this repository's trusted project origins.",
-  );
+const preflightFile = process.env.HOSTED_SMOKE_PREFLIGHT_FILE;
+const legacyPreflight = process.env.HOSTED_SMOKE_PREFLIGHT;
+delete process.env.HOSTED_SMOKE_PREFLIGHT;
+if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim()) {
+  throw new Error("Hosted Playwright must not inherit the long-lived Vercel bypass secret.");
 }
+if (legacyPreflight) {
+  throw new Error("Hosted Playwright must not inherit a credential-bearing preflight value.");
+}
+const hostedTarget = process.env.HOSTED_SMOKE_TARGET;
+const bypassHostname = new URL(baseURL).hostname;
+const targetOriginIsValid =
+  (hostedTarget === "production" && baseURL === "https://recallflash.com") ||
+  (hostedTarget === "preview" &&
+    /^cogniflow-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?-cogniflow-app-3471s-projects\.vercel\.app$/u.test(
+      bypassHostname,
+    ));
+
+if (!targetOriginIsValid) {
+  throw new Error("Hosted Playwright target does not match its guarded runner environment.");
+}
+const preflight = assertHostedPreflightAttestation(readHostedPreflightFile(preflightFile), {
+  baseURL,
+  requiresOwnership: true,
+  target: hostedTarget,
+});
 
 export default defineConfig({
   expect: { timeout: 10_000 },
@@ -65,17 +84,12 @@ export default defineConfig({
   use: {
     ...devices["Desktop Chrome"],
     baseURL,
-    extraHTTPHeaders: protectionBypass
-      ? {
-          "x-vercel-protection-bypass": protectionBypass,
-          "x-vercel-set-bypass-cookie": "true",
-        }
-      : undefined,
     ignoreHTTPSErrors: false,
     navigationTimeout: 20_000,
     screenshot: "only-on-failure",
     serviceWorkers: "block",
-    trace: protectionBypass ? "off" : "retain-on-failure",
+    storageState: preflight.storageState,
+    trace: preflight.storageState ? "off" : "retain-on-failure",
   },
   workers: 1,
 });

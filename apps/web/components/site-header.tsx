@@ -1,7 +1,9 @@
 import { brandConfig } from "@lumen/config/brand";
 import { PageContainer } from "@lumen/ui/shells";
 
-import { HeaderAccountAction } from "./header-account-action";
+import { readPublicViewerContext } from "@/lib/server/public-viewer";
+
+import { HeaderAccountActionLink } from "./header-account-action";
 import { SiteNavigation } from "./site-navigation.client";
 
 const navigation = [
@@ -10,7 +12,8 @@ const navigation = [
   { href: "/safety", label: "Safety" },
 ] as const;
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const viewer = await readPublicViewerContext();
   const links =
     process.env.NODE_ENV === "production"
       ? navigation
@@ -23,7 +26,11 @@ export function SiteHeader() {
           <span aria-hidden="true" className="brand-lockup__mark" />
           <span>{brandConfig.name}</span>
         </a>
-        <SiteNavigation accountAction={<HeaderAccountAction />} links={links} />
+        <SiteNavigation
+          accountAction={<HeaderAccountActionLink viewer={viewer} />}
+          links={links}
+          persistAppearanceToAccount={viewer.authenticated}
+        />
       </PageContainer>
     </header>
   );

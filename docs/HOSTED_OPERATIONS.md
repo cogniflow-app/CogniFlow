@@ -1,8 +1,8 @@
 # Hosted operations runbook
 
-**Environment:** Phase 01 hosted beta  
-**Last verified:** 2026-07-16  
-**Application phase:** Phase 01; Phase 02 has not started
+**Environment:** Phase 02 Preview verified; Production remains on the Phase 01 beta baseline  
+**Last verified:** 2026-07-17  
+**Application phase:** Phase 02 complete on its feature branch; not merged or promoted to Beta
 
 This runbook records the secret-free operating state of the hosted Preview and Production beta
 environments. It is not a public-launch approval. The authoritative variable inventory is
@@ -16,14 +16,14 @@ sessions remain operator-local.
 
 ## Current hosted topology
 
-| Boundary                   | Preview                                                               | Production beta                                                       |
-| -------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Supabase project reference | `cfwddajyjbueggpzfomh`                                                | `qccbaynfvtyxigiikpmq`                                                |
-| Database role              | Feature-branch migration proving ground                               | Post-merge beta database                                              |
-| Vercel deployment          | `https://cogniflow-5x77sm1wj-cogniflow-app-3471s-projects.vercel.app` | Canonical: `https://recallflash.com`                                  |
-| Canonical redirects        | Not applicable                                                        | `www` and `cogniflow-pearl.vercel.app` use `308` to the apex          |
-| Application data           | No seeded, fixture, test-user, identity, or product data              | No seeded, fixture, test-user, identity, or product data              |
-| Search indexing            | Site-wide `noindex`, `nofollow`                                       | Site-wide `noindex`, `nofollow` while the beta profile remains active |
+| Boundary                   | Preview                                                                                                              | Production beta                                                       |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Supabase project reference | `cfwddajyjbueggpzfomh`                                                                                               | `qccbaynfvtyxigiikpmq`                                                |
+| Database role              | Phase 02 feature-branch migration proving ground                                                                     | Post-merge beta database                                              |
+| Vercel deployment          | `https://cogniflow-emqndkvn7-cogniflow-app-3471s-projects.vercel.app`                                                | Canonical: `https://recallflash.com`                                  |
+| Canonical redirects        | Not applicable                                                                                                       | `www` and `cogniflow-pearl.vercel.app` use `308` to the apex          |
+| Application data           | No live acceptance identity, publication, or Storage object; minimized tombstones and required audit evidence remain | No seeded, fixture, test-user, identity, or product data              |
+| Search indexing            | Site-wide `noindex`, `nofollow`                                                                                      | Site-wide `noindex`, `nofollow` while the beta profile remains active |
 
 The two Supabase projects are independent. Vercel Preview always uses the Preview project, and
 Vercel Production, including `recallflash.com`, always uses the Beta project.
@@ -56,15 +56,23 @@ project-domain configuration redirects `www.recallflash.com` and the retired sta
 serving/canonical Production origin; do not add either redirecting host to application origin or
 CSRF allowlists.
 
-The project retains Vercel Standard Deployment Protection. Automated checks against a protected
-deployment may use a project-scoped automation bypass secret loaded into the operator process as
-`VERCEL_AUTOMATION_BYPASS_SECRET`. Never place its value in a command transcript, documentation,
-CI output, pull request, or tracked environment file. Regenerating that secret invalidates the
-previous value.
+The project retains Vercel Standard Deployment Protection. Before any target request, each guarded
+runner performs an authenticated deployment lookup through the fixed Vercel API origin and requires
+the exact URL or alias, ready state, Preview/Production target, and project/team IDs to match the
+ignored local Vercel link. It then performs a read-only project GET and requires exactly one
+existing `automation-bypass` entry. `VERCEL_AUTOMATION_BYPASS_SECRET` is an optional transient
+equality override; when present, it must match that discovered entry. Never place its value in a
+command transcript, documentation, CI output, pull request, or tracked environment file. These
+runners never create, rotate, replace, or `PATCH` a bypass. If the inventory is missing or
+ambiguous, stop and ask the project owner to resolve it outside the run. In noninteractive CI,
+supply the standard `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, and `VERCEL_ORG_ID` tool
+secrets/metadata. For local work, refresh the authenticated CLI immediately before each suite with
+`npx vercel@56.3.0 whoami`; the runner validates but does not refresh the short-lived OAuth access
+token. Neither Vercel credential is inherited by Playwright.
 
 ## Hosted database state
 
-Both hosted projects have exactly the 21 committed migrations, ending with:
+The unchanged Production beta baseline has 21 migrations, ending with:
 
 ```text
 20260715006900_hosted_grant_parity.sql
@@ -72,9 +80,11 @@ Both hosted projects have exactly the 21 committed migrations, ending with:
 
 That final additive migration removes broad `service_role` table and sequence privileges and
 unsafe default privileges that the hosted platform restored independently of the migration SQL.
-It does not delete application data. Both remote histories match the local committed history.
+It does not delete application data. Both remote histories matched that local committed history at
+the Phase 01 verification point. Preview now has twelve additional Phase 02 migrations; Beta was
+not changed.
 
-The final hosted verification for each project confirmed:
+At the Phase 01 verification point, both projects confirmed:
 
 - migration history is an exact local/remote match and a subsequent push dry run is empty;
 - database lint has no errors in `public` or `private`;
@@ -89,6 +99,109 @@ The final hosted verification for each project confirmed:
 The deploy and verify wrappers link only the named project, confirm the resulting link, serialize
 hosted operations with a local lock, and unlink in a `finally` path. They do not read a database
 password from repository configuration.
+
+### Phase 02 Preview checkpoint
+
+Phase 02 applies these twelve migration files after the 21-migration baseline in Preview only:
+
+```text
+20260716000000_content_schema.sql
+20260716001000_content_authorization_and_rpcs.sql
+20260716002000_content_integration_hardening.sql
+20260716003000_content_rpc_parameter_names.sql
+20260716004000_content_guarded_read_volatility.sql
+20260716005000_content_security_audit_hardening.sql
+20260716006000_content_note_create_identity.sql
+20260716007000_content_conflict_sqlstate.sql
+20260716008000_content_atomic_authoring_and_media_deletion.sql
+20260716009000_content_receipt_payload_binding.sql
+20260716010000_content_version_media_graph.sql
+20260716011000_content_function_volatility.sql
+```
+
+They create the content tables/transactions, frozen public projection, and private
+`lumen-content-media` bucket; compose note/media writes atomically; separate public metadata from
+service-only Storage locators; stabilize named lifecycle RPC parameters; correct guarded-read
+volatility; and harden expected versions, replay authorization, pending-object immutability, and
+embedded-media usage accounting. They also derive an ID-less new note from its idempotency UUID and
+raise typed stale-version outcomes as non-serialization user exceptions so hosted clients do not
+loop on automatic transaction retries. Migration 080 resolves a custom definition
+plus its note/media graph in one copy-on-write transaction, applies optional deck settings plus
+publish/unpublish in one transaction, and adds a private leased physical-media cleanup queue with
+service-only claim/complete RPCs. The last three migrations bind every browser-reachable content
+idempotency receipt to the complete canonical command, capture/restore the exact schema-v2 media
+reference graph in immutable deck versions (including legacy reconstruction and
+frozen-publication identifier remediation), and align helper volatility with the strict hosted
+catalog contract.
+
+On 2026-07-17, the guarded Preview deployment and independent verification completed successfully:
+
+- the remote history exactly matches all 33 committed migrations through `11000`, and the push dry
+  run is empty;
+- database lint reports no `public` or `private` findings, and the hosted invariant passes 1/1;
+- Storage contains exactly the private `lumen-content-media/` root and zero recursive objects;
+- the `public`/`private` schema diff is empty and generated database types match;
+- final deployment `dpl_JC1wg64ZwKh5W1ZNSy2MSTAtrD36` at
+  `https://cogniflow-emqndkvn7-cogniflow-app-3471s-projects.vercel.app` passed the baseline 11/11;
+  and
+- the isolated content path passed 1/1, after which the wrapper verified removal of the disposable
+  Auth principal, frozen publication, and Storage objects plus privacy minimization of retained
+  content tombstones.
+
+The feature branch deployed these committed migrations only to Preview after complete local
+acceptance and a clean tracked migration directory. It did not apply them to Beta or deploy the
+Production application. A Preview validation may create a dedicated test account/deck/media object
+only when the test has an explicit cleanup path. Afterwards, verify removal of the fixture Auth
+principal, frozen publication, and Storage objects plus privacy minimization of retained content
+tombstones. Append-only/structural audit evidence and opaque minimized rows remain by design; do
+not claim zero content rows or zero product data.
+
+The final `db:verify:preview` confirmed that the Storage root inventory contains exactly
+`lumen-content-media/` and its recursive object inventory is empty. A missing bucket, extra
+bucket, or any remaining object is drift/failure. This intentionally differs from the historical
+Phase 01 baseline, which had no bucket.
+
+In addition to the non-mutating baseline smoke, the isolated Phase 02 Preview acceptance must
+verify the default post-authentication `/app` redirect, the retained non-default safe return
+`/app/decks/new`, explicit
+appearance across protected navigation/reload, the real empty library, deck creation, save and
+reopen of a representative basic note/card, public preview, and anonymous denial of the exact
+formerly published slug and public ID after unpublish. The
+guarded runner confirms the one disposable reserved-address Auth identity through the Preview
+project's admin API from the parent process, marks it with the generated run ID, and gives the
+Playwright worker no Supabase server key. The application UI owns
+onboarding/content/publication behavior. Its once-only `finally` cleanup acquires the same
+hosted-operation lock, links only the fixed Preview project, processes the account through the existing
+provisional-rejection or due account-deletion boundary, and asserts Auth removal, publication
+withdrawal, privacy-minimized content tombstones, and an empty recursive bucket object inventory.
+The first graceful `SIGINT` or `SIGTERM` terminates the active test child and still reaches that
+cleanup; cleanup failure, `SIGKILL`, or host/process loss is not a no-leak guarantee. Record the
+exact deployed URL, test count, cleanup result, and UTC time in
+[IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md); do not treat this persistent fixture flow
+as part of the safe read-only baseline suite.
+
+### Phase 02 physical media deletion operation
+
+Migration `20260716008000_content_atomic_authoring_and_media_deletion.sql` makes the database side
+of physical cleanup deployable, and `pnpm worker:media-deletions` implements one bounded
+claim/remove/complete batch. This feature-branch Preview promotion does not deploy or schedule that
+process.
+
+Any future worker deployment must keep `SUPABASE_SECRET_KEY` in its provider secret store and pair
+it with the same environment's `NEXT_PUBLIC_SUPABASE_URL`. Optional
+`MEDIA_DELETION_BATCH_SIZE=25` (`1..100`) and `MEDIA_DELETION_LEASE_SECONDS=300` (`30..900`) bound
+one run. The service-only claim revalidates the elapsed deadline, zero usage, and absence of a
+frozen media publication under lock. Completion accepts only the matching lease token; Storage
+failure requeues with durable bounded backoff, and an expired crash lease can be reclaimed.
+Supabase bulk removal returns success with an empty result for an already-absent key. Any error
+actually reported by Storage, including a typed or prose `404`, is requeued because that response
+can describe a missing bucket rather than a missing object. The worker tombstones the database
+locator only after Storage reports successful removal.
+
+Before enabling the schedule in an environment, record the worker host, secret scope, recurrence,
+monitoring/alert owner, and a non-sensitive deletion exercise. The application Preview acceptance
+cleans its objects synchronously through its guarded fixture teardown and is not evidence that a
+recurring worker has been deployed.
 
 ## Safe database promotion workflow
 
@@ -114,6 +227,35 @@ Storage, schema-diff, and generated-type checks described above.
 
 After Preview database verification, use the Vercel Preview for the same branch and run the hosted
 smoke suite before approving the pull request.
+
+After the non-mutating baseline passes, run the isolated disposable content acceptance against the
+same exact deployment:
+
+```bash
+npx vercel@56.3.0 whoami
+pnpm test:hosted:preview:content --url https://<exact-preview-host>.vercel.app
+pnpm db:verify:preview
+```
+
+The runner refuses Production, local, credential-bearing, non-HTTPS, and unrelated Vercel origins.
+Before retrieving any server key or creating an identity, it authenticates the exact deployment
+against the linked Vercel project/team through `api.vercel.com`, then requires exactly one existing
+automation bypass from a read-only project lookup. Only that authenticated deployment may receive
+the bypass, after which `/api/health` must report a healthy Vercel Preview, a non-development build,
+and the exact public Preview Supabase project reference. It then obtains the Preview server key in
+parent memory from the authenticated Supabase CLI, creates and confirms only the exact UUID-marked
+reserved-domain fixture through Admin Auth, and never reads, writes, or modifies
+`apps/web/.env.local`. Pre-provisioning removes outbound SMTP from this disposable proof while the
+browser still exercises the public signup/check-email/sign-in/onboarding path. The Vercel cookie attestation uses a private
+mode-`0600` file inside the sterile child runtime, opened with no-follow/inode checks for each
+Playwright configuration evaluation and destroyed by the parent after the process tree exits. The Playwright child receives an
+empty private home/config sandbox, no provider or CLI credentials, and only a nonsecret fixture
+completion marker. Do not invoke its Playwright file directly: target attestation, reserved
+identity, secret lifetime, hosted lock, deletion cleanup, unlink, and recursive Storage assertion
+all belong to the wrapper. If the test or cleanup fails—or the process suffers `SIGKILL` or host
+loss—inspect and complete cleanup before another hosted content run. Successful cleanup removes the
+Auth principal/publication/objects but intentionally retains privacy-minimized content tombstones
+and required audit evidence.
 
 ### Merged `main` to Beta
 
@@ -171,7 +313,7 @@ The normal future-phase path is Git-based:
 Use either an explicit URL or the target-specific environment variable. The current targets are:
 
 ```bash
-HOSTED_PREVIEW_URL=https://cogniflow-5x77sm1wj-cogniflow-app-3471s-projects.vercel.app \
+HOSTED_PREVIEW_URL=https://cogniflow-emqndkvn7-cogniflow-app-3471s-projects.vercel.app \
   pnpm test:hosted:preview
 
 HOSTED_PRODUCTION_URL=https://recallflash.com \
@@ -181,25 +323,48 @@ HOSTED_PRODUCTION_URL=https://recallflash.com \
 The equivalent explicit form is:
 
 ```bash
-pnpm test:hosted:preview --url https://cogniflow-5x77sm1wj-cogniflow-app-3471s-projects.vercel.app
+npx vercel@56.3.0 whoami
+pnpm test:hosted:preview --url https://cogniflow-emqndkvn7-cogniflow-app-3471s-projects.vercel.app
+npx vercel@56.3.0 whoami
 pnpm test:hosted:production --url https://recallflash.com
 ```
 
-If the target is protected, load `VERCEL_AUTOMATION_BYPASS_SECRET` from an approved operator
-secret store into the same process before invoking the command. Vercel does not reveal a saved
-value later; regenerate it in the project setting if no retained copy exists. The Playwright
-configuration supplies the supported bypass header and cookie without exposing the value in test
-output. Do not weaken Deployment Protection merely to make a smoke test pass.
+Run `whoami` immediately before each local suite because the CLI OAuth access token is short-lived;
+the runner deliberately fails instead of refreshing it. Noninteractive CI must supply
+`VERCEL_TOKEN` plus its standard linked project/team IDs. The runner sends that API token only to
+`api.vercel.com`, authenticates exact ownership, and performs one read-only project lookup. It
+requires exactly one existing automation bypass, then sends it only to the exact target to request a
+host-only Vercel cookie. An optional `VERCEL_AUTOMATION_BYPASS_SECRET` loaded from an approved store
+must equal the discovered value; it cannot select a different token. The runner never mutates
+Vercel settings. It validates the same-origin cookie redirect and health response, removes inherited
+operator/provider credentials from the Playwright child, and gives Playwright only the exact-host
+`_vercel_jwt` storage state plus any explicitly scoped acceptance value. No global request header
+is installed, so cross-origin subresources cannot receive the bypass. Do not weaken Deployment
+Protection merely to make a smoke test pass.
 
-The hosted suite refuses local or non-HTTPS targets. Its ten checks verify the landing page and
-canonical link; safe health projection; signup/sign-in/recovery rendering; protected-route
+The hosted suite refuses local or non-HTTPS targets and binds Preview to this project's Vercel
+deployment hostname family and Production to the canonical apex. A hostname match is only an early
+filter. Before any target health request or Playwright starts, the authenticated Vercel deployment
+lookup must match the linked project/team and target; the health preflight must then match the
+selected Vercel environment and exact public Preview/Beta Supabase project reference. Its
+baseline checks verify the landing page and canonical link; safe health projection;
+signup/sign-in/recovery rendering; protected-route
 redirect; safe-return normalization; expired callback and confirmation behavior; a neutral
 recovery response with a host-only `Secure`, HttpOnly, SameSite=Lax state cookie; rejection of the
 retired Production origin for mutations; unauthenticated sign-out; security headers; and the
-site-wide robots policy. It intentionally does not create an account, learner, child identity,
-content row, Storage object, or fixture. Recovery initiation creates the normal bounded private
+site-wide robots policy. Phase 02 extends the baseline with random missing public-deck and embed
+projection checks and safe Auth fallback behavior without depending on persistent fixtures. The
+baseline intentionally does not create an account, learner, child identity, content row, Storage
+object, or fixture. Recovery initiation creates the normal bounded private
 rate-limit record under a server-HMACed subject; the record contains neither the reserved test
 email address nor personal information.
+
+The separate `test:hosted:preview:content` path creates one disposable adult account and deck only
+in Preview. It verifies signup confirmation handoff, `/app` onboarding fallback, empty real counts,
+durable dark appearance across settings/reload, deck creation, basic front/back/source save and
+reopen, the card browser, publish/anonymous flip/unpublish denial, and delete. Success is reported
+only after the wrapper's database/Auth/Storage cleanup completes. The final-head result is 1/1,
+following an 11/11 non-mutating baseline on the same deployment.
 
 ## Supabase Auth URL configuration
 
@@ -222,6 +387,8 @@ https://cogniflow-*-cogniflow-app-3471s-projects.vercel.app/auth/callback**
 The first entry is the verified deployment. The second is the minimum Vercel Preview wildcard
 needed for this project's generated deployment hostnames; it is path-limited to
 `/auth/callback**` and must not be widened to an entire origin.
+The final Phase 02 deployment matched that existing path-limited wildcard. This phase did not
+change Preview or Beta Auth settings.
 
 ### Beta project
 
@@ -390,11 +557,11 @@ bootstrap, but they are gates for the capability they affect:
   template, and record end-to-end delivery evidence;
 - leave Google, GitHub, and Azure/Microsoft OAuth disabled until separate provider credentials,
   callbacks, scopes, linking behavior, and environment-specific tests are complete;
-- regenerate the Vercel automation bypass secret when protected-deployment automation needs it
-  and no approved operator copy exists, then capture the new value only in an approved secret
-  store;
-- select, deploy, authenticate, schedule, monitor, and test portable workers for account exports,
-  queued deletion after its grace period, expired guest/rate-limit cleanup, and audit retention;
+- maintain exactly one project automation bypass; any intentional owner rotation happens outside
+  the guarded runner and the replacement value belongs only in an approved secret store;
+- deploy, authenticate, schedule, monitor, and test the checked-in content-media deletion worker,
+  plus portable workers for account exports, queued account deletion after its grace period,
+  expired guest/rate-limit cleanup, and audit retention;
 - choose and verify backup/PITR policy, perform a restoration exercise, and configure quota,
   availability, security, and stuck-job alerts;
 - select privacy-reviewed analytics or monitoring only after its data fields, retention, sampling,
@@ -402,10 +569,12 @@ bootstrap, but they are gates for the capability they affect:
 - complete the privacy, terms, copyright, vendor, abuse, incident-response, and launch review in
   [SECURITY_AND_PRIVACY.md](./SECURITY_AND_PRIVACY.md) and [DEPLOYMENT.md](./DEPLOYMENT.md).
 
-No worker or scheduler was deployed by this bootstrap. Queued export and deletion infrastructure
+No worker or scheduler was deployed by this bootstrap or the Phase 02 feature branch. The
+content-media runner is implemented in the repository, but queued export/deletion infrastructure
 must not be represented as completed processing until an owner-operated runner succeeds. Optional
 SMTP, OAuth, AI, analytics, and monitoring integrations remain absent rather than silently mocked.
 
-This bootstrap changed only hosted Phase 01 infrastructure, guarded operations, tests, and
-documentation. It did not implement decks, notes, cards, editors, media authoring, SRS, study
-modes, games, or any other Phase 02 scope.
+The historical bootstrap changed only hosted Phase 01 infrastructure, guarded operations, tests,
+and documentation; its statement that content was not yet implemented is historical evidence, not
+the current Phase 02 branch status. No Phase 03 scheduling, later study mode, or game scope is
+introduced by the Phase 02 promotion.

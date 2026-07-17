@@ -242,7 +242,8 @@ a {
   overflow-wrap: anywhere;
 }
 
-.appearance-panel select {
+.appearance-panel select,
+.appearance-panel__menu select {
   min-height: 2.5rem;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
@@ -251,7 +252,8 @@ a {
   padding-inline: 0.75rem;
 }
 
-.appearance-panel input[type="checkbox"] {
+.appearance-panel input[type="checkbox"],
+.appearance-panel__menu input[type="checkbox"] {
   width: 1.25rem;
   height: 1.25rem;
   accent-color: var(--color-brand);
@@ -1082,7 +1084,8 @@ a {
     flex-wrap: wrap;
   }
 
-  .appearance-panel select {
+  .appearance-panel select,
+  .appearance-panel__menu select {
     max-width: 100%;
   }
 

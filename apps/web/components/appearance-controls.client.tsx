@@ -4,7 +4,13 @@ import { useRef, type KeyboardEvent } from "react";
 
 import { useAppearance, type ColorPreference } from "./appearance-provider.client";
 
-export function AppearanceControls() {
+export function AppearanceControls({
+  className = "appearance-panel",
+  persistToAccount = false,
+}: {
+  readonly className?: string;
+  readonly persistToAccount?: boolean;
+}) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const { color, reduceMotion, seriousMode, setColor, setReduceMotion, setSeriousMode } =
     useAppearance();
@@ -21,7 +27,7 @@ export function AppearanceControls() {
   }
 
   return (
-    <details ref={detailsRef} className="appearance-panel" onKeyDown={handleKeyDown}>
+    <details ref={detailsRef} className={className} onKeyDown={handleKeyDown}>
       <summary>
         <span aria-hidden="true">◐</span>
         <span>Appearance</span>
@@ -32,7 +38,7 @@ export function AppearanceControls() {
           <select
             aria-label="Color theme"
             value={color}
-            onChange={(event) => setColor(event.target.value as ColorPreference)}
+            onChange={(event) => setColor(event.target.value as ColorPreference, persistToAccount)}
           >
             <option value="system">System</option>
             <option value="light">Light</option>
@@ -43,7 +49,7 @@ export function AppearanceControls() {
           <span>Reduce motion</span>
           <input
             checked={reduceMotion}
-            onChange={(event) => setReduceMotion(event.target.checked)}
+            onChange={(event) => setReduceMotion(event.target.checked, persistToAccount)}
             type="checkbox"
           />
         </label>
@@ -51,7 +57,7 @@ export function AppearanceControls() {
           <span>Serious mode</span>
           <input
             checked={seriousMode}
-            onChange={(event) => setSeriousMode(event.target.checked)}
+            onChange={(event) => setSeriousMode(event.target.checked, persistToAccount)}
             type="checkbox"
           />
         </label>

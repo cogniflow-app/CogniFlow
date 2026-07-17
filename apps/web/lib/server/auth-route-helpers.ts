@@ -1,6 +1,6 @@
 import "server-only";
 
-import { normalizeReturnUrl } from "@lumen/auth/redirects";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import { getServerEnvironment } from "@lumen/config/server-env";
 
 export function asRecord(value: unknown): Readonly<Record<string, unknown>> | null {
@@ -21,7 +21,7 @@ export function buildAuthCallbackUrl(
 ): string {
   const url = new URL("/auth/callback", getServerEnvironment().public.appUrl);
   url.searchParams.set("intent", intent);
-  url.searchParams.set("returnTo", normalizeReturnUrl(returnTo));
+  url.searchParams.set("returnTo", normalizeAuthenticationReturnUrl(returnTo));
   if (ageGate) {
     url.searchParams.set("ageGate", ageGate.callbackNonce);
     url.searchParams.set("authFlow", ageGate.flow);
@@ -33,7 +33,7 @@ export function buildAuthCallbackUrl(
 
 export function buildAuthConfirmationUrl(returnTo: unknown): string {
   const url = new URL("/auth/confirm", getServerEnvironment().public.appUrl);
-  url.searchParams.set("returnTo", normalizeReturnUrl(returnTo));
+  url.searchParams.set("returnTo", normalizeAuthenticationReturnUrl(returnTo));
   return url.toString();
 }
 

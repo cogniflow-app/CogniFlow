@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useServerInsertedHTML } from "next/navigation";
+import { useLayoutEffect } from "react";
 
+import { createAccountAppearanceBootstrapScript } from "@/lib/account-appearance-bootstrap";
 import type { AppearancePreferences } from "@/lib/appearance";
 
-import { synchronizeAppearancePreferences } from "./appearance-provider.client";
+import { reconcileAccountAppearancePreferences } from "./appearance-provider.client";
 
 export function AccountAppearanceHydrator({
   preferences,
@@ -12,8 +14,16 @@ export function AccountAppearanceHydrator({
   readonly preferences: AppearancePreferences;
 }) {
   const { color, reduceMotion, seriousMode } = preferences;
-  useEffect(() => {
-    synchronizeAppearancePreferences({ color, reduceMotion, seriousMode });
+  useServerInsertedHTML(() => (
+    <script
+      data-lumen-account-appearance=""
+      dangerouslySetInnerHTML={{
+        __html: createAccountAppearanceBootstrapScript({ color, reduceMotion, seriousMode }),
+      }}
+    />
+  ));
+  useLayoutEffect(() => {
+    reconcileAccountAppearancePreferences({ color, reduceMotion, seriousMode });
   }, [color, reduceMotion, seriousMode]);
 
   return null;

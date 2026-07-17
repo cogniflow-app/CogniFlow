@@ -1,4 +1,4 @@
-import { normalizeReturnUrl } from "@lumen/auth/redirects";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   const intent = request.nextUrl.searchParams.get("intent");
   const untrustedType = request.nextUrl.searchParams.get("type");
   const verificationType = allowedTypes.find((type) => type === untrustedType);
-  const returnTo = normalizeReturnUrl(request.nextUrl.searchParams.get("returnTo"));
+  const returnTo = normalizeAuthenticationReturnUrl(request.nextUrl.searchParams.get("returnTo"));
   if (!tokenHash || tokenHash.length > 4096 || !verificationType) {
     return NextResponse.redirect(new URL("/auth/error?reason=expired", request.url));
   }
@@ -123,9 +123,10 @@ export async function GET(request: NextRequest) {
   }
 
   const deviceId = await registerRequestDevice(request, userData.user.id, database.client);
+  const authorizedReturnTo = normalizeAuthenticationReturnUrl(ageGate.returnTo, returnTo);
   const next = ageGate.onboardingGate
-    ? `/onboarding?returnTo=${encodeURIComponent(ageGate.returnTo)}`
-    : ageGate.returnTo || returnTo;
+    ? `/onboarding?returnTo=${encodeURIComponent(authorizedReturnTo)}`
+    : authorizedReturnTo;
   let response = clearPendingAuthAgeGate(
     database.applyCookies(NextResponse.redirect(new URL(next, request.url))),
   );

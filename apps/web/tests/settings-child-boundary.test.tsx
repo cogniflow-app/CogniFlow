@@ -5,6 +5,7 @@ import type { AccountContext } from "../lib/server/account-context";
 
 const mocks = vi.hoisted(() => ({
   readProtectedReturnTo: vi.fn(),
+  readLibrarySnapshot: vi.fn(),
   requireAccountContext: vi.fn(),
 }));
 
@@ -12,10 +13,20 @@ vi.mock("@/lib/server/account-context", () => ({
   readProtectedReturnTo: mocks.readProtectedReturnTo,
   requireAccountContext: mocks.requireAccountContext,
 }));
+vi.mock("@/lib/server/content-repository", () => ({
+  readLibrarySnapshot: mocks.readLibrarySnapshot,
+}));
+vi.mock("next/navigation", () => ({
+  useServerInsertedHTML: () => undefined,
+  usePathname: () => "/app",
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
 
 import ProtectedAppLayout from "../app/app/layout";
 import DashboardPage from "../app/app/page";
 import SettingsLayout from "../app/app/settings/layout";
+import { AppearanceProvider } from "../components/appearance-provider.client";
+import { emptyLibrarySnapshot } from "./fixtures/content";
 
 const accountId = "11111111-1111-4111-8111-111111111111";
 const selfLearner = {
@@ -79,19 +90,22 @@ const childContext: AccountContext = {
 describe("managed learner account-setting boundary", () => {
   beforeEach(() => {
     mocks.readProtectedReturnTo.mockImplementation(async (fallback: string) => fallback);
+    mocks.readLibrarySnapshot.mockResolvedValue(emptyLibrarySnapshot);
     mocks.requireAccountContext.mockResolvedValue(childContext);
   });
 
   it("shows the active child and guardian exit without account-setting destinations", async () => {
     render(
-      await ProtectedAppLayout({
-        children: <div>Child study surface</div>,
-      }),
+      <AppearanceProvider>
+        {await ProtectedAppLayout({
+          children: <div>Child study surface</div>,
+        })}
+      </AppearanceProvider>,
     );
 
     expect(screen.getByText("Young learner")).toBeVisible();
     expect(screen.getByText("Managed learner context")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Today" })).toHaveAttribute("href", "/app");
+    expect(screen.getByRole("link", { name: "Library" })).toHaveAttribute("href", "/app");
     expect(screen.getByRole("button", { name: "Guardian exit" })).toBeVisible();
     expect(screen.queryByRole("link", { name: "Profile" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Learner profiles" })).not.toBeInTheDocument();
@@ -120,20 +134,24 @@ describe("managed learner account-setting boundary", () => {
     render(await DashboardPage());
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Welcome, Young learner." }),
+      screen.getByRole("heading", { level: 1, name: "A clear place to build, Young learner." }),
     ).toBeVisible();
     expect(
-      screen.getByText("This managed learner context is isolated from guardian account controls."),
+      screen.getByRole("heading", {
+        level: 2,
+        name: "No decks are available in this learner profile",
+      }),
     ).toBeVisible();
-    expect(screen.getByText("Learn")).toBeVisible();
-    expect(screen.queryByText("Create")).not.toBeInTheDocument();
-    expect(screen.queryByText("Host")).not.toBeInTheDocument();
-    expect(screen.queryByText("Teach")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Managed learner boundary" })).toBeVisible();
+    expect(
+      screen.getByText(/guardian or educator can make authorized content available/i),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Create deck" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /folder/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Account settings" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Review privacy" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Privacy defaults" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
     expect(screen.queryByText("guardian-private@example.test")).not.toBeInTheDocument();
+    expect(mocks.readLibrarySnapshot).not.toHaveBeenCalled();
   });
 });

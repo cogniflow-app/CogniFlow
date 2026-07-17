@@ -11,6 +11,24 @@ function runtimeProvider(deploymentProfile: string): RuntimeProvider {
   return "local";
 }
 
+function vercelEnvironment(): "development" | "preview" | "production" | null {
+  if (process.env.VERCEL?.trim() !== "1") return null;
+  const value = process.env.VERCEL_ENV?.trim();
+  return value === "development" || value === "preview" || value === "production" ? value : null;
+}
+
+function supabaseProjectRef(): string | null {
+  const configuredUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (!configuredUrl) return null;
+
+  try {
+    const hostname = new URL(configuredUrl).hostname;
+    return /^([a-z0-9]{20})\.supabase\.co$/u.exec(hostname)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function GET() {
   const serverCapabilities = getServerCapabilities();
   const capabilities = getPublicCapabilities();
@@ -30,6 +48,8 @@ export function GET() {
       app: brandConfig.name,
       capabilities,
       deploymentProfile: serverCapabilities.deploymentProfile,
+      supabaseProjectRef: supabaseProjectRef(),
+      vercelEnvironment: vercelEnvironment(),
       version,
     },
     {

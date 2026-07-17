@@ -113,11 +113,38 @@ describe("Next environment validation", () => {
       DEPLOYMENT_PROFILE: "vercel_beta",
     });
     const headers = await config.headers?.();
-    const global = headers?.find(({ source }) => source === "/(.*)");
+    const global = headers?.find(({ source }) => source === "/((?!embed/deck/).*)");
 
     expect(global?.headers).toContainEqual({
       key: "X-Robots-Tag",
       value: "noindex, nofollow, noarchive",
     });
+  });
+
+  it("allows only the dedicated public deck route to be framed", async () => {
+    const config = createNextConfigForEnvironment(
+      PHASE_PRODUCTION_BUILD,
+      createProductionEnvironmentFixture(),
+    );
+    const headers = await config.headers?.();
+    const global = headers?.find(({ source }) => source === "/((?!embed/deck/).*)");
+    const embed = headers?.find(({ source }) => source === "/embed/deck/:publicId");
+
+    expect(global?.headers).toContainEqual({ key: "X-Frame-Options", value: "DENY" });
+    expect(global?.headers).toContainEqual({
+      key: "Permissions-Policy",
+      value: "camera=(), geolocation=(), microphone=(self)",
+    });
+    expect(embed?.headers).not.toContainEqual(expect.objectContaining({ key: "X-Frame-Options" }));
+    expect(embed?.headers).toContainEqual({
+      key: "Permissions-Policy",
+      value: "camera=(), geolocation=(), microphone=()",
+    });
+    expect(embed?.headers).toContainEqual(
+      expect.objectContaining({
+        key: "Content-Security-Policy",
+        value: expect.stringContaining("frame-ancestors 'self' https:"),
+      }),
+    );
   });
 });

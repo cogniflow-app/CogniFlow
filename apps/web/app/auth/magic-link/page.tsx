@@ -1,4 +1,4 @@
-import { normalizeReturnUrl } from "@lumen/auth/redirects";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import type { Metadata } from "next";
 
 import { AuthForm } from "@/components/auth/auth-form.client";
@@ -11,7 +11,7 @@ export default async function MagicLinkPage({
 }: {
   searchParams: Promise<{ returnTo?: string }>;
 }) {
-  const safeReturnTo = normalizeReturnUrl((await searchParams).returnTo);
+  const safeReturnTo = normalizeAuthenticationReturnUrl((await searchParams).returnTo);
   return (
     <AuthShell
       eyebrow="Passwordless access"

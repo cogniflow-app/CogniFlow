@@ -1,0 +1,16 @@
+{
+  "name": "@lumen/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint src tests --max-warnings=0",
+    "media:deletions": "node src/run-media-deletions.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@lumen/database": "workspace:*",
+    "@supabase/supabase-js": "2.110.5"
+  }
+}

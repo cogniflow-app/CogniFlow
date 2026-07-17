@@ -118,6 +118,60 @@ describe("authentication callback age-gate integration", () => {
     expect(mocks.registerRequestDevice).toHaveBeenCalled();
   });
 
+  it("uses the canonical dashboard when authentication has no intended destination", async () => {
+    mocks.resolveAuthenticationAgeGate.mockResolvedValue({
+      allowed: true,
+      onboardingGate: null,
+      returnTo: "/app",
+    });
+
+    const response = await callbackGet(
+      new NextRequest("http://127.0.0.1:3100/auth/callback?code=provider-code"),
+    );
+
+    expect(new URL(response.headers.get("location") ?? "http://invalid").pathname).toBe("/app");
+  });
+
+  it.each([
+    "https://attacker.example/steal",
+    "//attacker.example/steal",
+    "/auth/sign-in",
+    "/onboarding",
+  ])("defensively rejects an unsafe or looping resolved return %s", async (returnTo) => {
+    mocks.resolveAuthenticationAgeGate.mockResolvedValue({
+      allowed: true,
+      onboardingGate: null,
+      returnTo,
+    });
+
+    const response = await callbackGet(
+      new NextRequest("http://127.0.0.1:3100/auth/callback?code=provider-code"),
+    );
+
+    const destination = new URL(response.headers.get("location") ?? "http://invalid");
+    expect(destination.origin).not.toBe("https://attacker.example");
+    expect(destination.pathname).toBe("/app");
+  });
+
+  it("completes token-hash confirmation at its safe intended application route", async () => {
+    mocks.resolveAuthenticationAgeGate.mockResolvedValue({
+      allowed: true,
+      onboardingGate: null,
+      returnTo: "/app/library?view=grid",
+    });
+
+    const response = await confirmGet(
+      new NextRequest("http://127.0.0.1:3100/auth/confirm?token_hash=verified-token&type=signup"),
+    );
+
+    expect(new URL(response.headers.get("location") ?? "http://invalid")).toMatchObject({
+      pathname: "/app/library",
+      search: "?view=grid",
+    });
+    expect(mocks.verifyOtp).toHaveBeenCalled();
+    expect(mocks.registerRequestDevice).toHaveBeenCalled();
+  });
+
   it("carries a verified signup band into onboarding instead of the direct app return", async () => {
     const onboardingGate = { token: "signed-onboarding-gate" };
     mocks.resolveAuthenticationAgeGate.mockResolvedValue({

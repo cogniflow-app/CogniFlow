@@ -98,6 +98,7 @@ export type {
 } from "./privacy";
 
 export {
+  accountAppearanceInputSchema,
   accountCapabilityNames,
   accountCapabilityNameSchema,
   ageBands,
@@ -147,6 +148,7 @@ export {
   updateLearnerProfileInputSchema,
 } from "./profiles";
 export type {
+  AccountAppearanceInput,
   AccountCapabilityName,
   AgeBand,
   ConfigureProfileAccessInput,
@@ -190,8 +192,10 @@ export type {
 
 export {
   DEFAULT_RETURN_URL,
+  isSafeAuthenticationReturnUrl,
   isSafeRelativeReturnUrl,
   MAX_RETURN_URL_LENGTH,
+  normalizeAuthenticationReturnUrl,
   normalizeReturnUrl,
   returnUrlInputSchema,
 } from "./redirects";

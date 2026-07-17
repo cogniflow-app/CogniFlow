@@ -2,7 +2,7 @@ import "server-only";
 
 import type { PendingAuthAgeGate } from "@lumen/auth/inputs";
 import { oauthProviderNameSchema } from "@lumen/auth/providers";
-import { normalizeReturnUrl } from "@lumen/auth/redirects";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import { createPrivilegedDatabaseClient } from "@lumen/database/server";
 import type { NextRequest } from "next/server";
 
@@ -97,7 +97,8 @@ export async function resolveAuthenticationAgeGate(
 
   await ensureApplicationAccount(user.id);
   const returnTo =
-    gate?.returnTo ?? normalizeReturnUrl(request.nextUrl.searchParams.get("returnTo"));
+    gate?.returnTo ??
+    normalizeAuthenticationReturnUrl(request.nextUrl.searchParams.get("returnTo"));
   const onboardingGate = eligibleSignupGate
     ? await issueVerifiedOnboardingAgeGate({
         accountId: user.id,

@@ -152,7 +152,7 @@ test.describe("hosted, controlled deployment smoke", () => {
   }) => {
     const email = `hosted-smoke-${crypto.randomUUID()}@example.invalid`;
     const response = await request.post("/api/auth/email-link", {
-      data: { email, intent: "forgot_password", returnTo: "/auth/update-password" },
+      data: { email, intent: "forgot_password", returnTo: "/app/settings/security" },
       headers: mutationHeaders,
     });
 
@@ -179,7 +179,7 @@ test.describe("hosted, controlled deployment smoke", () => {
   test("rejects a mutation from the retired production origin", async ({ request }) => {
     const email = `hosted-smoke-${crypto.randomUUID()}@example.invalid`;
     const response = await request.post("/api/auth/email-link", {
-      data: { email, intent: "forgot_password", returnTo: "/auth/update-password" },
+      data: { email, intent: "forgot_password", returnTo: "/app/settings/security" },
       headers: {
         ...mutationHeaders,
         Origin: "https://cogniflow-pearl.vercel.app",
@@ -202,6 +202,22 @@ test.describe("hosted, controlled deployment smoke", () => {
     const body = asRecord(await response.json());
     expect(body.status).toBe("signed_out");
     expect(["application_boundary", "provider_confirmed"]).toContain(body.authSessionInvalidation);
+  });
+
+  test("keeps missing or private content out of anonymous public projections", async ({
+    request,
+  }) => {
+    const missingSlug = `hosted-private-${crypto.randomUUID()}`;
+    const missingPublicId = crypto.randomUUID();
+    const [publicPage, embedPage] = await Promise.all([
+      request.get(`/deck/${missingSlug}`),
+      request.get(`/embed/deck/${missingPublicId}`),
+    ]);
+
+    expect(publicPage.status()).toBe(404);
+    expect(embedPage.status()).toBe(404);
+    expect(await publicPage.text()).not.toContain(missingPublicId);
+    expect(await embedPage.text()).not.toContain(missingSlug);
   });
 
   test("serves defense-in-depth security headers and a site-wide noindex policy", async ({

@@ -5,9 +5,11 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  onboardingAgeGateCookieName,
   pendingAuthAgeGateCookieName,
   pendingRecoveryIntentCookieName,
 } from "../lib/server/cookies";
+import { issuePasswordSignupAgeGate } from "../lib/server/pending-auth-age-gate";
 
 const mocks = vi.hoisted(() => ({
   applyDeviceCookie: vi.fn((response: unknown) => response),
@@ -187,6 +189,45 @@ describe("identity route boundaries", () => {
     expect(mocks.signInWithPassword).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [undefined, "/app"],
+    ["/app/library?view=list", "/app/library?view=list"],
+    ["/auth/sign-in", "/app"],
+    ["https://attacker.example/steal", "/app"],
+  ])("finishes password sign-in at the safe destination %s", async (returnTo, expected) => {
+    const accountId = "11111111-1111-4111-8111-111111111111";
+    mocks.signInWithPassword.mockResolvedValue({
+      data: {
+        session: { access_token: "server-applied-session" },
+        user: { email: "learner@example.test", id: accountId },
+      },
+      error: null,
+    });
+    mocks.privilegedRpc
+      .mockResolvedValueOnce({
+        data: [{ onboarding_completed_at: "2026-07-01T00:05:00Z", profile_exists: true }],
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: true, error: null });
+
+    const response = await passwordPost(
+      mutationRequest("/api/auth/password", {
+        email: "learner@example.test",
+        intent: "sign_in",
+        password: "correct horse battery staple",
+        ...(returnTo === undefined ? {} : { returnTo }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ next: expected, status: "authenticated" });
+    expect(mocks.registerRequestDevice).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      accountId,
+      expect.anything(),
+    );
+  });
+
   it("binds an eligible password signup to an HttpOnly callback age gate", async () => {
     mocks.signUp.mockResolvedValue({ data: { session: null, user: null }, error: null });
     const response = await passwordPost(
@@ -212,6 +253,32 @@ describe("identity route boundaries", () => {
     expect(callback.pathname).toBe("/auth/callback");
     expect(callback.searchParams.get("authFlow")).toBe("password_signup");
     expect(callback.searchParams.get("ageGate")).toMatch(/^[A-Za-z0-9_-]{40,}$/u);
+  });
+
+  it("retains the HttpOnly age gate when Auth neutrally hides an existing account", async () => {
+    mocks.signUp.mockResolvedValue({
+      data: { session: null, user: null },
+      error: { code: "user_already_exists", status: 400 },
+    });
+    const response = await passwordPost(
+      mutationRequest("/api/auth/password", {
+        ageBand: "adult",
+        email: "existing@example.test",
+        intent: "sign_up",
+        password: "correct horse battery staple",
+        returnTo: "/app/decks/new",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      next: "/auth/check-email",
+      status: "verification_required",
+    });
+    expect(response.cookies.get(pendingAuthAgeGateCookieName)).toMatchObject({
+      httpOnly: true,
+      sameSite: "lax",
+    });
   });
 
   it("rejects an unconfigured OAuth provider before opening a provider session", async () => {
@@ -478,6 +545,54 @@ describe("identity route boundaries", () => {
     expect(mocks.privilegedRpc).not.toHaveBeenCalled();
     expect(mocks.routeFrom).not.toHaveBeenCalled();
     expect(mocks.routeRpc).toHaveBeenCalledWith("current_assert_self_context");
+  });
+
+  it("converts an exact signed signup decision after successful password authentication", async () => {
+    const accountId = "11111111-1111-4111-8111-111111111111";
+    const issued = await issuePasswordSignupAgeGate({
+      ageBand: "adult",
+      email: "preview@example.test",
+      returnTo: "/app/decks/new",
+    });
+    mocks.signInWithPassword.mockResolvedValue({
+      data: {
+        session: { access_token: "password-authenticated-session" },
+        user: { email: "preview@example.test", id: accountId },
+      },
+      error: null,
+    });
+    mocks.privilegedRpc
+      .mockResolvedValueOnce({
+        data: [{ onboarding_completed_at: null, profile_exists: false }],
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: true, error: null });
+    const request = mutationRequest("/api/auth/password", {
+      email: "preview@example.test",
+      intent: "sign_in",
+      password: "correct horse battery staple",
+      returnTo: "/app",
+    });
+    request.cookies.set(pendingAuthAgeGateCookieName, issued.token);
+
+    const response = await passwordPost(request);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      next: "/onboarding?returnTo=%2Fapp%2Fdecks%2Fnew",
+      status: "authenticated",
+    });
+    expect(response.cookies.get(pendingAuthAgeGateCookieName)?.value).toBe("");
+    expect(response.cookies.get(onboardingAgeGateCookieName)).toMatchObject({
+      httpOnly: true,
+      sameSite: "strict",
+    });
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.registerRequestDevice).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      accountId,
+      expect.anything(),
+    );
   });
 
   it("rejects a raw Auth identity that has no verified onboarding gate", async () => {

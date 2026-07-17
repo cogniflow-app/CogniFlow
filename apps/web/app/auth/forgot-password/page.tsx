@@ -17,7 +17,7 @@ export default function ForgotPasswordPage() {
         <p className="auth-card__intro">
           If an account can use this address, recovery instructions will arrive shortly.
         </p>
-        <AuthForm mode="forgot_password" returnTo="/auth/update-password" />
+        <AuthForm mode="forgot_password" returnTo="/app/settings/security" />
         <p className="mt-5 mb-0 text-sm">
           <a href="/auth/sign-in">Back to sign in</a>
         </p>

@@ -7,7 +7,7 @@ import {
   type VerifiedOnboardingAgeGate,
 } from "@lumen/auth/inputs";
 import type { OAuthProviderName } from "@lumen/auth/providers";
-import { normalizeReturnUrl } from "@lumen/auth/redirects";
+import { normalizeAuthenticationReturnUrl } from "@lumen/auth/redirects";
 import { getServerEnvironment } from "@lumen/config/server-env";
 import { cookies } from "next/headers";
 import type { NextRequest, NextResponse } from "next/server";
@@ -35,6 +35,14 @@ interface IssuedGate<T> {
 interface IssuedPendingGate extends IssuedGate<PendingAuthAgeGate> {
   readonly callbackNonce: string;
 }
+
+type AuthenticatedPasswordSignupAgeGate = PendingAuthAgeGate &
+  Readonly<{
+    ageBand: "adult" | "teen";
+    flow: "password_signup";
+    intent: "sign_up";
+    provider: null;
+  }>;
 
 function secureCookies(): boolean {
   return getServerEnvironment().nodeEnvironment === "production";
@@ -107,7 +115,7 @@ export async function issuePasswordSignupAgeGate(
       intent: "sign_up",
       provider: null,
       purpose: "pending_auth_age_gate",
-      returnTo: normalizeReturnUrl(input.returnTo),
+      returnTo: normalizeAuthenticationReturnUrl(input.returnTo),
       subjectHash: await hmacSha256Hex(
         input.email.trim().toLowerCase(),
         getServerEnvironment().appEncryptionKey,
@@ -140,7 +148,7 @@ export async function issueOAuthAgeGate(
           intent: "sign_up",
           provider: input.provider,
           purpose: "pending_auth_age_gate",
-          returnTo: normalizeReturnUrl(input.returnTo),
+          returnTo: normalizeAuthenticationReturnUrl(input.returnTo),
           subjectHash: null,
         }
       : {
@@ -149,7 +157,7 @@ export async function issueOAuthAgeGate(
           intent: "sign_in",
           provider: input.provider,
           purpose: "pending_auth_age_gate",
-          returnTo: normalizeReturnUrl(input.returnTo),
+          returnTo: normalizeAuthenticationReturnUrl(input.returnTo),
           subjectHash: null,
         },
     now,
@@ -201,6 +209,33 @@ export async function pendingPasswordGateMatchesEmail(
   );
 }
 
+/**
+ * Reads a signed password-signup decision after the caller has successfully
+ * authenticated the same email with its password. Unlike an email callback,
+ * that credential-authenticated continuation has no callback nonce to replay.
+ */
+export async function readAuthenticatedPasswordSignupAgeGate(
+  request: NextRequest,
+  email: string | null | undefined,
+  now = new Date(),
+): Promise<AuthenticatedPasswordSignupAgeGate | null> {
+  const token = request.cookies.get(pendingAuthAgeGateCookieName)?.value;
+  if (!token) return null;
+  const parsed = pendingAuthAgeGateSchema.safeParse(await parseSignedPayload(token));
+  if (
+    !parsed.success ||
+    !validLifetime(parsed.data, PENDING_GATE_LIFETIME_MS, now) ||
+    parsed.data.flow !== "password_signup" ||
+    parsed.data.intent !== "sign_up" ||
+    parsed.data.provider !== null ||
+    parsed.data.ageBand === null ||
+    !(await pendingPasswordGateMatchesEmail(parsed.data, email))
+  ) {
+    return null;
+  }
+  return parsed.data as AuthenticatedPasswordSignupAgeGate;
+}
+
 export function clearPendingAuthAgeGate<T extends NextResponse>(response: T): T {
   response.cookies.set(pendingAuthAgeGateCookieName, "", {
     expires: new Date(0),
@@ -228,7 +263,7 @@ export async function issueVerifiedOnboardingAgeGate(
     issuedAt: now.toISOString(),
     nonceHash: await sha256Hex(createOpaqueToken()),
     purpose: "verified_onboarding_age_gate",
-    returnTo: normalizeReturnUrl(input.returnTo),
+    returnTo: normalizeAuthenticationReturnUrl(input.returnTo),
     version: 1,
   });
   return Object.freeze({ expiresAt, payload: parsed, token: await signPayload(parsed) });

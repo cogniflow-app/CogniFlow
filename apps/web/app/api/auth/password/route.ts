@@ -14,8 +14,10 @@ import { applyDeviceCookie, registerRequestDevice } from "@/lib/server/device";
 import {
   attachPendingAuthAgeGate,
   attachVerifiedOnboardingAgeGate,
+  clearPendingAuthAgeGate,
   issuePasswordSignupAgeGate,
   issueVerifiedOnboardingAgeGate,
+  readAuthenticatedPasswordSignupAgeGate,
   readRequestOnboardingAgeGate,
 } from "@/lib/server/pending-auth-age-gate";
 import { requireRequestRateLimit } from "@/lib/server/rate-limit";
@@ -76,21 +78,20 @@ export async function POST(request: NextRequest) {
         email: input.email,
         password: input.password,
         options: {
-          emailRedirectTo: buildAuthCallbackUrl(
-            "authentication",
-            `/onboarding?returnTo=${encodeURIComponent(input.returnTo)}`,
-            {
-              callbackNonce: pendingAgeGate.callbackNonce,
-              flow: "password_signup",
-            },
-          ),
+          emailRedirectTo: buildAuthCallbackUrl("authentication", input.returnTo, {
+            callbackNonce: pendingAgeGate.callbackNonce,
+            flow: "password_signup",
+          }),
         },
       });
       if (error) {
         const safe = mapAuthError(error, "sign_up");
         if (safe.code === "account_state_hidden") {
-          return database.applyCookies(
-            apiSuccess({ next: "/auth/check-email", status: "verification_required" }),
+          return attachPendingAuthAgeGate(
+            database.applyCookies(
+              apiSuccess({ next: "/auth/check-email", status: "verification_required" }),
+            ),
+            pendingAgeGate,
           );
         }
         return apiError(safe.code === "rate_limited" ? 429 : 400, {
@@ -156,9 +157,34 @@ export async function POST(request: NextRequest) {
     if (profileError || !profileState) {
       throw new Error("AUTH_PROFILE_STATE_UNAVAILABLE");
     }
-    if (!profileState.profile_exists || !profileState.onboarding_completed_at) {
-      const onboardingGate = await readRequestOnboardingAgeGate(request, data.user.id);
-      if (!onboardingGate) {
+    const requiresOnboarding =
+      !profileState.profile_exists || !profileState.onboarding_completed_at;
+    let onboardingReturnTo: string | null = null;
+    let issuedOnboardingGate: Awaited<ReturnType<typeof issueVerifiedOnboardingAgeGate>> | null =
+      null;
+    if (requiresOnboarding) {
+      const existingOnboardingGate = await readRequestOnboardingAgeGate(request, data.user.id);
+      onboardingReturnTo = existingOnboardingGate?.returnTo ?? null;
+      if (!existingOnboardingGate) {
+        const pendingSignupGate = await readAuthenticatedPasswordSignupAgeGate(
+          request,
+          data.user.email,
+        );
+        if (pendingSignupGate) {
+          onboardingReturnTo = pendingSignupGate.returnTo;
+          issuedOnboardingGate = await issueVerifiedOnboardingAgeGate({
+            accountId: data.user.id,
+            ageBand: pendingSignupGate.ageBand,
+            returnTo: pendingSignupGate.returnTo,
+          });
+        }
+      }
+      if (!existingOnboardingGate && !issuedOnboardingGate) {
+        // A successful password alone cannot create an independent account
+        // without the signed eligible-age decision from its signup browser.
+        onboardingReturnTo = null;
+      }
+      if (!onboardingReturnTo) {
         await database.client.auth.signOut({ scope: "local" });
         await deleteRejectedProvisionalAuthUser(data.user.id);
         return clearSensitiveContextResponseCookies(
@@ -174,10 +200,16 @@ export async function POST(request: NextRequest) {
     }
     await ensureApplicationAccount(data.user.id);
     const deviceId = await registerRequestDevice(request, data.user.id, database.client);
-    return applyDeviceCookie(
-      database.applyCookies(apiSuccess({ next: input.returnTo, status: "authenticated" })),
-      deviceId,
+    const next = requiresOnboarding
+      ? `/onboarding?returnTo=${encodeURIComponent(onboardingReturnTo ?? "/app")}`
+      : input.returnTo;
+    let response = clearPendingAuthAgeGate(
+      database.applyCookies(apiSuccess({ next, status: "authenticated" })),
     );
+    if (issuedOnboardingGate) {
+      response = attachVerifiedOnboardingAgeGate(response, issuedOnboardingGate);
+    }
+    return applyDeviceCookie(response, deviceId);
   } catch (error) {
     if (error instanceof Error && error.message === "RATE_LIMITED") {
       return apiError(429, {
