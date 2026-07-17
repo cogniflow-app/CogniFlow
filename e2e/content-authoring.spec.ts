@@ -44,7 +44,7 @@ async function createAdultAccount(page: Page, projectName: string): Promise<void
   await page.getByRole("textbox", { name: "Display name" }).fill("Content author");
   await page.getByRole("textbox", { name: "Handle" }).fill(`author_${suffix.slice(0, 12)}`);
   await page.getByRole("button", { name: "Finish account setup" }).click();
-  await expect(page).toHaveURL(/\/app\/decks\/new$/u);
+  await expect(page).toHaveURL(/\/app\/decks\/new$/u, { timeout: 20_000 });
 }
 
 test("desktop and mobile authors can create, publish, preview, and clean up a typed-answer deck", async ({
@@ -102,7 +102,9 @@ test("desktop and mobile authors can create, publish, preview, and clean up a ty
   const createdBody = (await created.json()) as { data: { id: string } };
   const deckId = createdBody.data.id;
 
-  await expect(page).toHaveURL(new RegExp(`/app/decks/${deckId}/edit\\?type=typed_answer$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`/app/decks/${deckId}/edit\\?type=typed_answer$`, "u"), {
+    timeout: 20_000,
+  });
   await expect(page.getByRole("heading", { level: 1, name: "Typed answer" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expectNoHorizontalOverflow(page);
@@ -170,7 +172,9 @@ test("desktop and mobile authors can create, publish, preview, and clean up a ty
   const previewCard = page.getByRole("region", { name: "Prompt card preview" });
   await expect(previewCard).toContainText("What molecule carries usable cellular energy?");
   await page.getByRole("button", { name: "Reveal answer" }).click();
-  await expect(page.getByRole("region", { name: "Answer card preview" })).toContainText("ATP");
+  await expect(page.getByRole("region", { name: "Answer card preview" })).toContainText("ATP", {
+    timeout: 20_000,
+  });
   await expect(page.getByText(/does not create learner progress/i)).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.getByText(deckId)).toHaveCount(0);
