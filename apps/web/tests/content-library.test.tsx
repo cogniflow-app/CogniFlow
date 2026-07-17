@@ -171,6 +171,16 @@ describe("content library dashboard", () => {
     expect(screen.getByText("260")).toBeVisible();
     expect(screen.queryByRole("link", { name: /Deck 201/i })).not.toBeInTheDocument();
   });
+
+  it("surfaces a published area and a dedicated published workspace link", () => {
+    render(<LibraryDashboard canCreate learnerName="Ari" snapshot={populatedLibrarySnapshot} />);
+
+    expect(screen.getByRole("heading", { name: "Published decks" })).toBeVisible();
+    expect(screen.getByRole("link", { name: /Manage published decks/i })).toHaveAttribute(
+      "href",
+      "/app/published",
+    );
+  });
 });
 
 describe("workspace content navigation", () => {
@@ -180,7 +190,10 @@ describe("workspace content navigation", () => {
     expect(screen.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Library" })).toHaveAttribute("href", "/app");
     expect(screen.getByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page");
-    expect(screen.queryByRole("link", { name: "All decks" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Published" })).toHaveAttribute(
+      "href",
+      "/app/published",
+    );
     expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute(
       "href",
       "/app/settings/profile",

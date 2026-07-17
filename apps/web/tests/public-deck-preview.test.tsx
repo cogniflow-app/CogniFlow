@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CARD_SCHEMA_VERSION, generateCardBlueprints } from "@lumen/domain";
 
 import {
@@ -23,7 +23,7 @@ describe("public deck preview", () => {
       screen.getByText(/does not create learner progress, history, scheduling state/i),
     ).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Reveal answer" }));
+    await user.click(screen.getAllByRole("button", { name: "Reveal answer" })[0]!);
     expect(screen.getByRole("region", { name: "Answer card preview" })).toHaveTextContent(
       "The cell's usable energy carrier",
     );
@@ -59,6 +59,41 @@ describe("public deck preview", () => {
     expect(screen.getByRole("region", { name: /Prompt card preview/i })).toHaveTextContent(
       "What is ATP?",
     );
+  });
+
+  it("flips on click and supports touch swipe navigation", async () => {
+    const user = userEvent.setup();
+    render(<PublicDeckPreview deck={publicDeck} />);
+
+    await user.click(screen.getByRole("button", { name: /Prompt card preview/i }));
+    expect(screen.getByRole("region", { name: /Answer card preview/i })).toHaveTextContent(
+      "The cell's usable energy carrier",
+    );
+
+    fireEvent.touchStart(screen.getByRole("button", { name: /Answer card preview/i }), {
+      changedTouches: [{ clientX: 120 }],
+    });
+    fireEvent.touchEnd(screen.getByRole("button", { name: /Answer card preview/i }), {
+      changedTouches: [{ clientX: 10 }],
+    });
+
+    expect(screen.getAllByText("2 of 2")[0]).toBeVisible();
+  });
+
+  it("uses reduced-motion-aware flip behavior and hides the old swipe hint", () => {
+    const matchMedia = vi.fn().mockImplementation((query: string) => ({
+      addEventListener: vi.fn(),
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      removeEventListener: vi.fn(),
+    }));
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: matchMedia });
+
+    render(<PublicDeckPreview deck={publicDeck} />);
+
+    expect(screen.getByRole("region", { name: /Prompt card preview/i }).closest(".public-preview"))
+      .toHaveAttribute("data-reduced-motion", "true");
+    expect(screen.queryByText(/Tap to flip/i)).not.toBeInTheDocument();
   });
 
   it("renders published custom audio from the frozen public media projection", () => {
