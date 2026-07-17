@@ -204,15 +204,18 @@ export async function preflightHostedSmokeTarget(
 export async function runHostedSmoke(argv = process.argv.slice(2), environment = process.env) {
   const run = resolveHostedSmokeRun(argv, environment);
   const preflight = await preflightHostedSmokeTarget(run, environment);
-  const preflightFile = createHostedPreflightFile(preflight);
+  let preflightFile;
   const executable = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
   let sandbox;
   const signalHandlers = new Map();
   try {
-    sandbox = createHostedPlaywrightEnvironment(environment, {
-      HOSTED_SMOKE_PREFLIGHT_FILE: preflightFile,
-      HOSTED_SMOKE_TARGET: run.target,
-      PLAYWRIGHT_BASE_URL: run.baseURL,
+    sandbox = createHostedPlaywrightEnvironment(environment, ({ temporaryDirectory }) => {
+      preflightFile = createHostedPreflightFile(preflight, temporaryDirectory);
+      return {
+        HOSTED_SMOKE_PREFLIGHT_FILE: preflightFile,
+        HOSTED_SMOKE_TARGET: run.target,
+        PLAYWRIGHT_BASE_URL: run.baseURL,
+      };
     });
     const child = spawn(
       executable,
@@ -242,8 +245,8 @@ export async function runHostedSmoke(argv = process.argv.slice(2), environment =
     for (const [signal, handler] of signalHandlers) {
       process.removeListener(signal, handler);
     }
-    sandbox?.cleanup();
     destroyHostedPreflightFile(preflightFile);
+    sandbox?.cleanup();
   }
 }
 

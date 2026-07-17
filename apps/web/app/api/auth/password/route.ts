@@ -85,8 +85,11 @@ export async function POST(request: NextRequest) {
       if (error) {
         const safe = mapAuthError(error, "sign_up");
         if (safe.code === "account_state_hidden") {
-          return database.applyCookies(
-            apiSuccess({ next: "/auth/check-email", status: "verification_required" }),
+          return attachPendingAuthAgeGate(
+            database.applyCookies(
+              apiSuccess({ next: "/auth/check-email", status: "verification_required" }),
+            ),
+            pendingAgeGate,
           );
         }
         return apiError(safe.code === "rate_limited" ? 429 : 400, {

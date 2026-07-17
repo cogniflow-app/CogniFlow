@@ -129,107 +129,58 @@ export function createOnceAsync(operation) {
   };
 }
 
-function waitFor(milliseconds, signal) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    if (signal?.aborted) {
-      rejectPromise(new Error("Preview Auth fixture confirmation was cancelled."));
-      return;
-    }
-    const finish = () => {
-      signal?.removeEventListener("abort", abort);
-      resolvePromise();
-    };
-    const timer = setTimeout(finish, milliseconds);
-    const abort = () => {
-      clearTimeout(timer);
-      rejectPromise(new Error("Preview Auth fixture confirmation was cancelled."));
-    };
-    signal?.addEventListener("abort", abort, { once: true });
-  });
-}
-
-export async function confirmHostedAcceptanceFixture(
+export async function provisionHostedAcceptanceFixture(
   runId,
   secretKey,
-  {
-    fetchImplementation = fetch,
-    nowImplementation = Date.now,
-    signal,
-    waitImplementation = waitFor,
-  } = {},
+  { fetchImplementation = fetch, signal } = {},
 ) {
   const identity = createHostedAcceptanceIdentity(runId);
   if (typeof secretKey !== "string" || secretKey.length < 24) {
-    throw new Error("The Preview Auth fixture confirmer received an invalid server credential.");
+    throw new Error("The Preview Auth fixture provisioner received an invalid server credential.");
   }
   const headers = {
     apikey: secretKey,
     Authorization: `Bearer ${secretKey}`,
     "Content-Type": "application/json",
   };
-  const deadline = nowImplementation() + 30_000;
-  let userId;
-
-  while (!userId && nowImplementation() < deadline) {
-    if (signal?.aborted) {
-      throw new Error("Preview Auth fixture confirmation was cancelled.");
-    }
-    const response = await fetchImplementation(
-      `https://${PREVIEW_PROJECT_REF}.supabase.co/auth/v1/admin/users?page=1&per_page=100`,
-      {
-        cache: "no-store",
-        headers,
-        redirect: "error",
-        signal: signal
-          ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
-          : AbortSignal.timeout(10_000),
-      },
-    );
-    if (!response.ok) throw new Error("Preview Auth fixture lookup failed.");
-    const serialized = await response.text();
-    if (Buffer.byteLength(serialized, "utf8") > 1_048_576) {
-      throw new Error("Preview Auth returned an oversized user inventory.");
-    }
-    let body;
-    try {
-      body = JSON.parse(serialized);
-    } catch {
-      throw new Error("Preview Auth returned an invalid user inventory.");
-    }
-    const users = record(body)?.users;
-    if (!Array.isArray(users)) throw new Error("Preview Auth returned an invalid user inventory.");
-    const user = users.find(
-      (candidate) =>
-        record(candidate)?.email === identity.email &&
-        typeof record(candidate)?.id === "string" &&
-        /^[0-9a-f-]{36}$/iu.test(record(candidate).id),
-    );
-    if (user) {
-      userId = record(user).id;
-      break;
-    }
-    await waitImplementation(250, signal);
-  }
-  if (!userId)
-    throw new Error("Preview Auth fixture did not appear before the confirmation timeout.");
-
   const response = await fetchImplementation(
-    `https://${PREVIEW_PROJECT_REF}.supabase.co/auth/v1/admin/users/${encodeURIComponent(userId)}`,
+    `https://${PREVIEW_PROJECT_REF}.supabase.co/auth/v1/admin/users`,
     {
       body: JSON.stringify({
+        email: identity.email,
         email_confirm: true,
+        password: createHostedAcceptancePassword(runId),
         user_metadata: { lumen_hosted_acceptance: runId },
       }),
       cache: "no-store",
       headers,
-      method: "PUT",
+      method: "POST",
       redirect: "error",
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
         : AbortSignal.timeout(10_000),
     },
   );
-  if (!response.ok) throw new Error("Preview Auth fixture confirmation failed.");
+  if (!response.ok) throw new Error("Preview Auth fixture provisioning failed.");
+  const serialized = await response.text();
+  if (Buffer.byteLength(serialized, "utf8") > 65_536) {
+    throw new Error("Preview Auth returned an oversized fixture response.");
+  }
+  let body;
+  try {
+    body = JSON.parse(serialized);
+  } catch {
+    throw new Error("Preview Auth returned an invalid fixture response.");
+  }
+  const user = record(body);
+  if (
+    user?.email !== identity.email ||
+    typeof user.id !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(user.id) ||
+    record(user.user_metadata)?.lumen_hosted_acceptance !== runId
+  ) {
+    throw new Error("Preview Auth returned an unexpected fixture identity.");
+  }
 }
 
 function runCommand(
@@ -275,14 +226,22 @@ export function parsePreviewSecretKey(output) {
   } catch {
     throw new Error("Supabase returned an invalid API-key inventory.");
   }
-  if (!Array.isArray(parsed)) throw new Error("Supabase returned an invalid API-key inventory.");
-  const selected =
-    parsed.find((candidate) => candidate?.type === "secret") ??
-    parsed.find((candidate) => candidate?.name === "service_role");
-  if (!selected || typeof selected.api_key !== "string" || selected.api_key.length < 24) {
+  const inventory = Array.isArray(parsed)
+    ? parsed
+    : record(parsed) && Array.isArray(parsed.keys)
+      ? parsed.keys
+      : null;
+  if (!inventory) throw new Error("Supabase returned an invalid API-key inventory.");
+  const candidates = inventory.filter(
+    (candidate) =>
+      record(candidate)?.type === "secret" &&
+      typeof candidate.api_key === "string" &&
+      /^sb_secret_[A-Za-z0-9_-]{16,256}$/u.test(candidate.api_key),
+  );
+  if (candidates.length !== 1) {
     throw new Error("The Preview server key is unavailable to the authenticated operator.");
   }
-  return selected.api_key;
+  return candidates[0].api_key;
 }
 
 export function resolveHostedContentBaseUrl(argv, environment = process.env) {
@@ -377,6 +336,11 @@ export function createHostedAcceptanceIdentity(runId) {
     email: `phase02-preview-${runId.replaceAll("-", "")}@example.test`,
     runId,
   });
+}
+
+export function createHostedAcceptancePassword(runId) {
+  createHostedAcceptanceIdentity(runId);
+  return `Preview-only-${runId.replaceAll("-", "")}-Pass!`;
 }
 
 export function createHostedAcceptanceCleanupSql(runId) {
@@ -522,19 +486,19 @@ export async function runHostedContentAcceptance(
   environment = process.env,
   {
     cleanupImplementation = cleanupPreviewFixture,
-    confirmFixtureImplementation = confirmHostedAcceptanceFixture,
     createChildEnvironmentImplementation = createHostedPlaywrightEnvironment,
     createPreflightFileImplementation = createHostedPreflightFile,
     destroyPreflightFileImplementation = destroyHostedPreflightFile,
     preflightImplementation = preflightHostedContentTarget,
     processImplementation = process,
+    provisionFixtureImplementation = provisionHostedAcceptanceFixture,
     randomUUIDImplementation = randomUUID,
     runCommandImplementation = runCommand,
     signalControllerImplementation = createHostedContentSignalController,
     writeFileImplementation = writeFile,
   } = {},
 ) {
-  let confirmationAbortController;
+  let fixtureAbortController;
   const signalController = signalControllerImplementation(processImplementation);
   let cleanupFailure;
   let cleanupOnce;
@@ -549,7 +513,6 @@ export async function runHostedContentAcceptance(
     const baseURL = resolveHostedContentBaseUrl(argv, environment);
     const preflight = await preflightImplementation(baseURL, environment);
     signalController.throwIfSignaled();
-    preflightFile = createPreflightFileImplementation(preflight);
 
     const downstreamEnvironment = { ...environment };
     delete downstreamEnvironment.VERCEL_TOKEN;
@@ -573,27 +536,34 @@ export async function runHostedContentAcceptance(
     );
     signalController.throwIfSignaled();
     const secretKey = parsePreviewSecretKey(keyInventory.stdout);
-    sandbox = createChildEnvironmentImplementation(downstreamEnvironment, {
-      HOSTED_ACCEPTANCE_RUN_ID: runId,
-      HOSTED_CONTENT_PREFLIGHT_FILE: preflightFile,
-      PLAYWRIGHT_BASE_URL: baseURL,
-    });
+    sandbox = createChildEnvironmentImplementation(
+      downstreamEnvironment,
+      ({ temporaryDirectory }) => {
+        preflightFile = createPreflightFileImplementation(preflight, temporaryDirectory);
+        return {
+          HOSTED_ACCEPTANCE_RUN_ID: runId,
+          HOSTED_CONTENT_PREFLIGHT_FILE: preflightFile,
+          PLAYWRIGHT_BASE_URL: baseURL,
+        };
+      },
+    );
     if (!sandbox.fixtureConfirmationFile) {
       throw new Error("Hosted content acceptance did not receive a private confirmation marker.");
     }
     signalController.throwIfSignaled();
     fixtureMayExist = true;
-    confirmationAbortController = new AbortController();
-    const confirmationPromise = confirmFixtureImplementation(runId, secretKey, {
-      signal: confirmationAbortController.signal,
-    }).then(() =>
-      writeFileImplementation(sandbox.fixtureConfirmationFile, runId, {
-        encoding: "utf8",
-        flag: "wx",
-        mode: 0o600,
-      }),
-    );
-    const testPromise = runCommandImplementation(
+    fixtureAbortController = new AbortController();
+    await provisionFixtureImplementation(runId, secretKey, {
+      signal: fixtureAbortController.signal,
+    });
+    signalController.throwIfSignaled();
+    await writeFileImplementation(sandbox.fixtureConfirmationFile, runId, {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 0o600,
+    });
+    signalController.throwIfSignaled();
+    await runCommandImplementation(
       "pnpm",
       ["exec", "playwright", "test", "--config=playwright.hosted-content.config.ts"],
       {
@@ -601,30 +571,22 @@ export async function runHostedContentAcceptance(
         signalController,
       },
     );
-    try {
-      await Promise.all([testPromise, confirmationPromise]);
-    } catch (error) {
-      confirmationAbortController.abort();
-      signalController.terminateActiveChild();
-      await Promise.allSettled([testPromise, confirmationPromise]);
-      throw error;
-    }
     signalController.throwIfSignaled();
   } catch (error) {
     runFailure = error;
   } finally {
-    confirmationAbortController?.abort();
-    try {
-      sandbox?.cleanup();
-    } catch (error) {
-      cleanupFailure ??= error;
-    }
+    fixtureAbortController?.abort();
     if (preflightFile) {
       try {
         destroyPreflightFileImplementation(preflightFile);
       } catch (error) {
         cleanupFailure ??= error;
       }
+    }
+    try {
+      sandbox?.cleanup();
+    } catch (error) {
+      cleanupFailure ??= error;
     }
     if (fixtureMayExist && cleanupOnce) {
       signalController.beginCleanup();

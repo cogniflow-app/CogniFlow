@@ -112,7 +112,7 @@ function destroyHostedPreflightFile(filePath) {
     const fileStat = lstatSync(filePath);
     if (fileStat.isFile() || fileStat.isSymbolicLink()) unlinkSync(filePath);
   } catch {
-    // The one-use file may already be gone; never broaden cleanup to other directory contents.
+    // The ephemeral file may already be gone; never broaden cleanup to other directory contents.
   }
   try {
     rmdirSync(directory);
@@ -121,9 +121,17 @@ function destroyHostedPreflightFile(filePath) {
   }
 }
 
-function createHostedPreflightFile(encoded) {
+function createHostedPreflightFile(encoded, temporaryDirectory = tmpdir()) {
   validateEncodedAttestation(encoded);
-  const directory = mkdtempSync(join(resolve(tmpdir()), PREFLIGHT_DIRECTORY_PREFIX));
+  if (
+    typeof temporaryDirectory !== "string" ||
+    !isAbsolute(temporaryDirectory) ||
+    resolve(temporaryDirectory) !== temporaryDirectory ||
+    !lstatSync(temporaryDirectory).isDirectory()
+  ) {
+    throw new Error("Hosted preflight runtime directory is invalid.");
+  }
+  const directory = mkdtempSync(join(temporaryDirectory, PREFLIGHT_DIRECTORY_PREFIX));
   const filePath = join(directory, PREFLIGHT_FILE_NAME);
   let descriptor;
   try {
@@ -147,7 +155,7 @@ function createHostedPreflightFile(encoded) {
   }
 }
 
-function consumeHostedPreflightFile(filePath) {
+function readHostedPreflightFile(filePath) {
   const directory = assertHostedPreflightPath(filePath);
   let descriptor;
   try {
@@ -162,14 +170,13 @@ function consumeHostedPreflightFile(filePath) {
     const openedStat = fstatSync(descriptor);
     assertPrivateFile(openedStat, "file", 0o600);
     if (openedStat.dev !== fileStat.dev || openedStat.ino !== fileStat.ino) {
-      throw new Error("Hosted preflight attestation changed before it could be consumed.");
+      throw new Error("Hosted preflight attestation changed before it could be read.");
     }
     const encoded = readFileSync(descriptor, "utf8");
     validateEncodedAttestation(encoded);
     return encoded;
   } finally {
     if (descriptor !== undefined) closeSync(descriptor);
-    destroyHostedPreflightFile(filePath);
   }
 }
 
@@ -244,8 +251,8 @@ function assertHostedPreflightAttestation(encoded, { baseURL, requiresOwnership,
 
 module.exports = {
   assertHostedPreflightAttestation,
-  consumeHostedPreflightFile,
   createHostedPreflightAttestation,
   createHostedPreflightFile,
   destroyHostedPreflightFile,
+  readHostedPreflightFile,
 };

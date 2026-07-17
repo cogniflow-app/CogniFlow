@@ -271,8 +271,9 @@ exactly one existing `automation-bypass` entry; the runner never creates, rotate
 token. The runner uses the bypass once to mint a validated exact-host `_vercel_jwt`, removes both
 long-lived Vercel credentials and other inherited operator/provider secrets from the child, and
 installs no global Playwright request headers. The cookie-bearing attestation is a mode-`0600`
-one-use file inside a fresh mode-`0700` directory; configuration consumes/deletes it and removes the
-path environment variable before workers start. The child receives an allowlisted environment plus
+ephemeral file inside the child's fresh mode-`0700` sterile runtime; configurations use no-follow
+and inode checks, only its locator enters the environment, and the parent destroys it when the
+Playwright process tree exits. The child receives an allowlisted environment plus
 an empty temporary home/config tree, not the operator's Vercel, Supabase, npm, cloud, SSH, or
 database credential locators. CI supplies `VERCEL_TOKEN` and the standard project/team link
 variables. Local operators run `npx vercel@56.3.0 whoami` immediately before each suite because the
@@ -305,16 +306,17 @@ Vercel API origin. It then reads that exact project's bypass inventory without m
 exactly one existing automation entry, and requires `/api/health` to report Vercel `preview`, a
 non-development build, and the exact public Preview Supabase project reference. The bypass is sent
 only after ownership authentication. The wrapper validates Vercel's same-origin cookie redirect,
-then gives Playwright the host-scoped cookie through the consumed one-use file rather than a global
+then gives Playwright the host-scoped cookie through the private ephemeral file rather than a global
 header or credential environment value. The wrapper generates one UUIDv4 run identity and reserved
 `example.test` address and captures the fixed Preview project's secret key in parent memory through
-the authenticated Supabase CLI. The parent polls for and confirms only that exact Auth fixture, then
-writes a nonsecret completion marker in the child's private sandbox; the server key never reaches a
-worker. The browser performs signup/check-email, the retained `/app/decks/new` onboarding return,
+the authenticated Supabase CLI. The parent creates and confirms only that exact Auth fixture through
+Admin Auth, then writes a nonsecret completion marker in the child's private sandbox; the server key
+never reaches a worker. This deliberately removes outbound SMTP from the disposable proof. The
+browser still performs the public neutral signup/check-email flow, the retained `/app/decks/new` onboarding return,
 the default `/app` sign-in return, zero-count empty library, durable dark theme through
 settings/reload, deck creation, basic front/back/source save and reopen, card-browser inspection,
 publish/anonymous reveal, and anonymous denial of both the exact slug and public ID after
-unpublish, followed by deck deletion. The successful sign-in against the parent-confirmed Preview
+unpublish, followed by deck deletion. The successful sign-in against the parent-provisioned Preview
 identity also proves the application is using Preview Auth rather than the Beta project.
 
 Normal test failure and the first graceful `SIGINT`/`SIGTERM` reach one cleanup attempt. It

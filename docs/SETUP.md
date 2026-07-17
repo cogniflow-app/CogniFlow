@@ -507,9 +507,12 @@ The content runner is Preview-only. Before key retrieval or signup, it rejects P
 and requires the deployed health projection to identify Vercel Preview plus the exact public
 Preview Supabase project reference. It then creates one UUID-marked disposable adult account/deck,
 keeps the Preview project server key in the parent process only after retrieving it through the
-authenticated Supabase CLI, and disables Playwright trace/video. The child receives a one-use
-attestation file that is consumed and deleted before workers start, a private temporary HOME/XDG
-configuration and cache namespace, and only a non-secret fixture-confirmation marker. The runner
+authenticated Supabase CLI, pre-provisions and confirms only that reserved-domain Auth identity so
+the proof does not depend on outbound SMTP, and disables Playwright trace/video. The browser still
+exercises the neutral signup/check-email/sign-in/onboarding path. The child receives a private
+mode-`0600` attestation file inside its sterile runtime, a private temporary HOME/XDG configuration
+and cache namespace, and only a non-secret fixture-confirmation marker. The file locator is not a
+credential, and the parent destroys the file after the Playwright process tree exits. The runner
 attempts exactly one Auth/content/publication cleanup plus a recursive Storage-object assertion on
 normal completion, failure, or the first graceful `SIGINT`/`SIGTERM`; an uncatchable `SIGKILL` or
 process loss requires operator inspection before rerunning. Cleanup removes the disposable Auth

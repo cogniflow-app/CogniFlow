@@ -690,8 +690,8 @@ describe("hosted smoke runner", () => {
       expect(source).not.toContain("x-vercel-set-bypass-cookie");
       expect(source).not.toContain("requiresOwnership: false");
       expect(source).toContain("requiresOwnership: true");
-      expect(source).toContain("consumeHostedPreflightFile");
-      expect(source).toMatch(/delete process\.env\.HOSTED_(?:SMOKE|CONTENT)_PREFLIGHT_FILE/u);
+      expect(source).toContain("readHostedPreflightFile");
+      expect(source).not.toMatch(/delete process\.env\.HOSTED_(?:SMOKE|CONTENT)_PREFLIGHT_FILE/u);
     }
 
     const contentSpec = await readFile(

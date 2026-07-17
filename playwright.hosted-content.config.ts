@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 import {
   assertHostedPreflightAttestation,
-  consumeHostedPreflightFile,
+  readHostedPreflightFile,
 } from "./scripts/hosted-preflight.cjs";
 
 function readTrustedHostedBaseUrl(): string {
@@ -42,7 +42,6 @@ if (!process.env.HOSTED_ACCEPTANCE_RUN_ID || !process.env.HOSTED_FIXTURE_CONFIRM
 
 const preflightFile = process.env.HOSTED_CONTENT_PREFLIGHT_FILE;
 const legacyPreflight = process.env.HOSTED_CONTENT_PREFLIGHT;
-delete process.env.HOSTED_CONTENT_PREFLIGHT_FILE;
 delete process.env.HOSTED_CONTENT_PREFLIGHT;
 if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim()) {
   throw new Error("Hosted Playwright must not inherit the long-lived Vercel bypass secret.");
@@ -50,7 +49,7 @@ if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim()) {
 if (legacyPreflight) {
   throw new Error("Hosted Playwright must not inherit a credential-bearing preflight value.");
 }
-const preflight = assertHostedPreflightAttestation(consumeHostedPreflightFile(preflightFile), {
+const preflight = assertHostedPreflightAttestation(readHostedPreflightFile(preflightFile), {
   baseURL,
   requiresOwnership: true,
   target: "preview",

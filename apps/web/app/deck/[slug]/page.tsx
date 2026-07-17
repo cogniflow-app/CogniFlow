@@ -15,7 +15,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const deck = await readPublicDeck(slug);
-  if (!deck) return { title: "Deck not found", robots: { index: false, follow: false } };
+  if (!deck) notFound();
   return {
     title: deck.title,
     description: deck.description || `Preview ${String(deck.cardCount)} published cards.`,

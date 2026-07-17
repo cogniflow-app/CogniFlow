@@ -4,6 +4,7 @@ import {
   chmodSync,
   existsSync,
   lstatSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   renameSync,
@@ -19,10 +20,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertHostedPreflightAttestation,
-  consumeHostedPreflightFile,
   createHostedPreflightAttestation,
   createHostedPreflightFile,
   destroyHostedPreflightFile,
+  readHostedPreflightFile,
 } from "../scripts/hosted-preflight.cjs";
 
 const previewUrl =
@@ -51,7 +52,7 @@ function attestation(): string {
 }
 
 describe("hosted preflight file boundary", () => {
-  it("moves the scoped cookie through private one-use storage and removes it on consumption", () => {
+  it("moves the scoped cookie through private ephemeral storage and removes it on cleanup", () => {
     const encoded = attestation();
     const file = createHostedPreflightFile(encoded);
     const directory = dirname(file);
@@ -61,10 +62,9 @@ describe("hosted preflight file boundary", () => {
         expect(lstatSync(directory).mode & 0o077).toBe(0);
         expect(lstatSync(file).mode & 0o077).toBe(0);
       }
-      const consumed = consumeHostedPreflightFile(file);
+      const consumed = readHostedPreflightFile(file);
       expect(consumed).toBe(encoded);
-      expect(existsSync(file)).toBe(false);
-      expect(existsSync(directory)).toBe(false);
+      expect(existsSync(file)).toBe(true);
       expect(
         assertHostedPreflightAttestation(consumed, {
           baseURL: previewUrl,
@@ -72,9 +72,54 @@ describe("hosted preflight file boundary", () => {
           target: "preview",
         }).storageState?.cookies,
       ).toEqual([expect.objectContaining({ name: "_vercel_jwt" })]);
+      destroyHostedPreflightFile(file);
+      expect(existsSync(file)).toBe(false);
+      expect(existsSync(directory)).toBe(false);
     } finally {
       destroyHostedPreflightFile(file);
     }
+  });
+
+  it("consumes the handoff from the sterile child temporary directory", () => {
+    const sandboxRoot = mkdtempSync(join(tmpdir(), "lumen-hosted-browser-test-"));
+    const childTemporaryDirectory = join(sandboxRoot, "tmp");
+    mkdirSync(childTemporaryDirectory, { mode: 0o700 });
+    if (process.platform !== "win32") chmodSync(childTemporaryDirectory, 0o700);
+    const encoded = attestation();
+    const file = createHostedPreflightFile(encoded, childTemporaryDirectory);
+    const previous = {
+      TEMP: process.env.TEMP,
+      TMP: process.env.TMP,
+      TMPDIR: process.env.TMPDIR,
+    };
+    Object.assign(process.env, {
+      TEMP: childTemporaryDirectory,
+      TMP: childTemporaryDirectory,
+      TMPDIR: childTemporaryDirectory,
+    });
+
+    try {
+      expect(readHostedPreflightFile(file)).toBe(encoded);
+      expect(existsSync(file)).toBe(true);
+    } finally {
+      for (const [name, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+      destroyHostedPreflightFile(file);
+      rmSync(sandboxRoot, { force: true, recursive: true });
+    }
+  });
+
+  it("permits duplicate config reads only while the private runner file exists", () => {
+    const encoded = attestation();
+    const file = createHostedPreflightFile(encoded);
+    expect(readHostedPreflightFile(file)).toBe(encoded);
+    expect(readHostedPreflightFile(file)).toBe(encoded);
+    expect(existsSync(file)).toBe(true);
+    destroyHostedPreflightFile(file);
+    expect(existsSync(file)).toBe(false);
+    expect(() => readHostedPreflightFile(file)).toThrow();
   });
 
   it("rejects and destroys a preflight file whose permissions were widened", () => {
@@ -85,7 +130,8 @@ describe("hosted preflight file boundary", () => {
       return;
     }
     chmodSync(file, 0o644);
-    expect(() => consumeHostedPreflightFile(file)).toThrow(/permissions are not private/u);
+    expect(() => readHostedPreflightFile(file)).toThrow(/permissions are not private/u);
+    destroyHostedPreflightFile(file);
     expect(existsSync(file)).toBe(false);
     expect(existsSync(directory)).toBe(false);
   });
@@ -98,7 +144,7 @@ describe("hosted preflight file boundary", () => {
     try {
       unlinkSync(file);
       symlinkSync(target, file);
-      expect(() => consumeHostedPreflightFile(file)).toThrow(/regular file/u);
+      expect(() => readHostedPreflightFile(file)).toThrow(/regular file/u);
       expect(readFileSync(target, "utf8")).toBe("must-remain-private");
     } finally {
       destroyHostedPreflightFile(file);
@@ -116,7 +162,7 @@ describe("hosted preflight file boundary", () => {
     try {
       renameSync(runtimeDirectory, movedRuntimeDirectory);
       symlinkSync(targetDirectory, runtimeDirectory, "dir");
-      expect(() => consumeHostedPreflightFile(file)).toThrow(/must be a directory/u);
+      expect(() => readHostedPreflightFile(file)).toThrow(/must be a directory/u);
       expect(readFileSync(target, "utf8")).toBe("must-remain-private");
     } finally {
       if (existsSync(runtimeDirectory) && lstatSync(runtimeDirectory).isSymbolicLink()) {
@@ -132,7 +178,7 @@ describe("hosted preflight file boundary", () => {
     const file = join(directory, "credential");
     writeFileSync(file, "operator-value", { mode: 0o600 });
     try {
-      expect(() => consumeHostedPreflightFile(file)).toThrow(/outside its private runtime/u);
+      expect(() => readHostedPreflightFile(file)).toThrow(/outside its private runtime/u);
       expect(readFileSync(file, "utf8")).toBe("operator-value");
     } finally {
       rmSync(directory, { force: true, recursive: true });

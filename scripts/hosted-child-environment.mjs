@@ -61,7 +61,7 @@ function makePrivateDirectory(path) {
 
 export function createHostedPlaywrightEnvironment(
   environment,
-  additions,
+  additionsOrFactory,
   { platform = process.platform, temporaryDirectory = tmpdir() } = {},
 ) {
   const sandboxRoot = mkdtempSync(join(resolve(temporaryDirectory), "lumen-hosted-browser-"));
@@ -87,6 +87,18 @@ export function createHostedPlaywrightEnvironment(
       symlinkSync(operatorBrowserPath, browserPath, platform === "win32" ? "junction" : "dir");
     }
     const childEnvironment = {};
+    const additions =
+      typeof additionsOrFactory === "function"
+        ? additionsOrFactory(
+            Object.freeze({
+              sandboxRoot,
+              temporaryDirectory: temporary,
+            }),
+          )
+        : additionsOrFactory;
+    if (!additions || typeof additions !== "object" || Array.isArray(additions)) {
+      throw new Error("Hosted Playwright environment additions must be an object.");
+    }
     const fixtureConfirmationFile = additions.HOSTED_ACCEPTANCE_RUN_ID
       ? join(sandboxRoot, "fixture-confirmed")
       : null;

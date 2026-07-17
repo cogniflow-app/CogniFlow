@@ -192,6 +192,12 @@ test("desktop and mobile authors can create, publish, preview, and clean up a ty
   );
   await page.getByRole("button", { name: "Unpublish" }).click();
   expect((await unpublishResponse).ok()).toBe(true);
+  const [privatePublicPage, privateEmbedPage] = await Promise.all([
+    page.request.get(`/deck/${publicSlug}`),
+    page.request.get(`/embed/deck/${publicId}`),
+  ]);
+  expect(privatePublicPage.status()).toBe(404);
+  expect(privateEmbedPage.status()).toBe(404);
 
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Delete this deck?" })).toBeVisible();

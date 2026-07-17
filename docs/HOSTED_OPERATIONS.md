@@ -232,11 +232,14 @@ against the linked Vercel project/team through `api.vercel.com`, then requires e
 automation bypass from a read-only project lookup. Only that authenticated deployment may receive
 the bypass, after which `/api/health` must report a healthy Vercel Preview, a non-development build,
 and the exact public Preview Supabase project reference. It then obtains the Preview server key in
-parent memory from the authenticated Supabase CLI, confirms only the exact UUID-marked fixture, and
-never reads, writes, or modifies `apps/web/.env.local`. The Vercel cookie attestation uses a private
-one-use file that configuration consumes/deletes before workers; the Playwright child receives an
+parent memory from the authenticated Supabase CLI, creates and confirms only the exact UUID-marked
+reserved-domain fixture through Admin Auth, and never reads, writes, or modifies
+`apps/web/.env.local`. Pre-provisioning removes outbound SMTP from this disposable proof while the
+browser still exercises the public signup/check-email/sign-in/onboarding path. The Vercel cookie attestation uses a private
+mode-`0600` file inside the sterile child runtime, opened with no-follow/inode checks for each
+Playwright configuration evaluation and destroyed by the parent after the process tree exits. The Playwright child receives an
 empty private home/config sandbox, no provider or CLI credentials, and only a nonsecret fixture
-confirmation marker. Do not invoke its Playwright file directly: target attestation, reserved
+completion marker. Do not invoke its Playwright file directly: target attestation, reserved
 identity, secret lifetime, hosted lock, deletion cleanup, unlink, and recursive Storage assertion
 all belong to the wrapper. If the test or cleanup fails—or the process suffers `SIGKILL` or host
 loss—inspect and complete cleanup before another hosted content run. Successful cleanup removes the

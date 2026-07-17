@@ -117,4 +117,28 @@ describe("hosted Playwright environment boundary", () => {
       ),
     ).toThrow(/addition is not allowed/u);
   });
+
+  it("resolves generated additions inside the sterile child runtime", () => {
+    let generatedTemporaryDirectory: string | undefined;
+    const sandbox = createHostedPlaywrightEnvironment(
+      { PATH: process.env.PATH ?? "/usr/bin" },
+      ({ temporaryDirectory }) => {
+        generatedTemporaryDirectory = temporaryDirectory;
+        return {
+          HOSTED_SMOKE_PREFLIGHT_FILE: `${temporaryDirectory}/lumen-hosted-preflight-test/attestation`,
+          HOSTED_SMOKE_TARGET: "preview",
+          PLAYWRIGHT_BASE_URL: "https://preview.example.test",
+        };
+      },
+    );
+
+    try {
+      expect(generatedTemporaryDirectory).toBe(sandbox.environment.TMPDIR);
+      expect(String(sandbox.environment.HOSTED_SMOKE_PREFLIGHT_FILE)).toContain(
+        String(sandbox.environment.TMPDIR),
+      );
+    } finally {
+      sandbox.cleanup();
+    }
+  });
 });

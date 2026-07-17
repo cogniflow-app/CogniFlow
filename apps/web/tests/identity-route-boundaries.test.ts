@@ -253,6 +253,32 @@ describe("identity route boundaries", () => {
     expect(callback.searchParams.get("ageGate")).toMatch(/^[A-Za-z0-9_-]{40,}$/u);
   });
 
+  it("retains the HttpOnly age gate when Auth neutrally hides an existing account", async () => {
+    mocks.signUp.mockResolvedValue({
+      data: { session: null, user: null },
+      error: { code: "user_already_exists", status: 400 },
+    });
+    const response = await passwordPost(
+      mutationRequest("/api/auth/password", {
+        ageBand: "adult",
+        email: "existing@example.test",
+        intent: "sign_up",
+        password: "correct horse battery staple",
+        returnTo: "/app/decks/new",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      next: "/auth/check-email",
+      status: "verification_required",
+    });
+    expect(response.cookies.get(pendingAuthAgeGateCookieName)).toMatchObject({
+      httpOnly: true,
+      sameSite: "lax",
+    });
+  });
+
   it("rejects an unconfigured OAuth provider before opening a provider session", async () => {
     const response = await oauthPost(
       mutationRequest("/api/auth/oauth", {

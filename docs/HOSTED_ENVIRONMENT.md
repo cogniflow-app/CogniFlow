@@ -159,8 +159,10 @@ but keeping them as transient shell values avoids stale deployment targets.
 The baseline hosted smoke runner internally sets `HOSTED_SMOKE_TARGET` plus the path-only
 `HOSTED_SMOKE_PREFLIGHT_FILE` after its checks. They are not operator configuration variables. The
 credential-bearing attestation is written in a fresh mode-`0700` temporary directory to a
-mode-`0600` regular file, never to an environment value. The Playwright configuration consumes and
-deletes that file, then removes the path variable before workers start. The attestation is issued
+mode-`0600` regular file, never to an environment value. Because Playwright can evaluate its
+configuration in more than one process, each evaluation opens the same ephemeral file with
+no-follow, inode, ownership, size, and permission checks. The guarded parent destroys it only after
+the complete Playwright process tree exits. The attestation is issued
 only after the authenticated Vercel API returns the exact linked project, team/account, deployment
 URL or alias, readiness, and Preview/Production target, then a read-only project lookup returns
 exactly one existing `automation-bypass` entry.
@@ -169,14 +171,16 @@ exactly one existing `automation-bypass` entry.
 
 `pnpm test:hosted:preview:content` is an operator tool, not an application runtime. It generates a
 UUIDv4 run ID and retrieves the exact Preview project's server key through the operator's
-authenticated Supabase CLI. The key remains in the parent process, which confirms only the exact
-reserved fixture and writes a nonsecret completion marker. The Playwright child receives only:
+authenticated Supabase CLI. The key remains in the parent process, which creates and confirms only
+the exact reserved fixture through Admin Auth and writes a nonsecret completion marker. This keeps
+the disposable proof independent of provider SMTP while the browser still traverses the public
+signup/check-email/sign-in/onboarding flow. The Playwright child receives only:
 
 | Exact name                         | Source and lifetime                                       | Purpose                                                   |
 | ---------------------------------- | --------------------------------------------------------- | --------------------------------------------------------- |
 | `HOSTED_ACCEPTANCE_RUN_ID`         | Runner-generated; one disposable acceptance run           | Names/marks the exact fixture and cleanup target          |
-| `HOSTED_CONTENT_PREFLIGHT_FILE`    | Path to one mode-`0600` file; consumed before workers     | Prevents direct raw Playwright invocation after preflight |
-| `HOSTED_FIXTURE_CONFIRMATION_FILE` | Nonsecret marker in the child's private temporary sandbox | Synchronizes the parent-only fixture confirmation         |
+| `HOSTED_CONTENT_PREFLIGHT_FILE`    | Path to an ephemeral mode-`0600` file in the sterile root | Prevents direct raw Playwright invocation after preflight |
+| `HOSTED_FIXTURE_CONFIRMATION_FILE` | Nonsecret marker in the child's private temporary sandbox | Proves parent-only fixture provisioning completed         |
 | `PLAYWRIGHT_BASE_URL`              | Validated exact Vercel Preview origin                     | Targets the application under review                      |
 
 Operators supply the exact Preview URL and fresh Vercel authentication. They may additionally load
@@ -190,11 +194,12 @@ Vercel's host-only, secure, HttpOnly, SameSite=Lax `_vercel_jwt`. The runner
 follows the same-origin health redirect using only that cookie and requires Vercel Preview plus the
 exact public Preview Supabase project reference. Both the Vercel API token and long-lived bypass
 secret are absent from the Playwright child. The credential-bearing cookie attestation crosses only
-through the private one-use file; the configuration deletes the file and its environment locator
-before workers start. The child's exact environment allowlist replaces `HOME`, `USERPROFILE`,
+through a private mode-`0600` file inside the sterile runtime; configurations open it with
+no-follow/inode checks, only its non-secret locator is inherited, and the parent deletes it after
+the Playwright process tree exits. The child's exact environment allowlist replaces `HOME`, `USERPROFILE`,
 `APPDATA`, `LOCALAPPDATA`, every XDG directory, and temporary directories with an empty mode-`0700`
 sandbox, so operator Vercel, Supabase, npm, cloud, SSH, database, and provider credential locators
-are not inherited. The parent-only Supabase key confirms the exact fixture and never reaches a
+are not inherited. The parent-only Supabase key provisions the exact fixture and never reaches a
 worker. The runner disables trace/video and never prints captured credentials. Normal test failure
 and the first graceful `SIGINT`/`SIGTERM` trigger one serialized cleanup attempt; a failed cleanup,
 `SIGKILL`, or host/process loss still requires operator inspection before another run.

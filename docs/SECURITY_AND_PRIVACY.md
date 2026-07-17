@@ -92,12 +92,15 @@ session shape but never uses its refresh token or refreshes the access token its
 
 The guarded Phase 02 content runner obtains the existing Preview project key in memory from the
 authenticated Supabase CLI, restricts the target to this repository's Vercel Preview family, and
-keeps that key in the parent process. It confirms only the exact UUID-marked fixture identity; the
-Playwright child receives a non-secret confirmation marker after that succeeds. The child starts
+keeps that key in the parent process. It pre-provisions and confirms only the exact UUID-marked,
+reserved-domain fixture identity so the hosted proof does not depend on outbound SMTP; the browser
+still exercises the neutral signup/check-email/sign-in/onboarding path. The Playwright child
+receives a non-secret completion marker after provisioning succeeds. The child starts
 with a minimal runtime allowlist plus a private temporary HOME/XDG configuration, cache, and temp
 namespace, so inherited operator/provider credentials and their normal filesystem locators are not
-available. Its scoped Vercel cookie is transferred through a mode-restricted one-use attestation
-file that configuration consumes and deletes before workers start. On completion, failure, or the
+available. Its scoped Vercel cookie is transferred through a mode-`0600` attestation file inside
+that mode-`0700` sterile runtime; only the file locator, never the encoded cookie, crosses the child
+environment, and the parent destroys the file when the Playwright process tree exits. On completion, failure, or the
 first graceful `SIGINT`/`SIGTERM`, the parent attempts fixture cleanup exactly once; an uncatchable
 `SIGKILL` or process loss still requires operator inspection. The Preview project key is not
 operator/application configuration and must never be manually set, logged, persisted, passed to a
@@ -188,8 +191,8 @@ The application does not emit HSTS during local development. Production parsing 
   read-only project lookup. A transient `VERCEL_AUTOMATION_BYPASS_SECRET`, when supplied, must equal
   it; the tracked runner never contains its value and never creates or rotates one. Playwright
   receives only the validated exact-host Vercel cookie after API ownership and health preflight;
-  the cookie is carried in a mode-restricted one-use file that configuration consumes and deletes
-  before browser workers start, never in a child environment variable.
+  the cookie is carried in a mode-restricted ephemeral file inside the sterile child runtime and
+  destroyed after the Playwright process tree exits, never in a child environment variable.
 - `DEPLOYMENT_PROFILE=vercel_beta` and Vercel Preview both produce an `X-Robots-Tag` no-index policy;
   `/robots.txt` disallows all crawling for the custom-domain beta.
 - Preview and Production use independently generated application-owned keys and separate Supabase
