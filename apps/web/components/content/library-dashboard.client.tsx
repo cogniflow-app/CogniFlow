@@ -19,17 +19,28 @@ import {
 } from "@/lib/content/client-mutations";
 
 type LibraryView = "grid" | "list";
-type StatusFilter = "active" | "all" | "archived";
+type LibraryFilterMode = "all" | "recent" | "published" | "archived";
 
 function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: LibraryView }) {
+  const accent =
+    deck.visibility === "public"
+      ? "success"
+      : deck.visibility === "unlisted"
+        ? "warning"
+        : "neutral";
   return (
     <a className="deck-tile" href={`/app/decks/${deck.id}`}>
-      <div>
-        <span aria-hidden="true" className="deck-tile__mark">
-          {deck.title.trim().slice(0, 1).toUpperCase() || "D"}
-        </span>
-        <h3>{deck.title}</h3>
-        <p>{deck.descriptionPlain || "No description yet."}</p>
+      <div className="deck-tile__top">
+        <div className="deck-tile__cover">
+          <span aria-hidden="true" className="deck-tile__mark">
+            {deck.title.trim().slice(0, 1).toUpperCase() || "D"}
+          </span>
+          <Badge tone={accent}>{deck.visibility}</Badge>
+        </div>
+        <div className="deck-tile__heading">
+          <h3>{deck.title}</h3>
+          <p>{deck.descriptionPlain || "Open to add the first note."}</p>
+        </div>
       </div>
       <div className="deck-tile__meta">
         <span>
@@ -38,7 +49,6 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
         <span>
           {deck.cardCount} {deck.cardCount === 1 ? "card" : "cards"}
         </span>
-        <Badge tone={deck.visibility === "public" ? "success" : "neutral"}>{deck.visibility}</Badge>
         {view === "list" && <span>Edited {new Date(deck.updatedAt).toLocaleDateString()}</span>}
       </div>
     </a>
@@ -59,26 +69,11 @@ function EmptyLibrary({
           ◫
         </span>
         <h2 id="empty-library-heading">Create your first deck</h2>
+        <p>Start with a clear subject, then add notes and generated cards as you go.</p>
         <p>
-          A deck is an organized collection of notes. Each note can generate one or more sibling
-          cards, so you can recall the same idea in the directions and formats that make sense.
+          Each note can generate one or more sibling cards. Pick a card type when you are ready to
+          begin.
         </p>
-        <ol className="library-empty__steps">
-          <li>
-            <strong>1</strong>
-            <span>Name a deck for one subject, course, or goal.</span>
-          </li>
-          <li>
-            <strong>2</strong>
-            <span>
-              Pick a card type—from a simple front and back to cloze, diagram, audio, or drawing.
-            </span>
-          </li>
-          <li>
-            <strong>3</strong>
-            <span>Write the note once and preview every generated sibling before saving.</span>
-          </li>
-        </ol>
         <div className="library-actions justify-center">
           <Button onClick={onCreateDeck}>Create deck</Button>
           <Button onClick={onCreateFolder} variant="secondary">
@@ -124,8 +119,8 @@ export function LibraryDashboard({
   const [decks, setDecks] = useState(snapshot.decks);
   const [folders, setFolders] = useState(snapshot.folders);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [view, setView] = useState<LibraryView>("grid");
+  const [filterMode, setFilterMode] = useState<LibraryFilterMode>("recent");
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [deckDialogOpen, setDeckDialogOpen] = useState(false);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
@@ -149,19 +144,26 @@ export function LibraryDashboard({
 
   const visibleDecks = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
-    return decks.filter((deck) => {
+    const filtered = decks.filter((deck) => {
       const matchesQuery =
         !normalized ||
         deck.title.toLocaleLowerCase().includes(normalized) ||
         deck.descriptionPlain.toLocaleLowerCase().includes(normalized);
-      const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "active" && deck.status === "active") ||
-        (statusFilter === "archived" && deck.status === "archived");
       const matchesFolder = selectedFolder === null || deck.folderId === selectedFolder;
-      return matchesQuery && matchesStatus && matchesFolder;
+      const matchesFilter =
+        filterMode === "archived"
+          ? deck.status === "archived"
+          : filterMode === "published"
+            ? deck.visibility === "public" || deck.visibility === "unlisted"
+            : filterMode === "recent"
+              ? deck.status === "active"
+              : true;
+      return matchesQuery && matchesFolder && matchesFilter;
     });
-  }, [decks, query, selectedFolder, statusFilter]);
+    return filterMode === "recent"
+      ? filtered.filter((deck) => deck.status === "active").slice(0, 200)
+      : filtered;
+  }, [decks, filterMode, query, selectedFolder]);
 
   async function createDeck(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -282,9 +284,20 @@ export function LibraryDashboard({
   }
 
   const hasAnyDecks = decks.length > 0;
+  const publishedDeckCount = decks.filter(
+    (deck) => deck.visibility === "public" || deck.visibility === "unlisted",
+  ).length;
   const totalDecks = snapshot.counts.activeDecks + snapshot.counts.archivedDecks;
   const deckListTruncated = decks.length < totalDecks;
   const folderListTruncated = folders.length < snapshot.counts.folders;
+  const filterHeading =
+    filterMode === "recent"
+      ? "Recent decks"
+      : filterMode === "published"
+        ? "Published decks"
+        : filterMode === "archived"
+          ? "Archived decks"
+          : "All decks";
   return (
     <div className="library-shell">
       <section className="library-hero" aria-labelledby="library-heading">
@@ -297,17 +310,13 @@ export function LibraryDashboard({
               ? `Welcome back, ${learnerName}.`
               : `A clear place to build, ${learnerName}.`}
           </h1>
-          <p>
-            Create notes once, generate the cards each idea needs, and keep every draft, sibling,
-            and revision organized. Everything shown here comes from your saved decks, folders,
-            notes, generated siblings, and recent edits.
-          </p>
+          <p>Create a deck, add the first notes, and keep everything tidy from one place.</p>
         </div>
         {canCreate && (
           <div className="library-actions">
             <Button onClick={() => setDeckDialogOpen(true)}>Create deck</Button>
             <Button onClick={() => setFolderDialogOpen(true)} variant="secondary">
-              New folder
+              Create folder
             </Button>
           </div>
         )}
@@ -327,6 +336,22 @@ export function LibraryDashboard({
           </div>
         ))}
       </section>
+
+      {publishedDeckCount > 0 && (
+        <section className="library-highlight" aria-labelledby="published-decks-heading">
+          <div className="section-heading">
+            <div>
+              <h2 id="published-decks-heading">Published decks</h2>
+              <span className="text-sm text-[var(--color-text-muted)]">
+                {publishedDeckCount} {publishedDeckCount === 1 ? "deck" : "decks"} ready to share
+              </span>
+            </div>
+            <LinkButton href="/app/published" size="sm" variant="secondary">
+              Manage published decks
+            </LinkButton>
+          </div>
+        </section>
+      )}
 
       {snapshot.truncated && (
         <p className="library-query-notice" role="status">
@@ -361,47 +386,57 @@ export function LibraryDashboard({
               <span className="visually-hidden">Search decks</span>
               <Input
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search titles and descriptions"
+                placeholder="Search decks"
                 type="search"
                 value={query}
               />
             </label>
-            <Select
-              aria-label="Content status"
-              onValueChange={(value) => setStatusFilter(value as StatusFilter)}
-              options={[
-                { label: "Active decks", value: "active" },
-                { label: "All content", value: "all" },
-                { label: "Archived decks", value: "archived" },
-              ]}
-              value={statusFilter}
-            />
-            <Select
-              aria-label="Folder filter"
-              onValueChange={(value) => setSelectedFolder(value === "all" ? null : value)}
-              options={[
-                { label: "Every folder", value: "all" },
-                ...folders.map((folder) => ({ label: folder.name, value: folder.id })),
-              ]}
-              value={selectedFolder ?? "all"}
-            />
-            <div className="view-toggle" role="group" aria-label="Deck presentation">
-              <button
-                aria-label="Grid view"
-                aria-pressed={view === "grid"}
-                onClick={() => setView("grid")}
-                type="button"
-              >
-                ▦
-              </button>
-              <button
-                aria-label="List view"
-                aria-pressed={view === "list"}
-                onClick={() => setView("list")}
-                type="button"
-              >
-                ☷
-              </button>
+            <div className="library-filter-tabs" role="tablist" aria-label="Library filters">
+              {[
+                { label: "All", value: "all" },
+                { label: "Recent", value: "recent" },
+                { label: "Published", value: "published" },
+                { label: "Archived", value: "archived" },
+              ].map((item) => (
+                <button
+                  aria-pressed={filterMode === item.value}
+                  className="library-filter-tab"
+                  key={item.value}
+                  onClick={() => setFilterMode(item.value as LibraryFilterMode)}
+                  type="button"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="library-toolbar__actions">
+              <Select
+                aria-label="Folder filter"
+                onValueChange={(value) => setSelectedFolder(value === "all" ? null : value)}
+                options={[
+                  { label: "Every folder", value: "all" },
+                  ...folders.map((folder) => ({ label: folder.name, value: folder.id })),
+                ]}
+                value={selectedFolder ?? "all"}
+              />
+              <div className="view-toggle" role="group" aria-label="Deck presentation">
+                <button
+                  aria-label="Grid view"
+                  aria-pressed={view === "grid"}
+                  onClick={() => setView("grid")}
+                  type="button"
+                >
+                  ▦
+                </button>
+                <button
+                  aria-label="List view"
+                  aria-pressed={view === "list"}
+                  onClick={() => setView("list")}
+                  type="button"
+                >
+                  ☷
+                </button>
+              </div>
             </div>
           </div>
 
@@ -461,7 +496,7 @@ export function LibraryDashboard({
                   <h2 id="decks-heading">
                     {selectedFolder
                       ? (folders.find((folder) => folder.id === selectedFolder)?.name ?? "Folder")
-                      : "All decks"}
+                      : filterHeading}
                   </h2>
                   <span className="text-sm text-[var(--color-text-muted)]">
                     {visibleDecks.length} {visibleDecks.length === 1 ? "result" : "results"}
@@ -497,7 +532,7 @@ export function LibraryDashboard({
 
       {canCreate && (
         <Dialog
-          description="Start private. You can publish deliberately from deck settings after adding content."
+          description="Start private and add content after the deck exists."
           onOpenChange={(open) => {
             setDeckDialogOpen(open);
             if (open) setError(null);
@@ -509,10 +544,7 @@ export function LibraryDashboard({
             <FormField label="Deck title" required>
               <Input autoFocus maxLength={120} name="title" required />
             </FormField>
-            <FormField
-              label="Description"
-              description="A short scope statement helps keep notes focused."
-            >
+            <FormField label="Description" description="Optional. Keep it short.">
               <Input maxLength={500} name="description" />
             </FormField>
             <FormField label="Folder">
@@ -540,7 +572,7 @@ export function LibraryDashboard({
 
       {canCreate && managedFolder && (
         <Dialog
-          description="Rename this folder or move it inside another folder. Cycles are rejected at the database boundary."
+          description="Rename or move the folder without changing its deck contents."
           onOpenChange={(open) => {
             if (!open) setManagedFolder(null);
           }}
@@ -583,7 +615,7 @@ export function LibraryDashboard({
 
       {canCreate && (
         <Dialog
-          description="Folders organize content without changing the notes or cards inside a deck."
+          description="Groups help keep the library tidy."
           onOpenChange={(open) => {
             setFolderDialogOpen(open);
             if (open) setError(null);

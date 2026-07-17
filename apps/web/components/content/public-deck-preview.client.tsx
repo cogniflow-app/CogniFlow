@@ -20,6 +20,11 @@ function isNestedInteractiveTarget(target: EventTarget | null): boolean {
 export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
   const [index, setIndex] = useState(0);
   const [back, setBack] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    return mediaQuery?.matches ?? false;
+  });
   const touchStart = useRef<number | null>(null);
   const card = deck.cards[index];
 
@@ -30,6 +35,16 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
     },
     [deck.cards.length],
   );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mediaQuery) return undefined;
+
+    const updateReducedMotion = () => setReducedMotion(mediaQuery.matches);
+    updateReducedMotion();
+    mediaQuery.addEventListener?.("change", updateReducedMotion);
+    return () => mediaQuery.removeEventListener?.("change", updateReducedMotion);
+  }, []);
 
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
@@ -46,18 +61,10 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
   }, [move]);
 
   function beginTouch(event: TouchEvent) {
-    if (isNestedInteractiveTarget(event.target)) {
-      touchStart.current = null;
-      return;
-    }
     touchStart.current = event.changedTouches[0]?.clientX ?? null;
   }
 
   function finishTouch(event: TouchEvent) {
-    if (isNestedInteractiveTarget(event.target)) {
-      touchStart.current = null;
-      return;
-    }
     const start = touchStart.current;
     const end = event.changedTouches[0]?.clientX;
     touchStart.current = null;
@@ -66,7 +73,11 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
   }
 
   return (
-    <div className="public-preview" data-deck-theme={deck.theme}>
+    <div
+      className="public-preview"
+      data-deck-theme={deck.theme}
+      data-reduced-motion={reducedMotion ? "true" : "false"}
+    >
       <div className="public-preview__progress" aria-live="polite">
         <span>
           {deck.cards.length ? `${String(index + 1)} of ${String(deck.cards.length)}` : "No cards"}
@@ -76,21 +87,46 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
         </progress>
       </div>
       {card ? (
-        <section
+        <div
           aria-label={`${back ? "Answer" : "Prompt"} card preview`}
-          className="public-preview__card"
-          data-side={back ? "back" : "front"}
-          onTouchEnd={finishTouch}
-          onTouchStart={beginTouch}
+          className="public-preview__viewport"
+          role="region"
         >
-          <span className="public-preview__side">{back ? "Answer" : "Prompt"}</span>
-          <StudyCardRenderer media={card.media} renderer={card.renderer} revealed={back} />
-          <small>{card.cardType.replaceAll("_", " ")} · Swipe to move between cards</small>
-          <Button onClick={() => setBack((value) => !value)} size="sm" variant="secondary">
+          <button
+            aria-label={`${back ? "Answer" : "Prompt"} card preview`}
+            className="public-preview__card"
+            data-side={back ? "back" : "front"}
+            onClick={() => setBack((value) => !value)}
+            onTouchEnd={finishTouch}
+            onTouchStart={beginTouch}
+            type="button"
+          >
+            <span className="public-preview__side">{back ? "Answer" : "Prompt"}</span>
+            <div className="public-preview__flip-shell">
+              <div
+                className={`public-preview__flip-face ${reducedMotion ? "public-preview__flip-face--static" : "public-preview__flip-face--animated"}`}
+                data-side={back ? "back" : "front"}
+              >
+                <StudyCardRenderer media={card.media} renderer={card.renderer} revealed={back} />
+              </div>
+            </div>
+            <div className="public-preview__footer">
+              <small>{card.cardType.replaceAll("_", " ")}</small>
+              {!reducedMotion && <span className="public-preview__hint">Tap to flip</span>}
+            </div>
+            <span className="visually-hidden">{card.nonvisualFallback}</span>
+          </button>
+          <button
+            className="public-preview__toggle"
+            onClick={(event) => {
+              event.stopPropagation();
+              setBack((value) => !value);
+            }}
+            type="button"
+          >
             {back ? "Show prompt" : "Reveal answer"}
-          </Button>
-          <span className="visually-hidden">{card.nonvisualFallback}</span>
-        </section>
+          </button>
+        </div>
       ) : (
         <div className="public-preview__card">
           <strong>This published deck has no cards.</strong>
@@ -111,6 +147,10 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
       <p className="public-preview__privacy">
         This preview does not create learner progress, history, scheduling state, or browser
         tracking records.
+        <span className="visually-hidden">
+          It is a read-only public preview that keeps deck content visible without adding study
+          history or progress records.
+        </span>
       </p>
     </div>
   );

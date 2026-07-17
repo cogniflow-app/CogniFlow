@@ -23,6 +23,9 @@ importers:
       '@playwright/test':
         specifier: 1.61.1
         version: 1.61.1
+      '@rolldown/binding-darwin-x64':
+        specifier: ^1.2.0
+        version: 1.2.0
       '@secretlint/secretlint-rule-preset-recommend':
         specifier: 13.0.2
         version: 13.0.2
@@ -186,6 +189,7 @@ importers:
       '@supabase/supabase-js':
         specifier: 2.110.5
         version: 2.110.5
+
   packages/auth:
     dependencies:
       zod:
@@ -2093,6 +2097,12 @@ packages:
 
   '@rolldown/binding-darwin-x64@1.1.5':
     resolution: {integrity: sha512-Tm+gbfC0aHu1tBA/JvKQh32S0K6YgCHkiAF4/W6xX0K0RmNuc94VeK419dJoE65R5aRxmo+noZQSWrAMF6yb6g==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [darwin]
+
+  '@rolldown/binding-darwin-x64@1.2.0':
+    resolution: {integrity: sha512-NqKYaq0355ZmNMG4QGpxtEDxsc7tGDhjhCm4PpE0cwnBW+5Il95LJyq414niEiaKLVjnVHBEjSo1wngKxJNiFw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [darwin]
@@ -8456,6 +8466,8 @@ snapshots:
 
   '@rolldown/binding-darwin-x64@1.1.5':
     optional: true
+
+  '@rolldown/binding-darwin-x64@1.2.0': {}
 
   '@rolldown/binding-freebsd-x64@1.1.5':
     optional: true
