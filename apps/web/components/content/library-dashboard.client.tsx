@@ -70,7 +70,10 @@ function EmptyLibrary({
         </span>
         <h2 id="empty-library-heading">Create your first deck</h2>
         <p>Start with a clear subject, then add notes and generated cards as you go.</p>
-        <p>Each note can generate one or more sibling cards. Pick a card type when you are ready to begin.</p>
+        <p>
+          Each note can generate one or more sibling cards. Pick a card type when you are ready to
+          begin.
+        </p>
         <div className="library-actions justify-center">
           <Button onClick={onCreateDeck}>Create deck</Button>
           <Button onClick={onCreateFolder} variant="secondary">
@@ -303,7 +306,9 @@ export function LibraryDashboard({
             Your library
           </span>
           <h1 id="library-heading">
-            {hasAnyDecks ? `Welcome back, ${learnerName}.` : `A clear place to build, ${learnerName}.`}
+            {hasAnyDecks
+              ? `Welcome back, ${learnerName}.`
+              : `A clear place to build, ${learnerName}.`}
           </h1>
           <p>Create a deck, add the first notes, and keep everything tidy from one place.</p>
         </div>

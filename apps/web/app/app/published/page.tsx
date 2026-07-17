@@ -12,9 +12,16 @@ export const metadata: Metadata = {
 
 export default async function PublishedDecksPage() {
   const account = await requireAccountContext({ returnTo: "/app/published" });
-  const snapshot = account.activeLearner.kind === "self"
-    ? await readLibrarySnapshot(account.profile.id)
-    : { counts: { activeDecks: 0, archivedDecks: 0, cards: 0, folders: 0, notes: 0 }, decks: [], folders: [], recentlyEdited: [], truncated: false };
+  const snapshot =
+    account.activeLearner.kind === "self"
+      ? await readLibrarySnapshot(account.profile.id)
+      : {
+          counts: { activeDecks: 0, archivedDecks: 0, cards: 0, folders: 0, notes: 0 },
+          decks: [],
+          folders: [],
+          recentlyEdited: [],
+          truncated: false,
+        };
   const publishedDecks = snapshot.decks.filter(
     (deck) => deck.visibility === "public" || deck.visibility === "unlisted",
   );

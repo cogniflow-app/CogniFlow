@@ -91,8 +91,9 @@ describe("public deck preview", () => {
 
     render(<PublicDeckPreview deck={publicDeck} />);
 
-    expect(screen.getByRole("region", { name: /Prompt card preview/i }).closest(".public-preview"))
-      .toHaveAttribute("data-reduced-motion", "true");
+    expect(
+      screen.getByRole("region", { name: /Prompt card preview/i }).closest(".public-preview"),
+    ).toHaveAttribute("data-reduced-motion", "true");
     expect(screen.queryByText(/Tap to flip/i)).not.toBeInTheDocument();
   });
 
