@@ -36,6 +36,14 @@ interface IssuedPendingGate extends IssuedGate<PendingAuthAgeGate> {
   readonly callbackNonce: string;
 }
 
+type AuthenticatedPasswordSignupAgeGate = PendingAuthAgeGate &
+  Readonly<{
+    ageBand: "adult" | "teen";
+    flow: "password_signup";
+    intent: "sign_up";
+    provider: null;
+  }>;
+
 function secureCookies(): boolean {
   return getServerEnvironment().nodeEnvironment === "production";
 }
@@ -199,6 +207,33 @@ export async function pendingPasswordGateMatchesEmail(
     gate.subjectHash ===
     (await hmacSha256Hex(email.trim().toLowerCase(), getServerEnvironment().appEncryptionKey))
   );
+}
+
+/**
+ * Reads a signed password-signup decision after the caller has successfully
+ * authenticated the same email with its password. Unlike an email callback,
+ * that credential-authenticated continuation has no callback nonce to replay.
+ */
+export async function readAuthenticatedPasswordSignupAgeGate(
+  request: NextRequest,
+  email: string | null | undefined,
+  now = new Date(),
+): Promise<AuthenticatedPasswordSignupAgeGate | null> {
+  const token = request.cookies.get(pendingAuthAgeGateCookieName)?.value;
+  if (!token) return null;
+  const parsed = pendingAuthAgeGateSchema.safeParse(await parseSignedPayload(token));
+  if (
+    !parsed.success ||
+    !validLifetime(parsed.data, PENDING_GATE_LIFETIME_MS, now) ||
+    parsed.data.flow !== "password_signup" ||
+    parsed.data.intent !== "sign_up" ||
+    parsed.data.provider !== null ||
+    parsed.data.ageBand === null ||
+    !(await pendingPasswordGateMatchesEmail(parsed.data, email))
+  ) {
+    return null;
+  }
+  return parsed.data as AuthenticatedPasswordSignupAgeGate;
 }
 
 export function clearPendingAuthAgeGate<T extends NextResponse>(response: T): T {

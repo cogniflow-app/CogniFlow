@@ -192,6 +192,7 @@ test("desktop and mobile authors can create, publish, preview, and clean up a ty
   );
   await page.getByRole("button", { name: "Unpublish" }).click();
   expect((await unpublishResponse).ok()).toBe(true);
+  await expect(page.getByRole("button", { name: "Unpublish" })).toHaveCount(0);
   const [privatePublicPage, privateEmbedPage] = await Promise.all([
     page.request.get(`/deck/${publicSlug}`),
     page.request.get(`/embed/deck/${publicId}`),

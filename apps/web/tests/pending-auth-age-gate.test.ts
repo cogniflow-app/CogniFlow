@@ -16,6 +16,7 @@ import {
   issuePasswordSignupAgeGate,
   issueVerifiedOnboardingAgeGate,
   pendingPasswordGateMatchesEmail,
+  readAuthenticatedPasswordSignupAgeGate,
   readPendingAuthAgeGate,
   readRequestOnboardingAgeGate,
 } from "../lib/server/pending-auth-age-gate";
@@ -104,6 +105,37 @@ describe("signed auth age gates", () => {
         callback,
         issued.callbackNonce,
         undefined,
+        new Date(now.getTime() + 16 * 60 * 1000),
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it("continues a password-authenticated signup without weakening its signed email binding", async () => {
+    const issued = await issuePasswordSignupAgeGate(
+      { ageBand: "adult", email: " Learner@Example.TEST ", returnTo: "/app/decks/new" },
+      now,
+    );
+    const request = requestWithCookie(
+      "http://127.0.0.1:3100/api/auth/password",
+      pendingAuthAgeGateCookieName,
+      issued.token,
+    );
+
+    await expect(
+      readAuthenticatedPasswordSignupAgeGate(request, "learner@example.test", now),
+    ).resolves.toMatchObject({
+      ageBand: "adult",
+      flow: "password_signup",
+      intent: "sign_up",
+      returnTo: "/app/decks/new",
+    });
+    await expect(
+      readAuthenticatedPasswordSignupAgeGate(request, "other@example.test", now),
+    ).resolves.toBeNull();
+    await expect(
+      readAuthenticatedPasswordSignupAgeGate(
+        request,
+        "learner@example.test",
         new Date(now.getTime() + 16 * 60 * 1000),
       ),
     ).resolves.toBeNull();

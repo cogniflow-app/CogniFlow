@@ -193,6 +193,7 @@ test("Preview supports the complete disposable Phase 02 account and content path
   );
   await page.getByRole("button", { name: "Unpublish" }).click();
   expect((await unpublishResponse).ok()).toBe(true);
+  await expect(page.getByRole("button", { name: "Unpublish" })).toHaveCount(0);
   await signOut(page);
   const [privatePublicPage, privateEmbedPage] = await Promise.all([
     page.request.get(`${baseUrl}/deck/${publishedBody.data.publicSlug}`),
