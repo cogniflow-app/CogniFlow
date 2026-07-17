@@ -11,7 +11,7 @@ This record describes implemented repository behavior and verified local and hos
 
 The active branch is `codex/phase-02-content-editor-card-types`, created from the freshly fetched
 `origin/main`. The complete post-audit tree passes the required local acceptance gate through
-migration `10000`, including the aggregate verifier, production builds, database tests, browser
+migration `11000`, including the aggregate verifier, production builds, database tests, browser
 acceptance, accessibility, Lighthouse, and load checks. The sections below this one retain the
 completed Phase 01 and hosted-baseline evidence; they do not represent current Phase 02 hosted
 verification. Phase 02 remains open only for committed migration promotion to Preview, the linked
@@ -112,6 +112,7 @@ schema mapping is [DATA_MODEL.md](./DATA_MODEL.md), and security boundaries are 
 | `20260716008000_content_atomic_authoring_and_media_deletion.sql` | Atomic custom-definition/note/media and settings/publication writes; exact safe-template publication field matching; server-route-only Storage mutation; durable physical-media jobs; 24-hour pending cleanup; irreversible old-asset job fencing; fresh-path same-hash re-upload; service-only claim/complete/abandon RPCs | Reset and pgTAP pass |
 | `20260716009000_content_receipt_payload_binding.sql`             | Exact canonical-command fingerprints for legacy browser content and media-registration receipts; transaction-local pending state; same-key changed-payload and pre-binding fail-closed replay                                                                                                                               | Reset and pgTAP pass |
 | `20260716010000_content_version_media_graph.sql`                 | Schema-two immutable version snapshots and exact media-graph restore; deterministic legacy reconstruction; direct-RPC media validation; owner-only media-safe duplication; internal-media-ID removal from frozen card and deck projections; exact same-command version finalization                                         | Reset and pgTAP pass |
+| `20260716011000_content_function_volatility.sql`                 | Hosted-catalog-safe `STABLE` classification for public-payload filtering, public-card ID derivation, and embedded-media graph collection helpers                                                                                                                                                                            | Reset and pgTAP pass |
 
 Earlier applied migrations remain unchanged. `supabase/seed.sql` still inserts no product user,
 deck, card, publication, or media object. Generated database types were regenerated from the
@@ -142,15 +143,15 @@ settled implementation tree. Preview promotion and hosted rows remain explicitly
 | `pnpm typecheck`                                    | Exit 0; 8/8 workspace projects pass strict TypeScript                               |
 | `pnpm test`                                         | Exit 0; 75 files and 570 tests pass                                                 |
 | Coverage                                            | 79.59% statements, 68.60% branches, 80.29% functions, and 83.30% lines              |
-| `pnpm db:reset`                                     | Exit 0; all 32 migrations and the product-data-empty seed apply from scratch        |
-| `pnpm test:db`                                      | Exit 0; 19 pgTAP files and 792 assertions pass                                      |
+| `pnpm db:reset`                                     | Exit 0; all 33 migrations and the product-data-empty seed apply from scratch        |
+| `pnpm test:db`                                      | Exit 0; 19 pgTAP files and 795 assertions pass                                      |
 | `pnpm db:types` / `pnpm db:types:check`             | Exit 0; generated schema types are deterministic and current                        |
 | Supabase lint                                       | Exit 0; no `public` or `private` schema warnings                                    |
 | `pnpm build` / `pnpm build:portable`                | Exit 0; 59 Next route/static-generation entries and OpenNext worker bundle complete |
 | `pnpm test:e2e`                                     | Exit 0; 24 pass and 15 intentional project skips                                    |
 | `pnpm test:a11y`                                    | Exit 0; 27 axe, keyboard, motion, theme, and authoring checks pass                  |
-| `pnpm test:lighthouse`                              | Exit 0; scores 98/100/96/100, LCP 2311.42 ms, CLS 0, and TBT 4 ms                   |
-| `pnpm test:load`                                    | Exit 0; 15/15 checks, 3/3 requests, 0 failures, and p95 3.85 ms                     |
+| `pnpm test:lighthouse`                              | Exit 0; scores 98/100/96/100, LCP 2312.37 ms, CLS 0, and TBT 4 ms                   |
+| `pnpm test:load`                                    | Exit 0; 15/15 checks, 3/3 requests, 0 failures, and p95 3.81 ms                     |
 | `pnpm verify`                                       | Exit 0 on the complete post-audit tree                                              |
 | `pnpm db:deploy:preview` / `pnpm db:verify:preview` | Pending committed Preview-only promotion and final parity verification              |
 | Phase 02 Vercel Preview + hosted suites             | Pending linked deployment, guarded baseline/content acceptance, and cleanup proof   |

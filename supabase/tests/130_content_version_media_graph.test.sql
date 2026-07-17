@@ -2,6 +2,36 @@ begin;
 
 select no_plan();
 
+select is(
+  (
+    select procedure.provolatile
+    from pg_catalog.pg_proc as procedure
+    where procedure.oid =
+      'private.filter_custom_card_payload(jsonb,text,text,text)'::regprocedure
+  ),
+  's'::"char",
+  'custom public-payload filtering does not overstate hosted catalog volatility'
+);
+select is(
+  (
+    select procedure.provolatile
+    from pg_catalog.pg_proc as procedure
+    where procedure.oid = 'private.derive_public_card_id(uuid,uuid)'::regprocedure
+  ),
+  's'::"char",
+  'public card ID derivation does not overstate hosted catalog volatility'
+);
+select is(
+  (
+    select procedure.provolatile
+    from pg_catalog.pg_proc as procedure
+    where procedure.oid =
+      'private.collect_embedded_media_requirements(jsonb,integer,public.media_kind,text,text)'::regprocedure
+  ),
+  's'::"char",
+  'embedded-media collection does not overstate hosted catalog volatility'
+);
+
 create temporary table version_media_ids (
   name text primary key,
   id uuid not null

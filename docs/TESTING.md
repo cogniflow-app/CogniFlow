@@ -220,7 +220,8 @@ command fingerprints.
 snapshots capture and atomically restore the exact authored media-reference graph, while legacy
 snapshots reconstruct only their valid deck-local references. It covers the cross-deck media guard,
 direct RPC payload validation, owner-only version duplication, and remediation of frozen
-publication payloads that formerly retained internal media identifiers.
+publication payloads that formerly retained internal media identifiers. It also pins the hosted
+catalog-safe `STABLE` volatility of the public-payload, public-ID, and embedded-media helpers.
 
 ### Hosted database verification
 

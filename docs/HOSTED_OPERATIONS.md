@@ -101,7 +101,7 @@ password from repository configuration.
 
 ### Phase 02 Preview checkpoint
 
-Phase 02 adds these eleven migration candidates after the 21-migration baseline:
+Phase 02 adds these twelve migration candidates after the 21-migration baseline:
 
 ```text
 20260716000000_content_schema.sql
@@ -115,6 +115,7 @@ Phase 02 adds these eleven migration candidates after the 21-migration baseline:
 20260716008000_content_atomic_authoring_and_media_deletion.sql
 20260716009000_content_receipt_payload_binding.sql
 20260716010000_content_version_media_graph.sql
+20260716011000_content_function_volatility.sql
 ```
 
 They create the content tables/transactions, frozen public projection, and private
@@ -126,10 +127,11 @@ raise typed stale-version outcomes as non-serialization user exceptions so hoste
 loop on automatic transaction retries. Migration 080 resolves a custom definition
 plus its note/media graph in one copy-on-write transaction, applies optional deck settings plus
 publish/unpublish in one transaction, and adds a private leased physical-media cleanup queue with
-service-only claim/complete RPCs. The last two migrations bind every browser-reachable content
-idempotency receipt to the complete canonical command and capture/restore the exact schema-v2 media
-reference graph in immutable deck versions, including legacy reconstruction and frozen-publication
-identifier remediation. Their presence in a branch does not prove either hosted project has them.
+service-only claim/complete RPCs. The last three migrations bind every browser-reachable content
+idempotency receipt to the complete canonical command, capture/restore the exact schema-v2 media
+reference graph in immutable deck versions (including legacy reconstruction and
+frozen-publication identifier remediation), and align helper volatility with the strict hosted
+catalog contract. Their presence in a branch does not prove either hosted project has them.
 The exact Preview command results, remote migration count, Storage invariant result, deployed URL,
 hosted smoke count, and cleanup evidence must be recorded in
 [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md). Until those results are present, report

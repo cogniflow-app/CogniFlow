@@ -103,7 +103,10 @@ The additive Phase 02 migrations are:
   exact explicit media-reference graph, atomic graph restoration (including deterministic legacy
   reconstruction), exact same-command version finalization, owner-only media-safe duplication,
   direct-RPC embedded-media validation, and fail-closed remediation of frozen publications that
-  contain internal media identities.
+  contain internal media identities; and
+- `20260716011000_content_function_volatility.sql` — hosted-catalog-safe `STABLE` classification
+  for deterministic public-payload filtering, public-card ID derivation, and embedded-media graph
+  collection helpers whose dependencies are not catalog-immutable.
 
 No earlier migration is edited. Phase 02 introduces no schedule, review, mastery, assignment,
 collaboration, game, XP, currency, or AI-job row.

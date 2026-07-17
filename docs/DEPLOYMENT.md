@@ -226,11 +226,12 @@ the following ordered migrations after `20260715006900_hosted_grant_parity.sql`:
 20260716008000_content_atomic_authoring_and_media_deletion.sql
 20260716009000_content_receipt_payload_binding.sql
 20260716010000_content_version_media_graph.sql
+20260716011000_content_function_volatility.sql
 ```
 
 The first defines folders/decks/notes/templates/generated cards/media/versions/publication rows and
 enables RLS. The second adds actor-derived mutation RPCs, read policies, version/idempotency
-enforcement, frozen publication, and the private `lumen-content-media` bucket/policies. The nine
+enforcement, frozen publication, and the private `lumen-content-media` bucket/policies. The ten
 forward hardening migrations compose note/media changes atomically, prevent public projections
 from carrying Storage locators/internal card or media IDs, stabilize PostgREST lifecycle arguments,
 permit guarded reads to take their authorization locks, reject nullable concurrency state, make
@@ -240,15 +241,16 @@ new note the stable identity of its idempotency UUID
 and classify a typed stale-version outcome as user exception `P0001` rather than serialization
 failure `40001`. The service secret remains limited to the pre-existing bounded adapters plus media
 finalization, public signed-URL location after the Route Handler verifies the applicable contract,
-and the bounded media-deletion claim/complete worker protocol. The final three migrations make a
+and the bounded media-deletion claim/complete worker protocol. The final four migrations make a
 copy-on-write custom definition part of the note/media transaction, combine deck settings with
 publish/unpublish, bind every replay receipt to its canonical command, and make the exact media
 reference graph part of immutable version capture, restore, duplication, and frozen-publication
-privacy. The service secret must not be substituted for the browser publishable key, used for
+privacy; the final migration narrows helper volatility to the strict hosted catalog contract. The
+service secret must not be substituted for the browser publishable key, used for
 ordinary content reads/writes, or granted broad table access.
 
 The Phase 02 application must not be accepted against a database that lacks the complete
-eleven-file chain. The
+twelve-file chain. The
 feature branch can promote them to Preview only after they are committed and locally verified.
 Beta promotion still requires merged, clean `main` exactly matching `origin/main`.
 

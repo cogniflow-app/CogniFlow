@@ -243,10 +243,14 @@ begin
     raise exception 'the storage schema contains an unreviewed policy';
   end if;
 
-  if pg_catalog.has_function_privilege(
-    'authenticated',
-    'private.can_write_content_media_object(uuid,text,text)',
-    'execute'
+  if exists(
+    select 1
+    from pg_catalog.pg_proc as procedure
+    join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'private'
+      and procedure.proname = 'can_write_content_media_object'
+      and pg_catalog.oidvectortypes(procedure.proargtypes) = 'uuid, text, text'
+      and pg_catalog.has_function_privilege('authenticated', procedure.oid, 'execute')
   ) then
     raise exception 'browser credentials can write content Storage directly';
   end if;
