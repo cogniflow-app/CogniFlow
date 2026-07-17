@@ -55,6 +55,12 @@ test("desktop and mobile authors can create, publish, preview, and clean up a ty
     "Desktop and mobile authoring run here; reduced motion is covered by the appearance suite.",
   );
   test.setTimeout(90_000);
+  const clientRenderedScriptWarnings: string[] = [];
+  page.on("console", (message) => {
+    if (message.text().includes("Encountered a script tag while rendering React component")) {
+      clientRenderedScriptWarnings.push(message.text());
+    }
+  });
   await createAdultAccount(page, testInfo.project.name);
 
   await expect(
@@ -198,4 +204,5 @@ test("desktop and mobile authors can create, publish, preview, and clean up a ty
   expect((await deleteResponse).ok()).toBe(true);
   await expect(page).toHaveURL(/\/app$/u);
   await expect(page.getByText("Cell energy recall")).toHaveCount(0);
+  expect(clientRenderedScriptWarnings).toEqual([]);
 });

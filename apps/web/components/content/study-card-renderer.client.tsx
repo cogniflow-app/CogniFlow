@@ -501,13 +501,21 @@ function ImageRegionSurface({
 }
 
 function CustomTemplateSurface({
+  media,
   renderer,
   revealed,
 }: {
+  readonly media: ReadonlyMap<string, RendererMediaSource>;
   readonly renderer: Extract<StudyRendererContract, { kind: "custom" }>;
   readonly revealed: boolean;
 }) {
   const scope = `preview-${renderer.semanticKey.replace(/[^A-Za-z0-9_-]/gu, "-")}`;
+  const templateMedia = Object.fromEntries(
+    [...media].map(([id, source]) => [
+      id,
+      { kind: source.kind, signedUrl: source.signedUrl } as const,
+    ]),
+  );
   let rendered:
     | {
         readonly html: string;
@@ -517,11 +525,13 @@ function CustomTemplateSurface({
   try {
     const front = renderTemplate(parseTemplate(renderer.template.frontTemplate), {
       fields: renderer.fields,
+      media: templateMedia,
     });
     const selected = revealed
       ? renderTemplate(parseTemplate(renderer.template.backTemplate), {
           fields: renderer.fields,
           front,
+          media: templateMedia,
         })
       : front;
     const style = renderer.template.stylingCss
@@ -765,20 +775,27 @@ function PronunciationSurface({
   readonly revealed: boolean;
 }) {
   const ttsAvailable = useBrowserTtsAvailable();
-  const [recording, setRecording] = useState(false);
+  const [recordingState, setRecordingState] = useState<
+    "idle" | "recording" | "requesting" | "stopping"
+  >("idle");
   const [localUrl, setLocalUrl] = useState<string | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
-  const chunks = useRef<Blob[]>([]);
   const localUrlRef = useRef<string | null>(null);
   const mounted = useRef(true);
-  const starting = useRef(false);
+  const recordingAttempt = useRef(0);
+  const permissionPending = useRef(false);
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      recordingAttempt.current += 1;
+      permissionPending.current = false;
       const activeRecorder = recorder.current;
+      const activeStream = stream.current;
+      recorder.current = null;
+      stream.current = null;
       if (activeRecorder && activeRecorder.state !== "inactive") {
         try {
           activeRecorder.stop();
@@ -786,7 +803,7 @@ function PronunciationSurface({
           // The stream tracks below are still stopped if the recorder changed state first.
         }
       }
-      stream.current?.getTracks().forEach((track) => track.stop());
+      activeStream?.getTracks().forEach((track) => track.stop());
       if (localUrlRef.current) URL.revokeObjectURL(localUrlRef.current);
     };
   }, []);
@@ -795,52 +812,82 @@ function PronunciationSurface({
     speakLocally(renderer.text, renderer.language);
   }
   async function toggleRecording() {
-    if (recording) {
-      recorder.current?.stop();
-      setRecording(false);
+    if (recordingState === "requesting") {
+      recordingAttempt.current += 1;
+      permissionPending.current = false;
+      setRecordingState("idle");
+      setRecordingError("Microphone request canceled. No recording was saved.");
       return;
     }
+    if (recordingState === "recording") {
+      const activeRecorder = recorder.current;
+      if (!activeRecorder || activeRecorder.state === "inactive") return;
+      setRecordingState("stopping");
+      try {
+        activeRecorder.stop();
+      } catch {
+        if (recorder.current === activeRecorder) recorder.current = null;
+        const activeStream = stream.current;
+        stream.current = null;
+        activeStream?.getTracks().forEach((track) => track.stop());
+        setRecordingState("idle");
+        setRecordingError("The local recording could not be finalized.");
+      }
+      return;
+    }
+    if (recordingState === "stopping") return;
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setRecordingError("Local microphone recording is unavailable in this browser.");
       return;
     }
-    if (starting.current) return;
-    starting.current = true;
+    if (permissionPending.current || recorder.current || stream.current) return;
+    const attempt = recordingAttempt.current + 1;
+    recordingAttempt.current = attempt;
+    permissionPending.current = true;
+    setRecordingState("requesting");
     setRecordingError(null);
+    let acquiredStream: MediaStream | null = null;
     try {
-      const nextStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!mounted.current) {
-        nextStream.getTracks().forEach((track) => track.stop());
+      acquiredStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mounted.current || recordingAttempt.current !== attempt) {
+        acquiredStream.getTracks().forEach((track) => track.stop());
         return;
       }
-      stream.current = nextStream;
-      chunks.current = [];
+      const nextStream = acquiredStream;
+      const nextChunks: Blob[] = [];
       const next = new MediaRecorder(nextStream);
+      stream.current = nextStream;
       next.ondataavailable = (event) => {
-        if (event.data.size) chunks.current.push(event.data);
+        if (event.data.size) nextChunks.push(event.data);
       };
       next.onstop = () => {
         nextStream.getTracks().forEach((track) => track.stop());
-        stream.current = null;
+        if (stream.current === nextStream) stream.current = null;
+        if (recorder.current !== next) return;
+        recorder.current = null;
         if (!mounted.current) return;
         if (localUrlRef.current) URL.revokeObjectURL(localUrlRef.current);
-        const url = URL.createObjectURL(new Blob(chunks.current, { type: next.mimeType }));
+        const url = URL.createObjectURL(
+          new Blob(nextChunks, { type: next.mimeType || "audio/webm" }),
+        );
         localUrlRef.current = url;
         setLocalUrl(url);
-        setRecording(false);
+        setRecordingState("idle");
       };
       recorder.current = next;
+      permissionPending.current = false;
       next.start();
-      setRecording(true);
+      setRecordingState("recording");
     } catch {
-      stream.current?.getTracks().forEach((track) => track.stop());
+      acquiredStream?.getTracks().forEach((track) => track.stop());
+      if (!mounted.current || recordingAttempt.current !== attempt) return;
+      recorder.current = null;
       stream.current = null;
+      permissionPending.current = false;
       if (mounted.current) {
-        setRecording(false);
+        setRecordingState("idle");
         setRecordingError("Microphone access was not granted. You can still self-review by voice.");
       }
-    } finally {
-      starting.current = false;
     }
   }
   const reference = renderer.referenceAssetId ? media.get(renderer.referenceAssetId) : undefined;
@@ -856,8 +903,18 @@ function PronunciationSurface({
           {!ttsAvailable && <small>Local voice playback is unavailable in this browser.</small>}
         </>
       )}
-      <Button onClick={() => void toggleRecording()} variant={recording ? "danger" : "secondary"}>
-        {recording ? "Stop local recording" : "Record locally"}
+      <Button
+        disabled={recordingState === "stopping"}
+        onClick={() => void toggleRecording()}
+        variant={recordingState === "recording" ? "danger" : "secondary"}
+      >
+        {recordingState === "recording"
+          ? "Stop local recording"
+          : recordingState === "requesting"
+            ? "Cancel microphone request"
+            : recordingState === "stopping"
+              ? "Finishing local recording…"
+              : "Record locally"}
       </Button>
       {localUrl && (
         <audio aria-label="Your local pronunciation recording" controls src={localUrl} />
@@ -930,7 +987,7 @@ export function StudyCardRenderer({
         <RichDocumentView document={revealed ? renderer.answer : renderer.prompt} media={media} />
       );
     case "custom":
-      return <CustomTemplateSurface renderer={renderer} revealed={revealed} />;
+      return <CustomTemplateSurface media={media} renderer={renderer} revealed={revealed} />;
     case "typed_answer":
       return (
         <>
@@ -1032,9 +1089,11 @@ export function StudyCardRenderer({
           alt={renderer.imageAlt}
           assetId={renderer.imageAssetId}
           label={
-            revealed || renderer.direction === "label_to_region"
-              ? renderer.hotspot.label
-              : "Highlighted hotspot"
+            revealed
+              ? `${renderer.hotspot.label} — ${renderer.hotspot.altText}`
+              : renderer.direction === "label_to_region"
+                ? renderer.hotspot.label
+                : renderer.hotspot.altText
           }
           media={media}
           shapes={

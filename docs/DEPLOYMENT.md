@@ -21,7 +21,9 @@ the exact command/result is recorded.
 - `pnpm build` is the canonical Next.js production build.
 - `pnpm build:portable` produces/validates the OpenNext Cloudflare artifact.
 - Domain packages contain no Vercel or Cloudflare APIs.
-- `/api/health` returns only status, public build version, runtime/profile classification, and safe capability state—never environment values or credentials.
+- `/api/health` returns only status, public build version, runtime/profile classification, safe
+  capability state, the sanitized Vercel environment, and the project reference derived from the
+  already-public Supabase URL—never credentials or private environment values.
 - Preview/developer surfaces are marked `noindex`; production indexing is enabled only for intentionally public pages.
 - Every production configuration requires HTTPS `NEXT_PUBLIC_APP_URL` and `NEXT_PUBLIC_SUPABASE_URL`; production-classified cookie clients always emit `Secure` cookies.
 - Every production authenticated learner context is self-profile-only; ephemeral game guests remain a separate pseudonymous boundary. Managed child profiles remain a local/test capability until an independent opaque backend-for-frontend identity replaces the guardian bearer credential on child-facing surfaces.
@@ -105,7 +107,8 @@ Do not place a secret key in Vercel variables whose name begins `NEXT_PUBLIC_`. 
 
 ### Phase 02 content and Storage checks
 
-Phase 02 adds no Vercel variable, provider credential, or dashboard-created bucket. The database
+Phase 02 adds no Vercel web variable, provider credential, or dashboard-created bucket. Its two
+optional media-worker bounds belong only in a separately deployed worker environment. The database
 migration owns `lumen-content-media`; a hosted schema or bucket created manually is drift and must
 not be accepted. After Preview promotion verify:
 
@@ -122,18 +125,22 @@ not be accepted. After Preview promotion verify:
   version restore creates a new head;
 - concurrent idempotent retries serialize, replay rechecks current permission, and a revoked editor
   cannot replay an old receipt;
-- only pending registered objects can be replaced/deleted by browser credentials; ready objects are
-  immutable, and explicit plus cover/audio/pronunciation/drawing usages reconcile the delayed
-  deletion count;
+- custom definitions commit copy-on-write with their note/media graph, deck settings commit with
+  publish/unpublish, and the previous split note/media wrapper has no browser grant;
+- browser credentials cannot mutate Storage objects; only the authenticated server upload route can
+  write the exact reserved pending path, ready objects are immutable, and explicit plus
+  cover/audio/pronunciation/drawing usages reconcile the delayed deletion count;
+- the private media-deletion job table has no browser/service table grant and only the service role
+  can execute bounded claim/complete leases;
 - safe public cards render without executing template/rich-content script or network capability;
   and
 - `/app` is the Auth fallback, unsafe Auth lifecycle returns fall back to it, and explicit account
   appearance survives protected navigation without leaking across sign-out/profile change.
 
 Physical deletion of an unreferenced media object is not automatic merely because the row has a
-`delete_after` timestamp. Do not market or operationally rely on seven-day byte removal until an
-owner worker is deployed, authenticated, idempotent, monitored, and restoration/incident handling
-is documented.
+`delete_after` timestamp. The repository implements `pnpm worker:media-deletions`, but do not market
+or operationally rely on seven-day byte removal until an owner deploys, authenticates, schedules,
+monitors, and exercises it and documents restoration/incident handling.
 
 The age gate depends on signed HttpOnly state surviving the provider/email round trip. Keep `APP_ENCRYPTION_KEY` stable across instances and the rollout window, preserve the exact allowlisted `/auth/callback` URL, and test password plus every visible OAuth signup as a new identity. Final onboarding exchanges the signed account-bound gate for a separate short-lived, Auth-session/payload-bound database proof before activation. A recent new identity without matching signed eligible signup state is signed out, rejected through the provisional-account minimization boundary, and denied; do not weaken that behavior to accommodate a misconfigured callback.
 
@@ -216,24 +223,32 @@ the following ordered migrations after `20260715006900_hosted_grant_parity.sql`:
 20260716005000_content_security_audit_hardening.sql
 20260716006000_content_note_create_identity.sql
 20260716007000_content_conflict_sqlstate.sql
+20260716008000_content_atomic_authoring_and_media_deletion.sql
+20260716009000_content_receipt_payload_binding.sql
+20260716010000_content_version_media_graph.sql
 ```
 
 The first defines folders/decks/notes/templates/generated cards/media/versions/publication rows and
 enables RLS. The second adds actor-derived mutation RPCs, read policies, version/idempotency
-enforcement, frozen publication, and the private `lumen-content-media` bucket/policies. The six
+enforcement, frozen publication, and the private `lumen-content-media` bucket/policies. The nine
 forward hardening migrations compose note/media changes atomically, prevent public projections
 from carrying Storage locators/internal card or media IDs, stabilize PostgREST lifecycle arguments,
 permit guarded reads to take their authorization locks, reject nullable concurrency state, make
-receipt replay authorization-aware, restrict Storage mutation to pending objects, and account for
-embedded media usage. They also give an ID-less new note the stable identity of its idempotency UUID
+receipt replay authorization-aware, account for embedded media usage, and finally remove direct
+browser Storage mutation in favor of the validated server upload route. They also give an ID-less
+new note the stable identity of its idempotency UUID
 and classify a typed stale-version outcome as user exception `P0001` rather than serialization
 failure `40001`. The service secret remains limited to the pre-existing bounded adapters plus media
-finalization and public signed-URL location after the Route Handler verifies the applicable
-contract. It must not be substituted for the browser publishable key, used for ordinary content
-reads/writes, or granted broad table access.
+finalization, public signed-URL location after the Route Handler verifies the applicable contract,
+and the bounded media-deletion claim/complete worker protocol. The final three migrations make a
+copy-on-write custom definition part of the note/media transaction, combine deck settings with
+publish/unpublish, bind every replay receipt to its canonical command, and make the exact media
+reference graph part of immutable version capture, restore, duplication, and frozen-publication
+privacy. The service secret must not be substituted for the browser publishable key, used for
+ordinary content reads/writes, or granted broad table access.
 
-The Phase 02 application must not be accepted against a database that lacks the complete six-file
-chain. The
+The Phase 02 application must not be accepted against a database that lacks the complete
+eleven-file chain. The
 feature branch can promote them to Preview only after they are committed and locally verified.
 Beta promotion still requires merged, clean `main` exactly matching `origin/main`.
 
@@ -259,8 +274,15 @@ pnpm test:hosted:preview:content --url https://<exact-preview-host>.vercel.app
 pnpm db:verify:preview
 ```
 
-The first suite is non-mutating. The second is a guarded Preview-only disposable account/deck flow
-whose wrapper captures the Preview server key in memory, disables trace/video, and always runs the
+Both hosted runners authenticate the exact deployment URL/alias against the linked Vercel
+project/team before sending an optional long-lived bypass. They exchange it for a validated
+exact-host Vercel cookie, remove both long-lived Vercel credentials from Playwright, then preflight
+`/api/health` and require the selected environment plus exact public Preview/Beta Supabase project
+reference before application assertions or mutations. The
+first suite is non-mutating. The second is a guarded Preview-only disposable account/deck flow
+whose wrapper first rejects Production aliases and verifies the Preview runtime plus exact public
+Preview Supabase project reference through `/api/health`, then captures the Preview server key in
+memory, disables trace/video, and always runs the
 account-deletion/provisional-rejection cleanup plus recursive empty-object assertion. It must not be
 run against Beta or Production, invoked as raw Playwright, or configured through `.env.local`.
 
@@ -305,9 +327,9 @@ Phase 01/02 supply durable rows and restricted RPC boundaries, not a deployed sc
 - invoking the implemented service-only `admin_process_account_deletion()` transaction for queued jobs after the grace period, using stable completion idempotency keys and a reviewed data-deletion/retention matrix;
 - purging expired/revoked guest sessions and expired rate-limit buckets through the service-only purge boundary;
 - retaining/removing append-only audit evidence according to the reviewed policy without erasing required consent/security records;
-- deleting unreferenced Phase 02 media objects only after `delete_after`, reconciling the database
-  terminal state with Storage, retrying idempotently, and alerting without logging signed URLs or
-  content bytes;
+- scheduling and monitoring the implemented one-batch Phase 02 media worker after `delete_after`,
+  including lease recovery, database/Storage terminal-state reconciliation, idempotent retry, and
+  alerts that do not log signed URLs or content bytes;
 - alerting on repeatedly failing or stuck privacy jobs without logging private payloads or tokens.
 
 The deletion transaction removes the Supabase Auth principal and provider/session material, deletes

@@ -66,7 +66,7 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
   }
 
   return (
-    <div className="public-preview" data-theme="neutral">
+    <div className="public-preview" data-deck-theme={deck.theme}>
       <div className="public-preview__progress" aria-live="polite">
         <span>
           {deck.cards.length ? `${String(index + 1)} of ${String(deck.cards.length)}` : "No cards"}

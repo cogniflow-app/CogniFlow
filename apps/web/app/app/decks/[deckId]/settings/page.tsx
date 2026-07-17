@@ -19,5 +19,5 @@ export default async function DeckSettingsPage({
   if (!deck) notFound();
   if (deck.status !== "active" || !["owner", "manager"].includes(deck.role))
     redirect(`/app/decks/${deckId}` as Route);
-  return <DeckSettingsEditor deck={deck} />;
+  return <DeckSettingsEditor key={`${deck.id}:${String(deck.version)}`} deck={deck} />;
 }

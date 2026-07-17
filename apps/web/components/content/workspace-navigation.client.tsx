@@ -11,7 +11,6 @@ interface WorkspaceNavigationItem {
 
 const primaryItems: readonly WorkspaceNavigationItem[] = [
   { exact: true, href: "/app", label: "Library", symbol: "⌂" },
-  { href: "/app/library", label: "All decks", symbol: "▤" },
 ] as const;
 
 const accountItems: readonly WorkspaceNavigationItem[] = [

@@ -93,6 +93,11 @@ select ok(
   )
   and pg_catalog.has_function_privilege(
     'authenticated',
+    'public.current_upsert_note_definition_with_media(uuid,uuid,text,bigint,jsonb,jsonb,text[],jsonb,uuid,jsonb)',
+    'execute'
+  )
+  and not pg_catalog.has_function_privilege(
+    'authenticated',
     'public.current_upsert_note_with_media(uuid,uuid,text,bigint,jsonb,jsonb,text[],jsonb,uuid)',
     'execute'
   ),
@@ -115,13 +120,21 @@ select ok(
   'receipt lookup takes a transaction-scoped account/key advisory lock'
 );
 select ok(
-  (
-    select p.provolatile = 'v'
-      and pg_catalog.pg_get_functiondef(p.oid) like '%for share%'
-    from pg_catalog.pg_proc as p
-    where p.oid = 'private.can_write_content_media_object(uuid,text,text)'::regprocedure
+  not pg_catalog.has_function_privilege(
+    'authenticated',
+    'private.can_write_content_media_object(uuid,text,text)',
+    'execute'
+  )
+  and not exists(
+    select 1
+    from pg_catalog.pg_policies as policy
+    where policy.schemaname = 'storage'
+      and policy.tablename = 'objects'
+      and policy.policyname in (
+        'content_media_insert', 'content_media_update', 'content_media_delete'
+      )
   ),
-  'pending storage authorization locks the media row against finalization races'
+  'pending media bytes can be written only by the validated server route'
 );
 
 set local role authenticated;
@@ -145,7 +158,7 @@ from public.current_create_deck(
 
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from security_audit_ids where name = 'deck'),
       '26000000-0000-4000-8000-000000000001',
       'basic', 0,
@@ -162,7 +175,7 @@ select lives_ok(
 );
 
 select is(
-  public.current_upsert_note_with_media(
+  public.current_upsert_note_definition_with_media(
     (select id from security_audit_ids where name = 'deck'),
     null,
     'basic', 0,
@@ -245,7 +258,7 @@ select throws_ok(
   'deck deletion rejects a NULL optimistic version'
 );
 select throws_ok(
-  $$select public.current_upsert_note_with_media(
+  $$select public.current_upsert_note_definition_with_media(
     (select id from security_audit_ids where name = 'deck'), null,
     'basic', null, '{}'::jsonb, '{}'::jsonb, '{}'::text[], '[]'::jsonb,
     '25000000-0000-4000-8000-000000000019'
@@ -396,19 +409,6 @@ from public.current_register_media_asset(
   'Cover image', '25000000-0000-4000-8000-000000000032'
 ) as asset;
 
-reset role;
-select is(
-  (
-    select private.can_write_content_media_object(
-      auth.uid(), asset.storage_bucket, asset.storage_path
-    )
-    from public.media_assets as asset
-    where asset.id = (select id from security_audit_ids where name = 'cover_asset')
-  ),
-  true,
-  'an authenticated owner may write the matching object while it is pending'
-);
-
 set local role service_role;
 select lives_ok(
   $$select public.admin_finalize_media_asset(
@@ -418,22 +418,6 @@ select lives_ok(
     '25000000-0000-4000-8000-000000000033'
   )$$,
   'trusted finalization verifies the cover asset'
-);
-
-reset role;
-set local role authenticated;
-set local "request.jwt.claims" = '{"sub":"21000000-0000-4000-8000-000000000001","role":"authenticated","session_id":"22000000-0000-4000-8000-000000000001"}';
-reset role;
-select is(
-  (
-    select private.can_write_content_media_object(
-      auth.uid(), asset.storage_bucket, asset.storage_path
-    )
-    from public.media_assets as asset
-    where asset.id = (select id from security_audit_ids where name = 'cover_asset')
-  ),
-  false,
-  'a verified ready object cannot be replaced or deleted by browser credentials'
 );
 
 set local role authenticated;

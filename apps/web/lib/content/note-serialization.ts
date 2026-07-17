@@ -1,12 +1,22 @@
 import {
   emptyRichDocument,
   extractRichDocumentText,
+  isCustomFieldList,
+  isCustomFieldMedia,
+  parseTemplate,
   type CardAuthoringData,
+  type CustomFieldValue,
   type RichDocument,
 } from "@lumen/domain";
 
+interface SerializedListField {
+  readonly items: readonly string[];
+  readonly kind: "list";
+}
+
 interface SerializedField {
-  readonly doc: RichDocument;
+  readonly doc:
+    RichDocument | SerializedListField | Extract<CustomFieldValue, { readonly kind: "media" }>;
   readonly normalizedText: string;
   readonly plainText: string;
 }
@@ -54,6 +64,32 @@ function field(value: RichDocument | boolean | number | string | undefined): Ser
   });
 }
 
+function customField(value: CustomFieldValue): SerializedField {
+  if (isCustomFieldList(value)) {
+    const items = Object.freeze([...value]);
+    const plainText = items.join(" ").normalize("NFKC").replace(/\s+/gu, " ").trim();
+    return Object.freeze({
+      doc: Object.freeze({ items, kind: "list" }),
+      normalizedText: plainText.toLocaleLowerCase(),
+      plainText,
+    });
+  }
+  if (isCustomFieldMedia(value)) {
+    const plainText = value.alt.normalize("NFKC").replace(/\s+/gu, " ").trim();
+    return Object.freeze({
+      doc: value,
+      normalizedText: plainText.toLocaleLowerCase(),
+      plainText,
+    });
+  }
+  return field(value);
+}
+
+function customFieldType(value: CustomFieldValue): "list" | "media" | "rich_text" {
+  if (isCustomFieldList(value)) return "list";
+  return isCustomFieldMedia(value) ? "media" : "rich_text";
+}
+
 function firstFeedback(
   data: Extract<CardAuthoringData, { kind: "multiple_choice" | "select_all" }>,
 ): RichDocument {
@@ -85,7 +121,7 @@ export function serializeNote(
     case "custom":
       noteTypeCode = noteTypeCodeOverride ?? "custom_multi_field";
       fields = Object.fromEntries(
-        Object.entries(authoringData.fields).map(([key, value]) => [key, field(value)]),
+        Object.entries(authoringData.fields).map(([key, value]) => [key, customField(value)]),
       );
       break;
     case "typed_answer":
@@ -166,24 +202,52 @@ export function serializeNote(
 }
 
 export function customNoteTypeDefinition(data: Extract<CardAuthoringData, { kind: "custom" }>) {
+  const availableFields = new Set(Object.keys(data.fields));
+  const fieldKeys: string[] = [];
+  const appendField = (key: string) => {
+    if (availableFields.has(key) && !fieldKeys.includes(key)) fieldKeys.push(key);
+  };
+  for (const template of data.templates) {
+    for (const key of parseTemplate(template.frontTemplate).referencedFields) appendField(key);
+    for (const key of parseTemplate(template.backTemplate).referencedFields) appendField(key);
+    if (template.generationCondition) appendField(template.generationCondition.field);
+  }
+  for (const key of [...availableFields].sort((left, right) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  )) {
+    appendField(key);
+  }
+
   return Object.freeze({
     description: "User-authored safe multi-field card type.",
     displayName: "Custom multi-field",
     fields: Object.freeze(
-      Object.keys(data.fields).map((fieldKey, position) =>
-        Object.freeze({
+      fieldKeys.map((fieldKey, position) => {
+        const fieldValue = data.fields[fieldKey];
+        if (!fieldValue) throw new Error(`Custom field ${fieldKey} is missing.`);
+        return Object.freeze({
           fieldKey,
-          fieldType: "rich_text",
+          fieldType: customFieldType(fieldValue),
           label: fieldKey,
           position,
-          required: position < 2,
-        }),
-      ),
+          required: false,
+        });
+      }),
     ),
     templates: Object.freeze(
-      data.templates.map((template, ordinal) =>
-        Object.freeze({
-          answerFieldKey: Object.keys(data.fields)[1] ?? Object.keys(data.fields)[0],
+      data.templates.map((template, ordinal) => {
+        const frontFields = new Set(parseTemplate(template.frontTemplate).referencedFields);
+        const backFields = parseTemplate(template.backTemplate).referencedFields.filter((key) =>
+          availableFields.has(key),
+        );
+        const answerFieldKey =
+          backFields.find((key) => !frontFields.has(key)) ??
+          backFields[0] ??
+          fieldKeys[1] ??
+          fieldKeys[0];
+        if (!answerFieldKey) throw new Error("A custom template requires at least one field.");
+        return Object.freeze({
+          answerFieldKey,
           backTemplate: template.backTemplate,
           frontTemplate: template.frontTemplate,
           ...(template.generationCondition
@@ -194,8 +258,8 @@ export function customNoteTypeDefinition(data: Extract<CardAuthoringData, { kind
           schemaVersion: 1,
           stylingCss: template.stylingCss,
           templateKey: template.semanticKey,
-        }),
-      ),
+        });
+      }),
     ),
   });
 }

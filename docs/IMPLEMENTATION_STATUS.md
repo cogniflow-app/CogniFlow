@@ -1,22 +1,24 @@
 # Implementation status
 
 **Current phase:** Phase 02 — content model, editor, media, and card types  
-**Status:** Implementation and local acceptance complete; Preview verification is pending  
-**Evidence date:** 2026-07-16 UTC  
+**Status:** Complete local acceptance; Phase 02 Preview promotion and hosted acceptance are pending  
+**Evidence date:** 2026-07-17 UTC  
 **Next phase:** Phase 03 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
 
-## Phase 02 implementation and local acceptance complete
+## Phase 02 implementation accepted locally; Preview verification pending
 
 The active branch is `codex/phase-02-content-editor-card-types`, created from the freshly fetched
-`origin/main`. The sections below this one retain the completed Phase 01 and hosted-baseline
-evidence; they do not represent current Phase 02 verification. Phase 02 must not be marked complete
-until every required local command passes, the final diff is reviewed, committed migrations are
-promoted only to Preview, and the guarded Preview application/database smoke succeeds. No Beta or
-Production promotion and no merge is part of this phase-branch record.
+`origin/main`. The complete post-audit tree passes the required local acceptance gate through
+migration `10000`, including the aggregate verifier, production builds, database tests, browser
+acceptance, accessibility, Lighthouse, and load checks. The sections below this one retain the
+completed Phase 01 and hosted-baseline evidence; they do not represent current Phase 02 hosted
+verification. Phase 02 remains open only for committed migration promotion to Preview, the linked
+Vercel Preview deployment, and guarded hosted acceptance. No Beta or Production promotion and no
+merge is part of this phase-branch record.
 
-### Locally accepted branch scope awaiting hosted verification
+### Implemented and locally accepted branch scope
 
 - Added framework-independent runtime schemas and authoring/study contracts for all 17 required
   card kinds: basic, basic reversed, optional reversed, bidirectional, custom multi-field, typed
@@ -31,7 +33,9 @@ Production promotion and no merge is part of this phase-branch record.
 - Added a bounded AST template DSL with escaped fields, front-side inclusion, conditionals, list
   iteration, approved helpers, safe static markup, and scoped allowlisted CSS. Arbitrary JavaScript,
   raw interpolation, event handlers, untrusted iframes/network URLs, prototype traversal, and
-  global CSS escape are rejected.
+  global CSS escape are rejected. Frozen custom publications match only exact DSL field-reference
+  positions, so an unused field named after a helper or block keyword cannot enter the public
+  projection.
 - Added normalized rectangle/ellipse/polygon geometry, image occlusion and diagram hotspot editor
   contracts, keyboard region lists/numeric controls, labels/aliases/alt text, grouped generation,
   pointer/touch drawing with undo/redo/clear, and required nonvisual typed fallbacks.
@@ -45,21 +49,42 @@ Production promotion and no merge is part of this phase-branch record.
   user-exception SQLSTATE rather than a serialization failure, preventing infrastructure retry
   loops while preserving actionable expected/actual detail. Receipt lookup serializes concurrent
   account/key retries and rechecks current resource permission before replay, while the browser has
-  only the atomic note/media mutation surface.
+  only the definition-aware atomic note/media mutation surface.
+- Closed the custom-schema transaction gap with a definition-aware note command. A custom
+  field/template definition is validated against the authoring payload, reused by canonical hash
+  when unchanged, or copied on write when edited; it commits or rolls back with the complete
+  note/card/source/tag/media/revision/version graph. The older composed note/media wrapper is no
+  longer browser-callable.
+- Made the exact explicit media-reference graph part of schema-two immutable deck versions. Restore
+  recreates that graph atomically (with a deterministic, payload-proven reconstruction for legacy
+  schema-one snapshots), rejects cross-deck note identity collisions without changing either deck,
+  and preserves exact reference counts/deletion fences. The direct RPC independently validates
+  embedded-media kind and graph shape, source owners alone may duplicate media-bearing decks, and
+  frozen card/deck projections either replace every attached internal media ID with a public ID or
+  fail closed and withdraw an inconsistent legacy publication.
+- Added a canonical-payload client mutation ledger for deck, folder, note, bulk, settings, and
+  duplicate commands. Exact network/retryable retries retain one UUID; success, a definitive
+  rejection, or payload change rotates it. Typed API errors preserve current-version conflict
+  detail and recovery controls reload actual server state.
 - Added a private migration-owned `lumen-content-media` bucket, server/client SHA-256 checks,
   magic-byte and declared/detected MIME verification, image dimensions, per-asset/account quotas,
   content-addressed owner deduplication, owner-UUID-free opaque object paths, signed previews,
-  pending-only browser object mutation, and delayed deletion driven by explicit plus
+  server-route-only object mutation, and delayed deletion driven by explicit plus
   cover/audio/pronunciation/drawing usage. Extended the due account-deletion boundary to withdraw
   publications, redact/minimize authoring data and history, clear receipts, and make owned media
-  immediately eligible for cleanup. Physical Storage cleanup still requires an operated worker.
+  immediately eligible for cleanup. Added a portable one-batch worker plus service-only bounded
+  claim/complete leases, exact Storage removal, retry on every reported provider error, durable
+  backoff, and locator tombstoning. No recurring worker schedule is deployed by this branch.
 - Replaced the old authenticated welcome with the query-backed `/app` folder/deck library;
   `/app/library` is an intentional redirect. Added creation, search/filter/grid/list, deck overview,
-  rich note editor, quick/bulk entry, note/card browser, settings/lifecycle, version history/restore,
-  generated sibling preview, conflict recovery, and truthful empty/loading/error states.
+  rich note editor, quick/bulk entry, note/card browser, settings/lifecycle, version history/restore
+  with readable side-by-side card-type/prompt/answer/source/tag differences, generated sibling
+  preview, conflict recovery, and truthful empty/loading/error states. Settings plus
+  publish/unpublish now use one atomic transaction.
 - Added frozen public/unlisted deck projection pages at `/deck/[slug]` and
-  `/embed/deck/[publicId]`, keyboard card preview with no persistent progress, creator attribution,
-  license/card-type summary, safe return-aware sign-in, and unlisted `noindex` metadata.
+  `/embed/deck/[publicId]`, keyboard card preview with no persistent progress, frozen theme
+  variants, creator attribution, license/card-type summary, safe return-aware sign-in, and unlisted
+  `noindex` metadata.
 - Changed Auth/onboarding fallback to `/app`, retained validated public/protected returns, and
   rejects Auth/API/onboarding lifecycle loops plus encoded/open-redirect hazards.
 - Fixed explicit account appearance persistence. A fresh pending/confirmed complete-tuple write
@@ -74,54 +99,61 @@ schema mapping is [DATA_MODEL.md](./DATA_MODEL.md), and security boundaries are 
 
 ### Phase 02 migrations
 
-| Migration                                             | Purpose                                                                                                                                                                                                                | Verification state   |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| `20260716000000_content_schema.sql`                   | Content/media/publication enums, tables, constraints, indexes, 17 system note types/templates, RLS enablement, and default-deny grants                                                                                 | Reset and pgTAP pass |
-| `20260716001000_content_authorization_and_rpcs.sql`   | Folder/tag cycle guards, content permissions/RLS, version/idempotency mutations, revisions/generation/restore, private media bucket/policies, frozen publication/public RPCs, and due-account-deletion content cleanup | Reset and pgTAP pass |
-| `20260716002000_content_integration_hardening.sql`    | Atomic note/media graph, bulk operations, real library counts, actor-scoped media reads, derived public card/media IDs, field filtering, and service-only Storage locations                                            | Reset and pgTAP pass |
-| `20260716003000_content_rpc_parameter_names.sql`      | Named PostgREST parameters for archive, restore, and delete lifecycle RPCs                                                                                                                                             | Reset and pgTAP pass |
-| `20260716004000_content_guarded_read_volatility.sql`  | Writable transaction classification for guarded read RPCs whose shared session proof takes a row lock                                                                                                                  | Reset and pgTAP pass |
-| `20260716005000_content_security_audit_hardening.sql` | Serialized/reauthorized replay, strict expected versions, atomic-only browser note/media writes, pending-only Storage mutation, embedded-media counts, and orphan cleanup                                              | Reset and pgTAP pass |
-| `20260716006000_content_note_create_identity.sql`     | Stable new-note identity derived from the required idempotency key before the underlying upsert implementation                                                                                                         | Reset and pgTAP pass |
-| `20260716007000_content_conflict_sqlstate.sql`        | Typed optimistic conflicts raised as non-serialization user exceptions so stale commands fail promptly without automatic transaction retry                                                                             | Reset and pgTAP pass |
+| Migration                                                        | Purpose                                                                                                                                                                                                                                                                                                                     | Verification state   |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `20260716000000_content_schema.sql`                              | Content/media/publication enums, tables, constraints, indexes, 17 system note types/templates, RLS enablement, and default-deny grants                                                                                                                                                                                      | Reset and pgTAP pass |
+| `20260716001000_content_authorization_and_rpcs.sql`              | Folder/tag cycle guards, content permissions/RLS, version/idempotency mutations, revisions/generation/restore, private media bucket/policies, frozen publication/public RPCs, and due-account-deletion content cleanup                                                                                                      | Reset and pgTAP pass |
+| `20260716002000_content_integration_hardening.sql`               | Atomic note/media graph, bulk operations, real library counts, actor-scoped media reads, derived public card/media IDs, field filtering, and service-only Storage locations                                                                                                                                                 | Reset and pgTAP pass |
+| `20260716003000_content_rpc_parameter_names.sql`                 | Named PostgREST parameters for archive, restore, and delete lifecycle RPCs                                                                                                                                                                                                                                                  | Reset and pgTAP pass |
+| `20260716004000_content_guarded_read_volatility.sql`             | Writable transaction classification for guarded read RPCs whose shared session proof takes a row lock                                                                                                                                                                                                                       | Reset and pgTAP pass |
+| `20260716005000_content_security_audit_hardening.sql`            | Serialized/reauthorized replay, strict expected versions, atomic-only browser note/media writes, the historical pending-only Storage policy later superseded by `08000`, embedded-media counts, and orphan cleanup                                                                                                          | Reset and pgTAP pass |
+| `20260716006000_content_note_create_identity.sql`                | Stable new-note identity derived from the required idempotency key before the underlying upsert implementation                                                                                                                                                                                                              | Reset and pgTAP pass |
+| `20260716007000_content_conflict_sqlstate.sql`                   | Typed optimistic conflicts raised as non-serialization user exceptions so stale commands fail promptly without automatic transaction retry                                                                                                                                                                                  | Reset and pgTAP pass |
+| `20260716008000_content_atomic_authoring_and_media_deletion.sql` | Atomic custom-definition/note/media and settings/publication writes; exact safe-template publication field matching; server-route-only Storage mutation; durable physical-media jobs; 24-hour pending cleanup; irreversible old-asset job fencing; fresh-path same-hash re-upload; service-only claim/complete/abandon RPCs | Reset and pgTAP pass |
+| `20260716009000_content_receipt_payload_binding.sql`             | Exact canonical-command fingerprints for legacy browser content and media-registration receipts; transaction-local pending state; same-key changed-payload and pre-binding fail-closed replay                                                                                                                               | Reset and pgTAP pass |
+| `20260716010000_content_version_media_graph.sql`                 | Schema-two immutable version snapshots and exact media-graph restore; deterministic legacy reconstruction; direct-RPC media validation; owner-only media-safe duplication; internal-media-ID removal from frozen card and deck projections; exact same-command version finalization                                         | Reset and pgTAP pass |
 
 Earlier applied migrations remain unchanged. `supabase/seed.sql` still inserts no product user,
-deck, card, publication, or media object. Generated database types were regenerated from the final
-local schema and the committed result passed the deterministic drift check.
+deck, card, publication, or media object. Generated database types were regenerated from the
+complete local schema and the deterministic drift check passes.
 
-Phase 02 adds no application environment variable or new credential. Local setup requires only
-applying the full migration chain; the private content bucket and policies are migration-owned. The
-guarded hosted-content runner captures the existing Preview project server key in memory through an
-authenticated operator CLI and never writes it to application configuration. Hosted setup must use
-the guarded Preview database promotion after the migrations are committed and locally accepted;
-no dashboard-created bucket, Beta promotion, or Production environment change is authorized here.
+Phase 02 adds no new web-application credential. The media worker reuses the target Supabase URL
+and server-only secret and accepts optional `MEDIA_DELETION_BATCH_SIZE` and
+`MEDIA_DELETION_LEASE_SECONDS` bounds; the repository does not deploy its schedule. Local setup
+requires applying the full migration chain; the private content bucket and policies are
+migration-owned. The guarded hosted-content runner captures the existing Preview project server
+key in memory through an authenticated operator CLI and never writes it to application
+configuration. Hosted setup must use the guarded Preview database promotion after the migrations
+are committed and locally accepted; no dashboard-created bucket, Beta promotion, or Production
+environment change is authorized here.
 
 ### Phase 02 validation evidence
 
-Local evidence below is from the final aggregate run on 2026-07-16 UTC under pinned Node `24.18.0`,
-pnpm `11.13.0`, local Docker/Supabase, Chromium, and k6 `2.1.0`. Hosted rows remain pending until the
-committed migration tree and Vercel Preview are verified.
+Final local acceptance completed on 2026-07-17 UTC under pinned Node `24.18.0`, pnpm `11.13.0`,
+local Docker/Supabase, Chromium, and k6 `2.1.0`. The aggregate verifier exited successfully on the
+settled implementation tree. Preview promotion and hosted rows remain explicitly pending.
 
-| Command                                              | Current Phase 02 result                                             |
-| ---------------------------------------------------- | ------------------------------------------------------------------- |
-| `pnpm install --frozen-lockfile`                     | Exit 0; 8 workspace projects already current                        |
-| `pnpm format:check`                                  | Exit 0; every matched file uses Prettier style                      |
-| `pnpm secret:scan`                                   | Exit 0; no secretlint findings                                      |
-| `pnpm lint`                                          | Exit 0; ESLint has zero warnings and boundaries pass                |
-| `pnpm typecheck`                                     | Exit 0; 7/7 workspace packages pass strict TypeScript               |
-| `pnpm test`                                          | Exit 0; 70 files and 468 tests pass; 76.25% statement coverage      |
-| `pnpm db:reset`                                      | Exit 0 from the full empty committed migration chain                |
-| `pnpm test:db`                                       | Exit 0; 16 pgTAP files and 605 assertions pass                      |
-| `pnpm db:types` / `pnpm db:types:check`              | Exit 0; generated schema types are deterministic and current        |
-| `pnpm build` / `pnpm build:portable`                 | Exit 0; 59-page Next build and OpenNext worker bundle complete      |
-| `pnpm test:e2e`                                      | Exit 0; 24 pass, 15 intentional project skips                       |
-| `pnpm test:a11y`                                     | Exit 0; 27 axe, keyboard, motion, theme, and authoring checks pass  |
-| `pnpm test:lighthouse`                               | Exit 0; scores 98/100/96/100, LCP 2310.61 ms, CLS 0, TBT 3 ms       |
-| `pnpm test:load`                                     | Exit 0; 15/15 checks, 3/3 requests, 0% failures, p95 8.51 ms        |
-| `pnpm verify`                                        | Exit 0; complete aggregate reran every practical local release gate |
-| `pnpm db:deploy:preview` / `pnpm db:verify:preview`  | Not run; requires committed clean migrations after local acceptance |
-| Phase 02 Vercel Preview + `pnpm test:hosted:preview` | Not run; no Phase 02 hosted verification claimed                    |
-| `pnpm test:hosted:preview:content` + cleanup         | Not run; guarded disposable Preview acceptance remains pending      |
+| Command                                             | Final local result                                                                  |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`                    | Exit 0; 9 workspace projects already current                                        |
+| `pnpm format:check`                                 | Exit 0; every matched file uses Prettier style                                      |
+| `pnpm secret:scan`                                  | Exit 0; no secretlint findings                                                      |
+| `pnpm lint`                                         | Exit 0; ESLint has zero warnings and dependency boundaries pass                     |
+| `pnpm typecheck`                                    | Exit 0; 8/8 workspace projects pass strict TypeScript                               |
+| `pnpm test`                                         | Exit 0; 75 files and 570 tests pass                                                 |
+| Coverage                                            | 79.59% statements, 68.60% branches, 80.29% functions, and 83.30% lines              |
+| `pnpm db:reset`                                     | Exit 0; all 32 migrations and the product-data-empty seed apply from scratch        |
+| `pnpm test:db`                                      | Exit 0; 19 pgTAP files and 792 assertions pass                                      |
+| `pnpm db:types` / `pnpm db:types:check`             | Exit 0; generated schema types are deterministic and current                        |
+| Supabase lint                                       | Exit 0; no `public` or `private` schema warnings                                    |
+| `pnpm build` / `pnpm build:portable`                | Exit 0; 59 Next route/static-generation entries and OpenNext worker bundle complete |
+| `pnpm test:e2e`                                     | Exit 0; 24 pass and 15 intentional project skips                                    |
+| `pnpm test:a11y`                                    | Exit 0; 27 axe, keyboard, motion, theme, and authoring checks pass                  |
+| `pnpm test:lighthouse`                              | Exit 0; scores 98/100/96/100, LCP 2311.42 ms, CLS 0, and TBT 4 ms                   |
+| `pnpm test:load`                                    | Exit 0; 15/15 checks, 3/3 requests, 0 failures, and p95 3.85 ms                     |
+| `pnpm verify`                                       | Exit 0 on the complete post-audit tree                                              |
+| `pnpm db:deploy:preview` / `pnpm db:verify:preview` | Pending committed Preview-only promotion and final parity verification              |
+| Phase 02 Vercel Preview + hosted suites             | Pending linked deployment, guarded baseline/content acceptance, and cleanup proof   |
 
 ### Phase 02 known later owners
 
@@ -138,11 +170,12 @@ committed migration tree and Vercel Preview are verified.
 - **Sharing/discovery/collaboration:** Phase 07 owns passwords, specific-user/class permissions,
   forks, Yjs collaboration, discovery ranking, creator biographies, comments/ratings, and
   moderation. Phase 02 supports only private/public/unlisted authoring and frozen read-only preview.
-- **Media operations:** an owner-operated cleanup job must physically remove assets whose
-  `delete_after` has passed, including never-linked uploads, the transition to zero explicit or
-  cover/audio/pronunciation/drawing usages, and media made immediately eligible by account deletion.
-  Uploaded video remains disabled. Pronunciation and drawing remain explicit self-review with no
-  cloud speech upload or automatic drawing judgment.
+- **Media operations:** `pnpm worker:media-deletions` implements bounded physical removal for
+  elapsed, zero-use assets, including never-linked uploads, the transition to zero explicit or
+  cover/audio/pronunciation/drawing usages, and media made immediately eligible by account
+  deletion. The owner must still deploy, schedule, monitor, and alert this one-batch worker in each
+  hosted environment. Uploaded video remains disabled. Pronunciation and drawing remain explicit
+  self-review with no cloud speech upload or automatic drawing judgment.
 
 There is no Phase 03 implementation in this branch.
 

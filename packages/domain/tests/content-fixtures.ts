@@ -158,6 +158,7 @@ export const cardFixtures = {
         semanticKey: "nucleus",
         shape: rectangle,
         label: "Nucleus",
+        altText: "Large round structure near the center of the cell",
         aliases: ["cell nucleus"],
         promptDirection: "both",
       },

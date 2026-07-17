@@ -69,6 +69,56 @@ describe("deck authoring workspace", () => {
     expect(navigation.refresh).toHaveBeenCalledOnce();
   });
 
+  it("reuses a duplicate key after a lost response and keeps typed conflict recovery actionable", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("response lost"))
+      .mockResolvedValueOnce(mutationResponse({ ...activeDeck, id: "duplicate-deck", version: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<DeckCommandBar deck={activeDeck} />);
+
+    await user.click(screen.getByRole("button", { name: "Duplicate" }));
+    expect(await screen.findByText("response lost")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Duplicate" }));
+
+    const keys = fetchMock.mock.calls.map((call) => {
+      const request = call[1] as RequestInit;
+      return (JSON.parse(String(request.body)) as { idempotencyKey: string }).idempotencyKey;
+    });
+    expect(keys[0]).toBe(keys[1]);
+    expect(navigation.push).toHaveBeenCalledWith("/app/decks/duplicate-deck/edit");
+  });
+
+  it("shows the current conflict version and a reload action for deck commands", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: "CONFLICT",
+            currentVersion: 9,
+            message: "Deck changed.",
+            retryable: false,
+          }),
+          { headers: { "Content-Type": "application/json" }, status: 409 },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    const view = render(<DeckCommandBar deck={activeDeck} />);
+
+    await user.click(screen.getByRole("button", { name: "Archive" }));
+
+    expect(await screen.findByText(/now at version 9/i)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Reload current deck" }));
+    expect(navigation.refresh).toHaveBeenCalledOnce();
+
+    view.rerender(<DeckCommandBar deck={{ ...activeDeck, title: "Server title", version: 9 }} />);
+    expect(screen.getByRole("textbox", { name: "Deck title" })).toHaveValue("Server title");
+    expect(screen.queryByRole("button", { name: "Reload current deck" })).toBeNull();
+  });
+
   it.each([
     {
       absent: ["Restore"],
@@ -76,19 +126,19 @@ describe("deck authoring workspace", () => {
       present: ["Rename", "Duplicate", "Archive", "Delete"],
     },
     {
-      absent: ["Archive", "Restore", "Delete"],
+      absent: ["Duplicate", "Archive", "Restore", "Delete"],
       deck: { ...activeDeck, role: "manager" as const },
-      present: ["Rename", "Duplicate"],
+      present: ["Rename"],
     },
     {
-      absent: ["Archive", "Restore", "Delete"],
+      absent: ["Duplicate", "Archive", "Restore", "Delete"],
       deck: { ...activeDeck, role: "editor" as const },
-      present: ["Rename", "Duplicate"],
+      present: ["Rename"],
     },
     {
-      absent: ["Rename", "Archive", "Restore", "Delete"],
+      absent: ["Rename", "Duplicate", "Archive", "Restore", "Delete"],
       deck: { ...activeDeck, role: "viewer" as const },
-      present: ["Duplicate"],
+      present: [],
     },
     {
       absent: ["Rename", "Archive"],
@@ -96,9 +146,9 @@ describe("deck authoring workspace", () => {
       present: ["Duplicate", "Restore", "Delete"],
     },
     {
-      absent: ["Rename", "Archive", "Restore", "Delete"],
+      absent: ["Rename", "Duplicate", "Archive", "Restore", "Delete"],
       deck: { ...activeDeck, role: "manager" as const, status: "archived" as const },
-      present: ["Duplicate"],
+      present: [],
     },
   ])(
     "shows only RPC-authorized commands for $deck.role/$deck.status",
@@ -142,7 +192,7 @@ describe("deck authoring workspace", () => {
     expect(screen.queryByRole("link", { name: "Settings" }) !== null).toBe(settings);
   });
 
-  it("saves only complete quick-add rows as structured basic notes", async () => {
+  it("saves only complete quick-add rows and preserves partial drafts", async () => {
     const fetchMock = vi.fn().mockResolvedValue(mutationResponse());
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -173,6 +223,10 @@ describe("deck authoring workspace", () => {
       tags: ["cells", "energy"],
     });
     expect(await screen.findByText("1 note saved.")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Row 1 front" })).toHaveValue("Incomplete row");
+    expect(screen.getByRole("textbox", { name: "Row 1 back" })).toHaveValue("");
+    expect(screen.getAllByRole("textbox", { name: /Row \d+ front/ })).toHaveLength(3);
+    expect(screen.getByRole("textbox", { name: "Row 2 front" })).toHaveValue("");
     expect(navigation.refresh).toHaveBeenCalledOnce();
   });
 
@@ -209,7 +263,7 @@ describe("deck authoring workspace", () => {
       id: "0190d9f0-0000-7000-8000-000000000099",
       title: "Biochemistry",
     };
-    const fetchMock = vi.fn().mockResolvedValue(mutationResponse());
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(mutationResponse()));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<NoteCardBrowser deck={deckDetail} editableTargetDecks={[target]} />);
@@ -358,6 +412,45 @@ describe("deck authoring workspace", () => {
     expect(await screen.findByText("Published projection refreshed.")).toBeVisible();
   });
 
+  it("replaces stale settings with the refreshed server snapshot after a conflict", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: "CONFLICT",
+          currentVersion: 9,
+          message: "Deck changed.",
+          retryable: false,
+        }),
+        { headers: { "Content-Type": "application/json" }, status: 409 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const view = render(<DeckSettingsEditor deck={deckDetail} />);
+
+    await user.clear(screen.getByRole("textbox", { name: "Description" }));
+    await user.type(screen.getByRole("textbox", { name: "Description" }), "Stale local edit");
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(await screen.findByText(/now at version 9/i)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Reload current deck" }));
+
+    view.rerender(
+      <DeckSettingsEditor
+        deck={{
+          ...deckDetail,
+          descriptionPlain: "Authoritative server description",
+          theme: "forest",
+          version: 9,
+        }}
+      />,
+    );
+    expect(screen.getByRole("textbox", { name: "Description" })).toHaveValue(
+      "Authoritative server description",
+    );
+    expect(screen.getByRole("combobox", { name: "Deck theme" })).toHaveTextContent("Forest");
+    expect(screen.queryByRole("button", { name: "Reload current deck" })).toBeNull();
+  });
+
   it("shows immutable version snapshots and restores as a new version", async () => {
     const fetchMock = vi.fn().mockResolvedValue(mutationResponse());
     vi.stubGlobal("fetch", fetchMock);
@@ -372,6 +465,15 @@ describe("deck authoring workspace", () => {
     expect(screen.getByText("Notes removed since this version")).toBeVisible();
     expect(screen.getByText("Notes changed since this version")).toBeVisible();
     expect(screen.getByText(/Scheduling impact/i)).toBeVisible();
+    expect(screen.getByRole("list", { name: "Note content changes" })).toHaveTextContent(
+      "What is ATP?",
+    );
+    expect(screen.getByRole("region", { name: "Current deck" })).toHaveTextContent(
+      "The cell's usable energy carrier",
+    );
+    expect(screen.getByRole("region", { name: "Version 1" })).toHaveTextContent(
+      "not present in version 1",
+    );
     await user.click(screen.getByRole("button", { name: "Close dialog" }));
     await user.click(screen.getAllByRole("button", { name: "Restore" })[1]!);
 

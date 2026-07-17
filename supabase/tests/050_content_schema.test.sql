@@ -161,6 +161,11 @@ select ok(
   )
   and pg_catalog.has_function_privilege(
     'authenticated',
+    'public.current_upsert_note_definition_with_media(uuid,uuid,text,bigint,jsonb,jsonb,text[],jsonb,uuid,jsonb)',
+    'execute'
+  )
+  and not pg_catalog.has_function_privilege(
+    'authenticated',
     'public.current_upsert_note_with_media(uuid,uuid,text,bigint,jsonb,jsonb,text[],jsonb,uuid)',
     'execute'
   ),
@@ -195,11 +200,22 @@ select is(
 select is(
   (select count(*)::integer from pg_catalog.pg_policies
     where schemaname = 'storage' and tablename = 'objects'
-      and policyname in (
-        'content_media_read','content_media_insert','content_media_update','content_media_delete'
-      )),
-  4,
-  'storage read/write boundaries are installed through migrations'
+      and policyname = 'content_media_read'),
+  1,
+  'the private content bucket exposes only its authorized read policy'
+);
+select ok(
+  not exists(
+    select 1 from pg_catalog.pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname in ('content_media_insert','content_media_update','content_media_delete')
+  )
+  and not pg_catalog.has_function_privilege(
+    'authenticated',
+    'private.can_write_content_media_object(uuid,text,text)',
+    'execute'
+  ),
+  'browser credentials cannot write pending Storage objects outside the validated route'
 );
 
 select * from finish();

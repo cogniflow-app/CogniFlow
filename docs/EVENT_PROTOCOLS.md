@@ -206,8 +206,8 @@ The signed onboarding cookie and consent-verifier response are inputs to proof i
 **Transport:** bounded same-origin Route Handler input followed by a transaction-local Postgres RPC  
 **Ordering scope:** positive resource version and deck content-version within the affected resource  
 **Delivery semantics:** at least once from the client; exactly-once accepted effect per account/idempotency key in the database  
-**Idempotency key:** client-generated UUID scoped to authenticated account plus exact operation  
-**Retention:** mutation receipts are operational replay state; note/deck revisions are durable content history; cleanup is not deployed in Phase 02  
+**Idempotency key:** client-generated UUID scoped to the authenticated account and bound by the database to the exact operation plus canonical command  
+**Retention:** mutation receipts are operational replay state; note/deck revisions are durable content history; the physical-media worker is implemented but its schedule is not deployed  
 **PII classification:** account/resource opaque IDs and bounded content metadata; audit facts exclude authored field/media bytes  
 **Authorization rule:** self learner + live Auth-session device + resource permission + optimistic version where applicable  
 **Schema source:** content input/domain schemas, `private.content_mutation_receipts`, immutable revision tables, and `public.audit_events`
@@ -222,21 +222,35 @@ ID from the command's required idempotency UUID. Null update versions and null b
 are invalid rather than wildcard versions.
 
 Private receipt lookup serializes the account/idempotency-key pair with a transaction advisory lock
-before checking replay state. A successful exact replay returns the stable resource/result and does
-not create a second deck, note, version, media reference, or publication, but only after rechecking
-that the actor still has the permission required for the stored resource/operation. Concurrent
-retries therefore converge, and revoking a collaborator also revokes their ability to replay an old
-accepted receipt.
+before checking replay state. The first execution inserts a transaction-local pending receipt bound
+to a hash of the complete canonical command, then completes it with the accepted result in the same
+transaction. A successful exact replay returns that stable resource/result and does not create a
+second deck, note, version, media reference, or publication, but only after matching both operation
+and command fingerprint and rechecking the permission required for the stored resource. A changed
+payload under the same key and a legacy receipt without a trustworthy binding fail closed.
+Concurrent retries therefore converge, and revoking a collaborator also revokes their ability to
+replay an old accepted receipt.
 
-One account cannot reuse an idempotency key for a different operation. A version mismatch returns
-an actionable conflict containing resource type/ID and expected/actual version under user-exception
-SQLSTATE `P0001`, not serialization-failure `40001`, so transport/database clients do not
-automatically repeat a known-stale command. The browser can invoke only the atomic note/media
-command: fields, specialized rows,
-sources, tags, media links, sibling reconciliation, revision, deck-version bump, and impact either
-all commit or all roll back. Note and deck revision rows are immutable accepted snapshots, not
-commands. A version restore appends a new head and audit fact instead of rewriting historical
-events and reconciles orphaned explicit/specialized media usage.
+The interactive client also treats delivery as at least once. It fingerprints a logical
+operation/payload and retains one UUID after a network or explicitly retryable failure, when the
+accepted outcome may be unknown. Success, a definitive nonretryable response, or an edited payload
+retires that pending entry. This client behavior makes the database receipt reachable on an exact
+retry; it does not replace server deduplication or authorize a command.
+
+One account cannot reuse an idempotency key for a different operation or edited command. A version
+mismatch returns an actionable conflict containing resource type/ID and expected/actual version
+under user-exception SQLSTATE `P0001`, not serialization-failure `40001`, so transport/database
+clients do not automatically repeat a known-stale command. The browser can invoke only the
+definition-aware atomic note/media command: a copy-on-write custom field/template definition,
+fields, specialized rows, sources, tags, media links, sibling reconciliation, revision,
+deck-version bump, and impact either all commit or all roll back. Deck settings submitted with
+publish/unpublish likewise share the publication transaction. Note and deck revision rows are
+immutable accepted snapshots, not commands. A version restore appends a new head and audit fact
+instead of rewriting historical events. Schema-two versions include the exact explicit media graph;
+restore preflights the entire snapshot, recreates that graph and specialized usage atomically, and
+reconciles exact counts/deletion fences. A legacy schema-one restore deterministically reconstructs
+only links proven by the immutable embedded-media payload. Cross-deck note identity collisions fail
+without changing either deck.
 
 Accepted Phase 02 audit facts are:
 

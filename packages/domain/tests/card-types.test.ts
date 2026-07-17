@@ -7,7 +7,9 @@ import {
   cardKinds,
   cardTypeSchemas,
   generateCardBlueprints,
+  parseTemplate,
   reconcileGeneratedCards,
+  renderTemplate,
   systemCardTypeDefinitions,
   type BasicCardData,
   type CardAuthoringData,
@@ -53,6 +55,22 @@ describe("all card-type runtime schemas", () => {
           { semanticKey: "one", content: rich("one"), isCorrect: true, position: 0 },
           { semanticKey: "two", content: rich("two"), isCorrect: true, position: 1 },
         ],
+      }),
+    ).toMatchObject({ success: false });
+
+    expect(
+      cardAuthoringSchema.safeParse({
+        ...cardFixtures.custom,
+        templates: [{ ...cardFixtures.custom.templates[0], semanticKey: "Uppercase" }],
+      }),
+    ).toMatchObject({ success: false });
+
+    expect(
+      cardAuthoringSchema.safeParse({
+        ...cardFixtures.custom,
+        fields: Object.fromEntries(
+          Array.from({ length: 65 }, (_, index) => [`Field${String(index)}`, rich("value")]),
+        ),
       }),
     ).toMatchObject({ success: false });
 
@@ -133,6 +151,9 @@ describe("deterministic semantic card generation", () => {
       "nucleus:region_to_label",
       "nucleus:label_to_region",
     ]);
+    expect(
+      generateCardBlueprints(cardFixtures.diagram)[0]?.renderer.accessibility.nonvisualAlternative,
+    ).toContain("Large round structure near the center of the cell");
   });
 
   it("exposes only fields referenced by a safe custom renderer template", () => {
@@ -146,6 +167,63 @@ describe("deterministic semantic card generation", () => {
     });
     if (generated[0]?.renderer.kind !== "custom") throw new Error("expected custom renderer");
     expect(generated[0].renderer.fields).not.toHaveProperty("PrivateSource");
+  });
+
+  it("carries typed list and media fields through custom generation and safe helpers", () => {
+    const typedCustom = cardAuthoringSchema.parse({
+      ...cardFixtures.custom,
+      fields: {
+        ...cardFixtures.custom.fields,
+        Items: ["hypotonic", "isotonic", "hypertonic"],
+        Illustration: {
+          alt: "Osmosis across a cell membrane",
+          assetId: "0190d9f0-0000-7000-8000-000000000099",
+          kind: "media",
+          mediaKind: "image",
+        },
+      },
+      templates: [
+        {
+          ...cardFixtures.custom.templates[0],
+          frontTemplate:
+            "{{Term}}{{#each Items}}<span>{{item}}</span>{{/each}}{{media Illustration}}",
+        },
+      ],
+    });
+    if (typedCustom.kind !== "custom") throw new Error("expected custom card");
+
+    const generated = generateCardBlueprints(typedCustom);
+    const renderer = generated[0]?.renderer;
+    if (renderer?.kind !== "custom") throw new Error("expected custom renderer");
+    const rendered = renderTemplate(parseTemplate(renderer.template.frontTemplate), {
+      fields: renderer.fields,
+    });
+
+    expect(renderer.fields.Items).toEqual(["hypotonic", "isotonic", "hypertonic"]);
+    expect(renderer.fields.Illustration).toEqual(
+      expect.objectContaining({
+        alt: "Osmosis across a cell membrane",
+        kind: "media",
+        mediaKind: "image",
+      }),
+    );
+    expect(rendered.html).toContain("hypotonic");
+    expect(rendered.html).toContain('data-lumen-asset="0190d9f0-0000-7000-8000-000000000099"');
+    expect(renderer.accessibility.promptText).toContain("Osmosis across a cell membrane");
+
+    expect(
+      cardAuthoringSchema.safeParse({
+        ...typedCustom,
+        fields: {
+          ...typedCustom.fields,
+          Illustration: {
+            alt: "Missing discriminator",
+            assetId: "0190d9f0-0000-7000-8000-000000000099",
+            kind: "media",
+          },
+        },
+      }).success,
+    ).toBe(false);
   });
 
   it("applies bounded custom generation conditions without changing semantic identities", () => {

@@ -21,7 +21,7 @@ It still does not implement learner schedule/review history, mastery, classes, c
 discovery/search ranking, comments/ratings, advanced sharing/passwords, live games, analytics
 transport, AI processing, or export-archive assembly. The public creator value in a deck publication
 is a bounded attribution projection, not a public biography. The due account-deletion transaction
-is implemented, but its operator scheduler and the Phase 02 delayed-media deletion worker are not
+and the Phase 02 delayed-media deletion worker are implemented, but neither operator schedule is
 deployed. Later phases must extend authorization, retention, export/deletion coverage, and policy
 tests with each data-owning feature. Existing account or content permission never implies access to
 a future schedule/class/game table.
@@ -80,18 +80,33 @@ Server environment access lives in the server-only config module. Client modules
 
 Secrets are set in the deployment provider, not committed to `.env*`, `wrangler.jsonc`, fixtures, or docs. Local `.env.local` remains ignored. Secretlint scans tracked project content; the CI examples use clearly non-production placeholders.
 
-`VERCEL_AUTOMATION_BYPASS_SECRET` is an operator-only Playwright input for this Vercel project's
-protected deployments. It is not an application environment variable and must remain transient or
-in an approved CI secret store. It must never be logged, documented by value, or placed in
-`.env.local`.
+`VERCEL_AUTOMATION_BYPASS_SECRET` is an optional operator-only equality check for this Vercel
+project's existing automation bypass. It is not an application environment variable and must remain
+transient or in an approved CI secret store. It must never be logged, documented by value, or
+placed in `.env.local`. The guarded runner authenticates exact deployment ownership, reads the
+matching project's bypass inventory, and fails unless exactly one existing automation entry is
+present. It never mutates that inventory. Only then does it send the bypass once to mint a host-only
+cookie. Playwright receives neither this secret nor the Vercel API token, and no global bypass
+header is installed. Local CLI OAuth is accepted only while unexpired; the runner validates the
+session shape but never uses its refresh token or refreshes the access token itself.
 
-The guarded Phase 02 content runner also exposes the existing Preview project key to one
-trace/video-disabled Playwright child as `HOSTED_PREVIEW_SUPABASE_SECRET_KEY`. The wrapper obtains
-it in memory from the authenticated Supabase CLI, restricts the target to this repository's Vercel
-Preview family, and always attempts cleanup. It is not operator/application configuration and must
-never be manually set, logged, persisted, or copied to `.env.local`.
+The guarded Phase 02 content runner obtains the existing Preview project key in memory from the
+authenticated Supabase CLI, restricts the target to this repository's Vercel Preview family, and
+keeps that key in the parent process. It confirms only the exact UUID-marked fixture identity; the
+Playwright child receives a non-secret confirmation marker after that succeeds. The child starts
+with a minimal runtime allowlist plus a private temporary HOME/XDG configuration, cache, and temp
+namespace, so inherited operator/provider credentials and their normal filesystem locators are not
+available. Its scoped Vercel cookie is transferred through a mode-restricted one-use attestation
+file that configuration consumes and deletes before workers start. On completion, failure, or the
+first graceful `SIGINT`/`SIGTERM`, the parent attempts fixture cleanup exactly once; an uncatchable
+`SIGKILL` or process loss still requires operator inspection. The Preview project key is not
+operator/application configuration and must never be manually set, logged, persisted, passed to a
+browser worker, or copied to `.env.local`.
 
-Non-secret server configuration also includes OAuth button flags, email-confirmation state, rate-limit bounds, retention windows, parental-consent mode, and the external verifier URL. Only the explicit sanitized capability projection may reach a rendered page; rate-limit settings, verifier configuration, and credential values are not part of it.
+Non-secret server configuration also includes OAuth button flags, email-confirmation state,
+rate-limit bounds, retention windows, parental-consent mode, the external verifier URL, and the
+bounded media-deletion batch/lease settings. Only the explicit sanitized capability projection may
+reach a rendered page; rate-limit, worker, verifier, and credential values are not part of it.
 
 ## Authentication and session controls
 
@@ -169,8 +184,12 @@ The application does not emit HSTS during local development. Production parsing 
   `https://recallflash.com` is the deliberately tested Production endpoint.
 - `www.recallflash.com` and the retired `cogniflow-pearl.vercel.app` alias redirect to the apex with
   `308`, preventing either from becoming a second canonical or Auth origin.
-- Hosted Playwright can receive a project-scoped automation bypass only through the transient
-  `VERCEL_AUTOMATION_BYPASS_SECRET` process variable. The tracked runner never contains its value.
+- Hosted runners discover the one existing project-scoped automation bypass through an authenticated
+  read-only project lookup. A transient `VERCEL_AUTOMATION_BYPASS_SECRET`, when supplied, must equal
+  it; the tracked runner never contains its value and never creates or rotates one. Playwright
+  receives only the validated exact-host Vercel cookie after API ownership and health preflight;
+  the cookie is carried in a mode-restricted one-use file that configuration consumes and deletes
+  before browser workers start, never in a child environment variable.
 - `DEPLOYMENT_PROFILE=vercel_beta` and Vercel Preview both produce an `X-Robots-Tag` no-index policy;
   `/robots.txt` disallows all crawling for the custom-domain beta.
 - Preview and Production use independently generated application-owned keys and separate Supabase
@@ -260,12 +279,17 @@ Phase 02 applies the same rules to content and Storage:
   typed stale-version detail is raised under non-serialization SQLSTATE `P0001`; exact retries
   therefore keep one creation identity and infrastructure does not loop automatically on a known
   conflict;
-- receipt lookup serializes an account/key pair with a transaction advisory lock and rechecks the
-  actor's current resource permission before replay, so concurrent retries cannot race side effects
-  and revoked collaborators cannot retain authority through an old receipt;
-- note/card/source/tag/media reconciliation, note revisions, deck versions, version restore, and
-  publication are atomic; browser roles can execute only the composed note/media wrapper, restore
-  appends a new version, and obsolete semantic siblings are deactivated;
+- receipt lookup serializes an account/key pair with a transaction advisory lock, binds the first
+  execution to the complete canonical command fingerprint, and rechecks the actor's current
+  resource permission before replay. Exact retries converge; a changed operation or payload under
+  the same key and a legacy unbound receipt fail closed, so concurrent retries cannot race side
+  effects and revoked collaborators cannot retain authority through an old receipt;
+- a custom field/template definition and its note/card/source/tag/media graph are one atomic,
+  copy-on-write command. Browser roles can execute only the definition-aware composed wrapper, not
+  the former note/media wrapper or its component functions;
+- deck metadata/theme submitted with publish or unpublish is applied in the same transaction as
+  the frozen-publication transition. Note revisions, deck versions, and version restore are also
+  atomic; restore appends a new version, and obsolete semantic siblings are deactivated;
 - anonymous enumeration reaches only `public` frozen publication rows through RLS and
   security-invoker views; exact-resource RPCs may resolve an unlisted public ID/slug without
   exposing draft, membership, revision, owner/internal card/internal media UUID, Storage locator,
@@ -273,10 +297,9 @@ Phase 02 applies the same rules to content and Storage:
   fields are removed, and attached media identifiers are rewritten to opaque publication IDs; a
   separate service-only locator is used only to mint short-lived signed delivery URLs;
 - the `lumen-content-media` bucket remains private. Storage reads require owner/authorized-deck
-  access or a frozen public media publication. Insert/update/delete requires the actor's exact
-  registered content-addressed path while the asset remains pending; the authorization holds a row
-  lock against finalization, and ready objects are immutable to browser credentials. The path
-  begins with an opaque media public UUID, not an owner UUID;
+  access or a frozen public media publication. Browser roles have no object insert/update/delete
+  policy; the validated server route alone writes the registered content-addressed path before
+  trusted finalization. The path begins with an opaque media public UUID, not an owner UUID;
 - the upload boundary verifies request size, magic bytes, declared/detected MIME equality,
   server-computed SHA-256, image dimensions, per-asset limits, and the 50 MiB per-owner quota before
   a service-only finalizer can mark the asset ready; and
@@ -287,7 +310,13 @@ Phase 02 applies the same rules to content and Storage:
   than immediate byte destruction; and
 - the due account-deletion transaction withdraws publications, minimizes/soft-deletes authored
   content and custom schemas, redacts history payloads while preserving structural coordinates,
-  clears mutation receipts, and makes owned media immediately eligible for operated byte cleanup.
+  clears mutation receipts, and makes owned media immediately eligible for operated byte cleanup;
+  and
+- physical byte cleanup is service-only and lease-based. Claim rechecks elapsed eligibility, zero
+  explicit/specialized usage, and frozen-publication absence under the media row lock. Completion
+  requires the matching lease token; success tombstones the locator, provider failure records a
+  bounded error and durable backoff, and an expired crash lease is reclaimable. Browser roles have
+  no access to the private job table or its Storage locators.
 
 The domain layer independently sanitizes versioned rich JSON, derives plain text, validates every
 card payload and normalized geometry, compiles the bounded template AST, encodes rendered content,
@@ -339,8 +368,9 @@ See [DATA_MODEL.md](./DATA_MODEL.md) for the migration and RLS contract.
 - Structured logs with correlation IDs and no tokens, private answer text, or child identifiers.
 - Append-only or compensating events for review, score, XP/currency, consent, and audit ledgers.
 - Short-lived signed URLs and guest tokens, rotation/versioning, and hashed stored token identifiers.
-- Scheduled and monitored execution for unreferenced media deletion, guest/rate-bucket cleanup,
-  audit retention, export assembly/download expiry, and invocation of the implemented due-deletion boundary.
+- Scheduled and monitored invocation of the implemented unreferenced-media worker and due account
+  deletion boundary, plus guest/rate-bucket cleanup, audit retention, and export
+  assembly/download expiry.
 
 ## Privacy principles
 
@@ -365,7 +395,13 @@ publications, redact/minimize owned authoring data and histories, clear private 
 set owned media `delete_after` to the completion time. A direct Auth deletion or direct profile
 status flip outside this transaction is rejected, and the deleted subject cannot be reused.
 
-No deletion or guest-purge scheduler is deployed. An owner-operated worker must select due jobs, call the deletion boundary with a stable per-attempt idempotency key, monitor terminal/failure state, and extend the data-deletion matrix as later phases add tables. UI and documentation must distinguish a queued grace-period request from a completed tombstoned job.
+No account-deletion, media-deletion, or guest-purge scheduler is deployed. An owner-operated account
+worker must select due jobs, call the deletion boundary with a stable per-attempt idempotency key,
+monitor terminal/failure state, and extend the data-deletion matrix as later phases add tables. The
+implemented media worker separately claims bounded leases, deletes the exact private Storage
+object, and completes or requeues each job; it must also be scheduled and monitored. UI and
+documentation must distinguish an elapsed eligibility timestamp or queued job from confirmed
+physical byte deletion and a queued grace-period request from a completed account tombstone.
 
 The authenticated deletion-request boundary validates and applies the server-configured grace period from 1 through 90 days. The database also enforces a 30-minute maximum managed-study window while retaining the explicit managed-mode lock until revocation. Audit and guest retention are not guarantees without scheduled cleanup and monitoring.
 

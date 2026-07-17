@@ -114,29 +114,50 @@ Optional template CSS is separately parsed and scoped below a generated `[data-l
 
 ## Editing, conflicts, revisions, and impact
 
-Every write uses a client-generated UUID idempotency key. Mutable resources carry positive
-versions. New-note upsert uses the explicit expected-version sentinel `0`; updates and lifecycle
-transitions send the current positive version, and bulk commands send an equally sized vector with
-no null element. Null is never a wildcard. The database locks the current resource and returns a
-typed conflict when expected and actual versions differ. A new browser note without an assigned ID
-uses its required idempotency UUID as the stable note ID before the upsert implementation runs, so
-an exact create retry addresses the same note. Conflicts retain their structured
-`version_conflict` detail under SQLSTATE `P0001`, not serialization-failure `40001`; clients fail
-the stale command promptly, then the conflict surface offers an actual server reload before an
-intentional retry instead of preserving stale local state or silently overwriting another session.
+Every write uses a client-generated UUID idempotency key. The browser retains one key for a
+canonical operation/payload while a network or explicitly retryable failure leaves its outcome
+uncertain. It rotates the key after success, a definitive nonretryable rejection, or a payload
+change. Exact create and duplicate retries therefore reach the server receipt for the original
+command instead of creating a second resource. API failures retain their typed code, retryability,
+field errors, and current version so conflict controls can direct the creator to reload real server
+state.
+
+Mutable resources carry positive versions. New-note upsert uses the explicit expected-version
+sentinel `0`; updates and lifecycle transitions send the current positive version, and bulk
+commands send an equally sized vector with no null element. Null is never a wildcard. The database
+locks the current resource and returns a typed conflict when expected and actual versions differ. A
+new browser note without an assigned ID uses its required idempotency UUID as the stable note ID
+before the upsert implementation runs, so an exact create retry addresses the same note. Conflicts
+retain their structured `version_conflict` detail under SQLSTATE `P0001`, not serialization-failure
+`40001`; clients fail the stale command promptly, then the conflict surface offers an actual server
+reload before an intentional retry instead of preserving stale local state or silently overwriting
+another session.
 
 Receipt lookup takes a transaction-scoped advisory lock for the account/key pair before checking
 the stored result. Exact concurrent retries therefore converge on one accepted effect. A replay
 also rechecks current resource authorization; a former editor cannot replay an accepted mutation
 after membership revocation. Reusing a key for another operation is rejected.
 
-The browser note-write surface is `current_upsert_note_with_media()`. Field values, specialized
-rows, citations/sources, tags, explicit media links, generated siblings, note revision, deck
-version, and content impact commit or roll back together. Browser roles cannot execute the
-standalone note-upsert/link/release components. Deleting a note or restoring a deck version also
+The browser note-write surface is `current_upsert_note_definition_with_media()`. For a custom
+note, its validated field/template definition is resolved inside the same transaction. An
+unchanged definition reuses the existing account-owned note type; an edit creates a copy-on-write
+definition and points the accepted note revision at it without changing other notes that use the
+old schema. The definition, field values, specialized rows, citations/sources, tags, explicit
+media links, generated siblings, note revision, deck version, and content impact all commit or
+roll back together. Browser roles cannot execute the older note/media wrapper or the standalone
+note-upsert/link/release components. Deleting a note or restoring a deck version also
 retires/reconciles its explicit and specialized media usages in the same transaction.
 
-Accepted note changes create an immutable `note_revisions` snapshot and reconcile generated cards in the same transaction. Deck-affecting changes increment the content version and append a `deck_versions` snapshot. Restoring an old deck version creates a new head version with `restored_from_version`; it does not delete or rewrite history.
+Accepted note changes create an immutable `note_revisions` snapshot and reconcile generated cards
+in the same transaction. Deck-affecting changes increment the content version and append a
+schema-two `deck_versions` snapshot containing the exact active note/field/tag/source state and
+explicit media-reference graph. The creating command may finalize only its own just-inserted
+version after link reconciliation, and only to the exact current capture. Restoring an old deck
+version creates a new head version with `restored_from_version`; it does not delete or rewrite
+history. Restore validates the complete snapshot before mutation, recreates its explicit links and
+specialized uses atomically, rejects note identities that now belong to another deck, and preserves
+reference counts plus deletion fences. Schema-one snapshots reconstruct only payload-proven
+embedded media links with deterministic identities; they never infer unattached historical links.
 
 Content-change classification is scheduling-neutral:
 
@@ -168,30 +189,51 @@ derived from the asset's separate opaque public UUID and digest, never the owner
 existing digest is reusable only when kind, byte size, and safe status match. A ready asset must
 have a matching server-detected hash/MIME and successful magic-byte verification.
 
-Browser Storage insert/update/delete is authorized only while that exact registered asset remains
-`pending`. The predicate holds a row-share lock for the duration of the write, while finalization
-takes the corresponding update lock. Verification therefore cannot race a replacement that was
-already authorized. After finalization, a `ready` object's bytes cannot be updated or deleted with
-browser credentials; replacing content means registering and verifying a new digest.
+Browser credentials cannot insert, update, or delete content Storage objects. The authenticated
+upload Route Handler bounds the request, recomputes SHA-256, verifies the declared MIME against
+magic bytes and image dimensions, and only then writes the exact bytes through the server-only
+Storage client before service-only finalization. This prevents a caller from pre-populating a
+registered pending path with bytes that differ from the route's verified buffer. Replacing content
+means registering and verifying a new digest through the same route.
 
 References are authorized against an editable deck/note child. The authoritative count includes
 ordinary `media_references` plus active deck covers, audio prompts, pronunciation reference audio,
 and drawing reference layers. A newly verified but unreferenced asset receives a seven-day deletion
-deadline. Adding any usage revives a deleting asset and clears the deadline; retiring the final
-usage starts the same delay. Note deletion and version restore retire stale explicit/specialized
-uses, and the migration backfill derives counts from every active source. These state changes do
-not destroy bytes. The due account-deletion boundary withdraws publications, redacts owned
-content/history, and makes owned media immediately eligible for deletion. In every case, an
-operated cleanup worker must perform physical Storage deletion and be monitored before byte
-removal is represented as automatic.
+deadline. Adding usage before a cleanup claim revives a deleting asset and clears the deadline;
+retiring the final usage starts the same delay. Once a durable deletion job exists, every old-asset
+reattachment path fails closed because a stale worker may still remove its old locator. Note
+deletion and version restore retire stale explicit/specialized uses, and the migration backfill
+derives counts from every active source. These state changes do not destroy bytes. The due
+account-deletion boundary withdraws publications, redacts owned content/history, and makes owned
+media immediately eligible for deletion.
 
-Storage RLS permits an authenticated current self context to mutate only its exact registered,
-pending object path. Reads require owner/authorized-deck access or a frozen public media
-publication. A public page never receives a draft asset merely because it shares a bucket.
+A new pending upload reservation expires after 24 hours. A route-observed Storage failure makes it
+eligible immediately and releases the registration receipt so an immediate retry can reuse the
+unclaimed reservation. Successful cleanup retains the tombstone/job; a later upload of the same
+digest receives a new asset/public ID and Storage path.
+
+`pnpm worker:media-deletions` implements one bounded physical-cleanup batch. A service-only claim
+RPC rechecks zero usage, no frozen publication, the elapsed deadline, and the complete specialized
+usage set before returning a private locator under a 30–900 second lease. The worker removes that
+exact Storage object and completes the lease. An already-absent key is a successful empty bulk
+deletion; every error actually reported by Storage, including a typed or prose `404`, is bounded
+and requeued because it can describe a missing bucket. An expired crash lease can be claimed again.
+Successful removal tombstones the database locator. The command is not a scheduler:
+deployment, recurring invocation, secret management, monitoring, and stuck-job alerting remain
+owner operations.
+
+Storage RLS exposes only the deliberately authorized read policy. Reads require
+owner/authorized-deck access or a frozen public media publication; mutations require the validated
+server route. A public page never receives a draft asset merely because it shares a bucket.
 
 ## Publication and public preview
 
-Publishing is an explicit manager-authorized, expected-version mutation. It requires an active generated card set and refuses unverified referenced media or a published image without alternative text. The transaction replaces a frozen publication projection containing only:
+Publishing is an explicit manager-authorized, expected-version mutation. The settings form submits
+its optional metadata/theme patch and publish or unpublish action through
+`current_apply_deck_settings_and_publication()`, so the settings update and frozen-projection change
+commit or roll back together. Publishing requires an active generated card set and refuses
+unverified referenced media or a published image without alternative text. The transaction
+replaces a frozen publication projection containing only:
 
 - public deck ID/slug, title, sanitized description, creator attribution, license, language/theme metadata, card count/type summary, content hash, and published version/time;
 - active published card content, safe template data, field projection, specialized payload, and approved sources; and
@@ -200,14 +242,21 @@ Publishing is an explicit manager-authorized, expected-version mutation. It requ
 It excludes internal owner/account/card/media IDs, draft notes, members, revisions, mutation
 receipts, Storage bucket/path values, and future learner state. Published cards use deterministic
 publication-only IDs; unused custom fields are removed; attached internal media IDs are replaced by
-opaque media publication IDs. Anonymous list-style table/view reads expose only `public` decks.
+opaque media publication IDs. Publication fails closed when an internal ID is not backed by the
+exact current media graph. A forward remediation withdraws an inconsistent legacy frozen deck/card
+projection without modifying its immutable authoring history. Anonymous list-style table/view
+reads expose only `public` decks.
 Narrow read RPCs accept an opaque public ID or slug and may return the exact `unlisted` deck
 requested; unlisted content is never part of public enumeration and its route emits `noindex`
 metadata. Public media metadata never contains a Storage locator. A service-only resolver supplies
 the exact locator solely so the server can mint a 15-minute signed delivery URL. Unpublishing
 deletes the frozen projection and returns the draft deck to `private` visibility.
 
-`/deck/[slug]` and `/embed/deck/[publicId]` render the same read-only projection. Card flip/keyboard preview is nonpersistent and has no SRS or mastery side effect. The sign-in action preserves the safe same-origin public return destination. Password links, discovery ranking, collaboration, comments, ratings, forks, and advanced permissions remain owned by Phase 07.
+`/deck/[slug]` and `/embed/deck/[publicId]` render the same read-only projection, including its
+frozen `neutral`, `ocean`, `forest`, or `contrast` deck theme. Card flip/keyboard preview is
+nonpersistent and has no SRS or mastery side effect. The sign-in action preserves the safe
+same-origin public return destination. Password links, discovery ranking, collaboration, comments,
+ratings, forks, and advanced permissions remain owned by Phase 07.
 
 The embed route is the only framing exception: it emits a route-specific CSP with
 `frame-ancestors 'self' https:` and omits `X-Frame-Options`. Every non-embed route keeps
@@ -247,7 +296,8 @@ The protected workspace exposes:
 - `/app/decks/[id]` overview;
 - `/app/decks/[id]/edit` single-note authoring and generated-card preview;
 - `/app/decks/[id]/cards` note/card browser and quick/bulk entry;
-- `/app/decks/[id]/history` versions and restore; and
+- `/app/decks/[id]/history` versions, side-by-side prompt/answer/card-type/source/tag differences,
+  and restore; and
 - `/app/decks/[id]/settings` lifecycle, metadata, visibility, publication, and destructive actions.
 
 Archive is the reversible library lifecycle and can be restored by the owner. Delete is a separate

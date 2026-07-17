@@ -14,13 +14,19 @@ import {
 } from "@lumen/ui";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  conflictRecoveryMessage,
+  ContentApiRequestError,
+  PendingContentMutations,
+  performContentMutation,
+} from "@/lib/content/client-mutations";
 import type {
-  ContentApiError,
   DeckDetail,
   DeckSummary,
   DeckVisibility,
+  DeckVersionNoteContent,
 } from "@/lib/content/view-models";
 import { MediaUploader } from "./media-uploader.client";
 
@@ -30,32 +36,37 @@ function publishDeckVersion(deckId: string, version: number): void {
   window.dispatchEvent(new CustomEvent(DECK_VERSION_SYNC_EVENT, { detail: { deckId, version } }));
 }
 
-async function mutate<T>(url: string, body: Readonly<Record<string, unknown>>, method = "PATCH") {
-  const response = await fetch(url, {
-    body: JSON.stringify({ ...body, idempotencyKey: crypto.randomUUID() }),
-    headers: { "Content-Type": "application/json" },
-    method,
+async function mutate<T>(input: {
+  readonly body: Readonly<Record<string, unknown>>;
+  readonly method?: string;
+  readonly operation: string;
+  readonly pending: PendingContentMutations;
+  readonly url: string;
+}) {
+  return performContentMutation<T>({
+    ...input,
+    fallbackMessage: "That change could not be saved.",
   });
-  const data: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const error = data as Partial<ContentApiError> | null;
-    throw new Error(error?.message ?? "That change could not be saved.");
-  }
-  return data as T;
 }
 
 export function DeckCommandBar({ deck }: { readonly deck: DeckSummary }) {
+  return <DeckCommandBarSnapshot key={`${deck.id}:${String(deck.version)}`} deck={deck} />;
+}
+
+function DeckCommandBarSnapshot({ deck }: { readonly deck: DeckSummary }) {
   const router = useRouter();
   const [title, setTitle] = useState(deck.title);
   const [version, setVersion] = useState(deck.version);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [conflict, setConflict] = useState<ContentApiRequestError | null>(null);
+  const pendingMutations = useRef(new PendingContentMutations());
   const isOwner = deck.role === "owner";
   const canEdit =
     deck.status === "active" &&
     (deck.role === "owner" || deck.role === "manager" || deck.role === "editor");
-  const canDuplicate = deck.status !== "deleted";
+  const canDuplicate = isOwner && deck.status !== "deleted";
   const canArchive = isOwner && deck.status === "active";
   const canRestore = isOwner && deck.status === "archived";
   const canDelete = isOwner && deck.status !== "deleted";
@@ -80,20 +91,29 @@ export function DeckCommandBar({ deck }: { readonly deck: DeckSummary }) {
   async function command(action: string, extra: Readonly<Record<string, unknown>> = {}) {
     setBusy(true);
     setMessage(null);
+    setConflict(null);
     try {
-      const result = await mutate<{ data: DeckSummary }>(`/api/content/decks/${deck.id}`, {
-        action,
-        expectedVersion: version,
-        ...extra,
+      const result = await mutate<{ data: DeckSummary }>({
+        body: { action, expectedVersion: version, ...extra },
+        operation: `deck-command:${deck.id}:${action}`,
+        pending: pendingMutations.current,
+        url: `/api/content/decks/${deck.id}`,
       });
-      setVersion(result.data.version);
-      publishDeckVersion(deck.id, result.data.version);
+      if (action !== "duplicate") {
+        setVersion(result.data.version);
+        publishDeckVersion(deck.id, result.data.version);
+      }
       setMessage(`${action[0]?.toUpperCase() ?? ""}${action.slice(1)} complete.`);
       if (action === "delete") router.replace("/app");
       else if (action === "duplicate") router.push(`/app/decks/${result.data.id}/edit` as Route);
       router.refresh();
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "The command failed.");
+      if (caught instanceof ContentApiRequestError && caught.code === "CONFLICT") {
+        setConflict(caught);
+        setMessage(conflictRecoveryMessage(caught, "This deck"));
+      } else {
+        setMessage(caught instanceof Error ? caught.message : "The command failed.");
+      }
     } finally {
       setBusy(false);
     }
@@ -157,6 +177,11 @@ export function DeckCommandBar({ deck }: { readonly deck: DeckSummary }) {
           {message}
         </p>
       )}
+      {conflict && (
+        <Button onClick={() => router.refresh()} size="sm" variant="secondary">
+          Reload current deck
+        </Button>
+      )}
       {canDelete && (
         <Dialog
           description="Deleted decks leave the active library and are not restorable here. Archive instead if you may need the deck later; revision records remain auditable."
@@ -218,6 +243,7 @@ export function BulkQuickEditor({ deckId }: { readonly deckId: string }) {
   const [rows, setRows] = useState<readonly QuickRow[]>(() => [newRow(), newRow(), newRow()]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const pendingMutations = useRef(new PendingContentMutations());
 
   function patchRow(id: string, patch: Partial<QuickRow>) {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
@@ -235,12 +261,12 @@ export function BulkQuickEditor({ deckId }: { readonly deckId: string }) {
       setMessage("Enter a front and back for at least one row.");
       return;
     }
+    const submitted = new Map(complete.map((row) => [row.id, row]));
     setBusy(true);
     setMessage(null);
     try {
-      await mutate(
-        `/api/content/decks/${deckId}/notes/bulk`,
-        {
+      await mutate({
+        body: {
           notes: complete.map((row) => ({
             authoringData: {
               kind: "basic",
@@ -255,9 +281,27 @@ export function BulkQuickEditor({ deckId }: { readonly deckId: string }) {
               .filter(Boolean),
           })),
         },
-        "POST",
-      );
-      setRows([newRow(), newRow(), newRow()]);
+        method: "POST",
+        operation: `bulk-quick-editor:${deckId}:create`,
+        pending: pendingMutations.current,
+        url: `/api/content/decks/${deckId}/notes/bulk`,
+      });
+      setRows((current) => {
+        const remaining = current.flatMap((row) => {
+          const saved = submitted.get(row.id);
+          if (!saved) return [row];
+          if (row.front === saved.front && row.back === saved.back && row.tags === saved.tags) {
+            return [];
+          }
+          // The submitted identity now belongs to the confirmed saved note. Preserve edits made
+          // while the request was in flight as a new logical row with a fresh retry identity.
+          return [{ ...row, id: crypto.randomUUID() }];
+        });
+        return [
+          ...remaining,
+          ...Array.from({ length: Math.max(0, 3 - remaining.length) }, () => newRow()),
+        ];
+      });
       setMessage(`${String(complete.length)} ${complete.length === 1 ? "note" : "notes"} saved.`);
       router.refresh();
     } catch (caught) {
@@ -387,6 +431,7 @@ export function NoteCardBrowser({
   const [targetDeckId, setTargetDeckId] = useState("none");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const pendingMutations = useRef(new PendingContentMutations());
   const canEdit =
     deck.status === "active" &&
     (deck.role === "owner" || deck.role === "manager" || deck.role === "editor");
@@ -416,9 +461,8 @@ export function NoteCardBrowser({
     setBusy(true);
     setMessage(null);
     try {
-      await mutate(
-        `/api/content/decks/${deck.id}/notes/bulk-actions`,
-        {
+      await mutate({
+        body: {
           action: "tag",
           addTags: additions,
           notes: selectedNotes.map((note) => ({
@@ -427,8 +471,11 @@ export function NoteCardBrowser({
           })),
           removeTags: removals,
         },
-        "POST",
-      );
+        method: "POST",
+        operation: `note-browser:${deck.id}:tag`,
+        pending: pendingMutations.current,
+        url: `/api/content/decks/${deck.id}/notes/bulk-actions`,
+      });
       setSelected([]);
       setAddTags("");
       setRemoveTags("");
@@ -452,9 +499,8 @@ export function NoteCardBrowser({
     setBusy(true);
     setMessage(null);
     try {
-      await mutate(
-        `/api/content/decks/${deck.id}/notes/bulk-actions`,
-        {
+      await mutate({
+        body: {
           action: "move",
           notes: selectedNotes.map((note) => ({
             expectedVersion: note.version,
@@ -462,8 +508,11 @@ export function NoteCardBrowser({
           })),
           targetDeckId: target.id,
         },
-        "POST",
-      );
+        method: "POST",
+        operation: `note-browser:${deck.id}:move`,
+        pending: pendingMutations.current,
+        url: `/api/content/decks/${deck.id}/notes/bulk-actions`,
+      });
       setSelected([]);
       setTargetDeckId("none");
       setMessage(
@@ -483,8 +532,8 @@ export function NoteCardBrowser({
         <div>
           <h2 id="note-browser-heading">Notes and generated siblings</h2>
           <p>
-            {deck.noteCount} notes generate {deck.cardCount} active cards. There is no scheduling
-            state in this browser.
+            {deck.noteCount} notes generate {deck.cardCount} active cards. Browse and manage each
+            authored note and its generated card relationships here.
           </p>
         </div>
         {canEdit && <LinkButton href={`/app/decks/${deck.id}/edit`}>Add note</LinkButton>}
@@ -629,6 +678,10 @@ export function NoteCardBrowser({
 }
 
 export function DeckSettingsEditor({ deck }: { readonly deck: DeckDetail }) {
+  return <DeckSettingsSnapshot key={`${deck.id}:${String(deck.version)}`} deck={deck} />;
+}
+
+function DeckSettingsSnapshot({ deck }: { readonly deck: DeckDetail }) {
   const router = useRouter();
   const [description, setDescription] = useState(deck.descriptionPlain);
   const [visibility, setVisibility] = useState<DeckVisibility>(deck.visibility);
@@ -640,9 +693,13 @@ export function DeckSettingsEditor({ deck }: { readonly deck: DeckDetail }) {
   const [version, setVersion] = useState(deck.version);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [conflict, setConflict] = useState<ContentApiRequestError | null>(null);
+  const pendingMutations = useRef(new PendingContentMutations());
+
   async function save(action: "publish" | "unpublish" | "update") {
     setBusy(true);
     setMessage(null);
+    setConflict(null);
     try {
       const settings = {
         action,
@@ -654,10 +711,12 @@ export function DeckSettingsEditor({ deck }: { readonly deck: DeckDetail }) {
         license,
         theme,
       };
-      const result = await mutate<{ data: DeckSummary }>(
-        `/api/content/decks/${deck.id}`,
-        action === "publish" ? { ...settings, visibility } : settings,
-      );
+      const result = await mutate<{ data: DeckSummary }>({
+        body: action === "publish" ? { ...settings, visibility } : settings,
+        operation: `deck-settings:${deck.id}:${action}`,
+        pending: pendingMutations.current,
+        url: `/api/content/decks/${deck.id}`,
+      });
       setVersion(result.data.version);
       publishDeckVersion(deck.id, result.data.version);
       setMessage(
@@ -669,7 +728,12 @@ export function DeckSettingsEditor({ deck }: { readonly deck: DeckDetail }) {
       );
       router.refresh();
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Settings could not be saved.");
+      if (caught instanceof ContentApiRequestError && caught.code === "CONFLICT") {
+        setConflict(caught);
+        setMessage(conflictRecoveryMessage(caught, "This deck"));
+      } else {
+        setMessage(caught instanceof Error ? caught.message : "Settings could not be saved.");
+      }
     } finally {
       setBusy(false);
     }
@@ -706,10 +770,10 @@ export function DeckSettingsEditor({ deck }: { readonly deck: DeckDetail }) {
         </FormField>
         <FormField label="Deck theme">
           <Select
-            onValueChange={setTheme}
+            onValueChange={(value) => setTheme(value as DeckDetail["theme"])}
             value={theme}
             options={[
-              { label: "Lumen neutral", value: "neutral" },
+              { label: "Neutral", value: "neutral" },
               { label: "Ocean", value: "ocean" },
               { label: "Forest", value: "forest" },
               { label: "High contrast", value: "contrast" },
@@ -770,6 +834,53 @@ export function DeckSettingsEditor({ deck }: { readonly deck: DeckDetail }) {
           {message}
         </p>
       )}
+      {conflict && (
+        <Button onClick={() => router.refresh()} size="sm" variant="secondary">
+          Reload current deck
+        </Button>
+      )}
+    </section>
+  );
+}
+
+function VersionNoteSide({
+  content,
+  emptyLabel,
+  heading,
+}: {
+  readonly content: DeckVersionNoteContent | null;
+  readonly emptyLabel: string;
+  readonly heading: string;
+}) {
+  return (
+    <section className="version-diff__side" aria-label={heading}>
+      <h4>{heading}</h4>
+      {content ? (
+        <dl>
+          <div>
+            <dt>Card type</dt>
+            <dd>{content.cardType.replaceAll("_", " ")}</dd>
+          </div>
+          <div>
+            <dt>Prompt</dt>
+            <dd>{content.prompt || "No prompt text"}</dd>
+          </div>
+          <div>
+            <dt>Answer</dt>
+            <dd>{content.answer || "No plain-text answer"}</dd>
+          </div>
+          <div>
+            <dt>Tags</dt>
+            <dd>{content.tags.join(", ") || "None"}</dd>
+          </div>
+          <div>
+            <dt>Source</dt>
+            <dd>{content.source || "None"}</dd>
+          </div>
+        </dl>
+      ) : (
+        <p>{emptyLabel}</p>
+      )}
     </section>
   );
 }
@@ -778,20 +889,33 @@ export function VersionHistory({ deck }: { readonly deck: DeckDetail }) {
   const router = useRouter();
   const [selected, setSelected] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<ContentApiRequestError | null>(null);
+  const pendingMutations = useRef(new PendingContentMutations());
   const selectedVersion = deck.versions.find((version) => version.deckVersion === selected);
   const canRestore = deck.status === "active" && (deck.role === "owner" || deck.role === "manager");
   async function restore(versionNumber: number) {
+    setConflict(null);
     try {
-      await mutate(`/api/content/decks/${deck.id}`, {
-        action: "restore_version",
-        expectedVersion: deck.version,
-        versionNumber,
+      await mutate({
+        body: {
+          action: "restore_version",
+          expectedVersion: deck.version,
+          versionNumber,
+        },
+        operation: `version-history:${deck.id}:restore:${String(versionNumber)}`,
+        pending: pendingMutations.current,
+        url: `/api/content/decks/${deck.id}`,
       });
       setMessage(`Version ${String(versionNumber)} restored as a new current version.`);
       setSelected(null);
       router.refresh();
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "The version could not be restored.");
+      if (caught instanceof ContentApiRequestError && caught.code === "CONFLICT") {
+        setConflict(caught);
+        setMessage(conflictRecoveryMessage(caught, "This deck"));
+      } else {
+        setMessage(caught instanceof Error ? caught.message : "The version could not be restored.");
+      }
     }
   }
   return (
@@ -838,6 +962,11 @@ export function VersionHistory({ deck }: { readonly deck: DeckDetail }) {
           {message}
         </p>
       )}
+      {conflict && (
+        <Button onClick={() => router.refresh()} size="sm" variant="secondary">
+          Reload current deck
+        </Button>
+      )}
       <Dialog
         open={selected !== null}
         onOpenChange={(open) => {
@@ -862,11 +991,51 @@ export function VersionHistory({ deck }: { readonly deck: DeckDetail }) {
           <div>
             <dt>Scheduling impact</dt>
             <dd>
-              Not evaluated in Phase 02. Any prompt, answer, or structural change is recorded for a
-              later preserve/relearn/reset decision.
+              This history records content impact only and never changes review state. Prompt,
+              answer, and structural changes retain explicit preserve/relearn/reset metadata.
             </dd>
           </div>
         </dl>
+        {selectedVersion?.diffFromCurrent.changes.length ? (
+          <ol className="version-diff__changes" aria-label="Note content changes">
+            {selectedVersion.diffFromCurrent.changes.map((change) => {
+              const label = change.current?.prompt || change.version?.prompt || "Untitled note";
+              return (
+                <li key={`${change.kind}:${change.noteId}`}>
+                  <header>
+                    <Badge
+                      tone={
+                        change.kind === "added"
+                          ? "success"
+                          : change.kind === "removed"
+                            ? "warning"
+                            : "info"
+                      }
+                    >
+                      {change.kind}
+                    </Badge>
+                    <strong>{label}</strong>
+                    <small>Changed: {change.changedAreas.join(", ")}</small>
+                  </header>
+                  <div className="version-diff__comparison">
+                    <VersionNoteSide
+                      content={change.version}
+                      emptyLabel={`This note was not present in version ${String(selectedVersion.deckVersion)}.`}
+                      heading={`Version ${String(selectedVersion.deckVersion)}`}
+                    />
+                    <VersionNoteSide
+                      content={change.current}
+                      emptyLabel="This note is no longer present in the current deck."
+                      heading="Current deck"
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <p className="version-diff__empty">No note content differs from the current deck.</p>
+        )}
       </Dialog>
     </section>
   );

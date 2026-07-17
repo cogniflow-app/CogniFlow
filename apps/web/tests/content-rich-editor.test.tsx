@@ -5,6 +5,143 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RichEditor } from "../components/content/rich-editor.client";
 
+vi.mock("../components/content/media-uploader.client", () => ({
+  MediaUploader: ({
+    kind,
+    label,
+    onUploaded,
+  }: {
+    kind: "audio" | "image";
+    label: string;
+    onUploaded: (asset: {
+      altText: string;
+      id: string;
+      kind: "audio" | "image";
+      mimeType: string;
+      signedUrl: string | null;
+      transcript: string;
+    }) => void;
+  }) => (
+    <button
+      onClick={() =>
+        onUploaded({
+          altText: "Accessible test media",
+          id: `asset-${kind}`,
+          kind,
+          mimeType: kind === "image" ? "image/png" : "audio/mpeg",
+          signedUrl: null,
+          transcript: kind === "audio" ? "Spoken test media" : "",
+        })
+      }
+      type="button"
+    >
+      Attach {label}
+    </button>
+  ),
+}));
+
+const insertionDocument = {
+  attrs: { language: "fr" },
+  content: [
+    {
+      content: [{ text: "beforeafter", type: "text" }],
+      type: "paragraph",
+    },
+  ],
+  schemaVersion: 2,
+  type: "doc",
+} as const satisfies RichDocument;
+
+type BlockInsertion =
+  | "audio"
+  | "callout"
+  | "citation"
+  | "codeBlock"
+  | "externalVideo"
+  | "hint"
+  | "horizontalRule"
+  | "image"
+  | "mathBlock"
+  | "table"
+  | "taskList";
+
+function placeCaretInsideParagraph(editor: HTMLElement): void {
+  const text = editor.querySelector("p")?.firstChild;
+  if (!(text instanceof Text)) throw new Error("Expected a paragraph text node.");
+  editor.focus();
+  const range = document.createRange();
+  range.setStart(text, 6);
+  range.collapse(true);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  fireEvent.select(editor);
+}
+
+async function insertBlock(
+  kind: BlockInsertion,
+  user: ReturnType<typeof userEvent.setup>,
+): Promise<void> {
+  await user.click(screen.getByRole("button", { name: "Open insert command palette" }));
+
+  if (kind === "table") {
+    await user.click(await screen.findByRole("button", { name: "Table" }));
+    return;
+  }
+  if (kind === "taskList") {
+    await user.click(await screen.findByRole("button", { name: "Task list" }));
+    return;
+  }
+  if (kind === "hint" || kind === "callout" || kind === "citation") {
+    const label = kind === "hint" ? "Hint" : kind === "callout" ? "Callout" : "Citation";
+    await user.click(await screen.findByRole("button", { name: label }));
+    return;
+  }
+  if (kind === "horizontalRule") {
+    await user.click(await screen.findByRole("button", { name: "Divider" }));
+    return;
+  }
+  if (kind === "codeBlock") {
+    await user.click(await screen.findByRole("button", { name: "Code block" }));
+    const dialog = await screen.findByRole("dialog", { name: "Insert highlighted code" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Language" }), "TypeScript");
+    await user.type(within(dialog).getByRole("textbox", { name: "Source code" }), "const x = 1;");
+    await user.click(within(dialog).getByRole("button", { name: "Insert code block" }));
+    return;
+  }
+  if (kind === "mathBlock") {
+    await user.click(await screen.findByRole("button", { name: "Math block" }));
+    const dialog = await screen.findByRole("dialog", { name: "Insert math block" });
+    await user.type(within(dialog).getByRole("textbox", { name: "LaTeX" }), "E=mc^2");
+    await user.click(within(dialog).getByRole("button", { name: "Insert math" }));
+    return;
+  }
+  if (kind === "image") {
+    await user.click(await screen.findByRole("button", { name: "Image" }));
+    const dialog = await screen.findByRole("dialog", { name: "Insert image" });
+    await user.click(within(dialog).getByRole("button", { name: "Attach Image file" }));
+    await user.click(await within(dialog).findByRole("button", { name: "Insert prepared image" }));
+    return;
+  }
+  if (kind === "audio") {
+    await user.click(await screen.findByRole("button", { name: "Audio" }));
+    const dialog = await screen.findByRole("dialog", { name: "Insert audio" });
+    await user.click(within(dialog).getByRole("button", { name: "Attach Audio attachment" }));
+    return;
+  }
+
+  await user.click(await screen.findByRole("button", { name: "External video" }));
+  const dialog = await screen.findByRole("dialog", { name: "Insert external video" });
+  await user.type(within(dialog).getByRole("textbox", { name: "Video title" }), "Test video");
+  await user.type(
+    within(dialog).getByRole("textbox", { name: "YouTube or Vimeo URL" }),
+    "https://www.youtube.com/watch?v=abc12345",
+  );
+  await user.click(
+    within(dialog).getByRole("button", { name: "Insert privacy-enhanced reference" }),
+  );
+}
+
 describe("structured rich-content editor", () => {
   beforeEach(() => {
     Object.defineProperty(document, "execCommand", {
@@ -188,4 +325,108 @@ describe("structured rich-content editor", () => {
       }),
     ]);
   });
+
+  it("preserves an existing document language on the first browser edit", () => {
+    const onChange = vi.fn();
+    render(<RichEditor document={insertionDocument} label="French prompt" onChange={onChange} />);
+    const editor = screen.getByRole("textbox", { name: "French prompt" });
+    expect(editor).toHaveAttribute("lang", "fr");
+    const paragraph = editor.querySelector("p");
+    if (!paragraph) throw new Error("Expected a rendered paragraph.");
+    paragraph.textContent = "bonjour";
+
+    fireEvent.input(editor);
+
+    expect(onChange.mock.calls.at(-1)?.[0]).toMatchObject({ attrs: { language: "fr" } });
+  });
+
+  it("uses the explicit content-language control for editing semantics and serialization", () => {
+    const onChange = vi.fn();
+    render(
+      <RichEditor
+        document={insertionDocument}
+        label="German prompt"
+        language="de"
+        onChange={onChange}
+      />,
+    );
+    const editor = screen.getByRole("textbox", { name: "German prompt" });
+    expect(editor).toHaveAttribute("lang", "de");
+
+    fireEvent.input(editor);
+
+    expect(onChange.mock.calls.at(-1)?.[0]).toMatchObject({ attrs: { language: "de" } });
+  });
+
+  it("keeps inline math semantic and inline when inserted at a paragraph cursor", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(<RichEditor document={insertionDocument} label="Formula" onChange={onChange} />);
+    const editor = screen.getByRole("textbox", { name: "Formula" });
+    placeCaretInsideParagraph(editor);
+
+    await user.click(screen.getByRole("button", { name: "Open insert command palette" }));
+    await user.click(await screen.findByRole("button", { name: "Inline math" }));
+    const dialog = await screen.findByRole("dialog", { name: "Insert inline math" });
+    await user.type(within(dialog).getByRole("textbox", { name: "LaTeX" }), "x^2");
+    await user.click(within(dialog).getByRole("button", { name: "Insert math" }));
+    fireEvent.input(editor);
+
+    const value = onChange.mock.calls.at(-1)?.[0] as RichDocument;
+    expect(value.content).toEqual([
+      expect.objectContaining({
+        content: [
+          expect.objectContaining({ text: "before", type: "text" }),
+          { attrs: { latex: "x^2" }, type: "inlineMath" },
+          expect.objectContaining({ text: "after", type: "text" }),
+        ],
+        type: "paragraph",
+      }),
+    ]);
+  });
+
+  it.each([
+    ["table", "table"],
+    ["task list", "taskList"],
+    ["hint callout", "hint"],
+    ["callout", "callout"],
+    ["citation", "citation"],
+    ["divider", "horizontalRule"],
+    ["code block", "codeBlock"],
+    ["math block", "mathBlock"],
+    ["image", "image"],
+    ["audio", "audio"],
+    ["external video", "externalVideo"],
+  ] as const)(
+    "lifts a %s insertion to the document root without flattening or dropping it",
+    async (_label, kind) => {
+      const onChange = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <RichEditor document={insertionDocument} label={`${kind} field`} onChange={onChange} />,
+      );
+      const editor = screen.getByRole("textbox", { name: `${kind} field` });
+      placeCaretInsideParagraph(editor);
+
+      await insertBlock(kind, user);
+      fireEvent.input(editor);
+
+      const value = onChange.mock.calls.at(-1)?.[0] as RichDocument;
+      expect(value.attrs).toEqual({ language: "fr" });
+      expect(value.content.map((node) => node.type)).toEqual([
+        "paragraph",
+        kind === "hint" ? "callout" : kind,
+        "paragraph",
+      ]);
+      expect(value.content[0]).toMatchObject({
+        content: [{ text: "before", type: "text" }],
+        type: "paragraph",
+      });
+      expect(value.content.at(-1)).toMatchObject({
+        content: [{ text: "after", type: "text" }],
+        type: "paragraph",
+      });
+      if (kind === "hint") expect(value.content[1]).toMatchObject({ attrs: { kind: "hint" } });
+    },
+  );
 });

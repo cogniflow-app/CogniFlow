@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   cardAuthoringSchema,
+  customFieldPlainText,
   extractRichDocumentText,
   generateCardBlueprints,
   type CardAuthoringData,
@@ -14,6 +15,8 @@ import type {
   CardTypeCode,
   DeckDetail,
   DeckSummary,
+  DeckTheme,
+  DeckVersionNoteContent,
   DeckVersionSummary,
   FolderSummary,
   GeneratedCardSummary,
@@ -83,6 +86,10 @@ function cardType(value: unknown): CardTypeCode {
     ].includes(value)
     ? (value as CardTypeCode)
     : "basic";
+}
+
+function deckTheme(value: unknown): DeckTheme {
+  return value === "ocean" || value === "forest" || value === "contrast" ? value : "neutral";
 }
 
 function deckSummary(
@@ -226,10 +233,7 @@ function answerText(renderer: StudyRendererContract): string {
     case "typed_answer":
       return extractRichDocumentText(renderer.answer);
     case "custom":
-      return Object.values(renderer.fields)
-        .map(extractRichDocumentText)
-        .filter(Boolean)
-        .join(" · ");
+      return Object.values(renderer.fields).map(customFieldPlainText).filter(Boolean).join(" · ");
     case "cloze": {
       const text = extractRichDocumentText(renderer.document);
       return renderer.activeCloze.ranges
@@ -289,33 +293,103 @@ function generatedForNote(
   });
 }
 
-function snapshotNoteHashes(value: unknown): ReadonlyMap<string, string> {
-  const snapshot = row(value);
-  if (!snapshot) return new Map();
-  const hashes = new Map<string, string>();
-  for (const note of rows(snapshot.notes)) {
-    const id = stringValue(note.id);
-    if (id) hashes.set(id, stringValue(note.contentHash));
-  }
-  return hashes;
+interface DiffableNote {
+  readonly content: DeckVersionNoteContent;
+  readonly contentHash: string;
 }
 
-function diffNoteHashes(
-  snapshot: ReadonlyMap<string, string>,
-  current: ReadonlyMap<string, string>,
+function diffableNote(
+  authoringData: CardAuthoringData,
+  source: string,
+  tags: readonly string[],
+): DeckVersionNoteContent {
+  const first = generateCardBlueprints(authoringData)[0];
+  return Object.freeze({
+    answer: first ? answerText(first.renderer) : "",
+    cardType: authoringData.kind,
+    prompt: first?.renderer.accessibility.promptText ?? "",
+    source,
+    tags: Object.freeze([...tags].sort()),
+  });
+}
+
+function snapshotNotes(value: unknown): ReadonlyMap<string, DiffableNote> {
+  const snapshot = row(value);
+  if (!snapshot) return new Map();
+  const notes = new Map<string, DiffableNote>();
+  for (const note of rows(snapshot.notes)) {
+    const id = stringValue(note.id);
+    if (!id) continue;
+    const parsed = cardAuthoringSchema.safeParse(note.cardPayload);
+    const content = parsed.success
+      ? diffableNote(parsed.data, stringValue(note.sourceReference), stringArray(note.tagNames))
+      : Object.freeze({
+          answer: "",
+          cardType: cardType(row(note.cardPayload)?.kind),
+          prompt: stringValue(note.sortText),
+          source: stringValue(note.sourceReference),
+          tags: Object.freeze([...stringArray(note.tagNames)].sort()),
+        });
+    notes.set(id, Object.freeze({ content, contentHash: stringValue(note.contentHash) }));
+  }
+  return notes;
+}
+
+function changedAreas(version: DeckVersionNoteContent, current: DeckVersionNoteContent): string[] {
+  const areas: string[] = [];
+  if (version.cardType !== current.cardType) areas.push("Card type");
+  if (version.prompt !== current.prompt) areas.push("Prompt");
+  if (version.answer !== current.answer) areas.push("Answer");
+  if (version.source !== current.source) areas.push("Source");
+  if (JSON.stringify(version.tags) !== JSON.stringify(current.tags)) areas.push("Tags");
+  return areas;
+}
+
+function diffNotes(
+  snapshot: ReadonlyMap<string, DiffableNote>,
+  current: ReadonlyMap<string, DiffableNote>,
 ): DeckVersionSummary["diffFromCurrent"] {
-  let added = 0;
-  let changed = 0;
-  let removed = 0;
-  for (const [id, currentHash] of current) {
-    const snapshotHash = snapshot.get(id);
-    if (snapshotHash === undefined) added += 1;
-    else if (snapshotHash !== currentHash) changed += 1;
+  const changes: DeckVersionSummary["diffFromCurrent"]["changes"][number][] = [];
+  for (const [id, currentNote] of current) {
+    const versionNote = snapshot.get(id);
+    if (!versionNote) {
+      changes.push({
+        changedAreas: Object.freeze(["Added note"]),
+        current: currentNote.content,
+        kind: "added",
+        noteId: id,
+        version: null,
+      });
+    } else {
+      const areas = changedAreas(versionNote.content, currentNote.content);
+      if (versionNote.contentHash !== currentNote.contentHash || areas.length > 0) {
+        changes.push({
+          changedAreas: Object.freeze(areas.length ? areas : ["Structured card content"]),
+          current: currentNote.content,
+          kind: "changed",
+          noteId: id,
+          version: versionNote.content,
+        });
+      }
+    }
   }
-  for (const id of snapshot.keys()) {
-    if (!current.has(id)) removed += 1;
+  for (const [id, versionNote] of snapshot) {
+    if (!current.has(id)) {
+      changes.push({
+        changedAreas: Object.freeze(["Removed note"]),
+        current: null,
+        kind: "removed",
+        noteId: id,
+        version: versionNote.content,
+      });
+    }
   }
-  return Object.freeze({ added, changed, removed });
+  return Object.freeze({
+    added: changes.filter((change) => change.kind === "added").length,
+    changed: changes.filter((change) => change.kind === "changed").length,
+    changes: Object.freeze(changes.map((change) => Object.freeze(change))),
+    removed: changes.filter((change) => change.kind === "removed").length,
+  });
 }
 
 export const readDeckDetail = cache(
@@ -428,8 +502,14 @@ export const readDeckDetail = cache(
         stringValue((memberResult.data as UnknownRow).role) as DeckSummary["role"],
       );
     const base = deckSummary(deckResult.data as UnknownRow, accountId, folderByDeck, roleByDeck);
-    const currentNoteHashes = new Map(
-      noteRows.map((note) => [stringValue(note.id), stringValue(note.content_hash)]),
+    const currentNotes = new Map(
+      notes.map((note) => [
+        note.id,
+        Object.freeze({
+          content: diffableNote(note.authoringData, note.source, note.tags),
+          contentHash: note.contentHash,
+        }),
+      ]),
     );
     const versions: readonly DeckVersionSummary[] = rows(versionResult.data).map((version) =>
       Object.freeze({
@@ -441,10 +521,7 @@ export const readDeckDetail = cache(
         createdAt: stringValue(version.created_at),
         createdByLabel: stringValue(version.created_by) === accountId ? "You" : "Collaborator",
         deckVersion: numberValue(version.version_number),
-        diffFromCurrent: diffNoteHashes(
-          snapshotNoteHashes(version.content_snapshot),
-          currentNoteHashes,
-        ),
+        diffFromCurrent: diffNotes(snapshotNotes(version.content_snapshot), currentNotes),
         id: stringValue(version.id),
         summary: stringValue(version.summary),
       }),
@@ -463,7 +540,7 @@ export const readDeckDetail = cache(
         : "all_rights_reserved") as DeckDetail["license"],
       notes: Object.freeze(notes),
       supportedCardTypes: Object.freeze([...new Set(notes.map((note) => note.cardType))]),
-      theme: stringValue(deck.theme, "neutral"),
+      theme: deckTheme(deck.theme),
       versions: Object.freeze(versions),
     });
   },
@@ -562,7 +639,7 @@ export const readPublicDeck = cache(async (identifier: string): Promise<PublicDe
     cards: Object.freeze(cards),
     coverMedia,
     creator: Object.freeze({
-      displayName: stringValue(deck.creator_display_name, "Lumen creator"),
+      displayName: stringValue(deck.creator_display_name, "Deck creator"),
       handle: stringValue(deck.creator_handle) || null,
     }),
     description: stringValue(deck.description_plain),
@@ -570,6 +647,7 @@ export const readPublicDeck = cache(async (identifier: string): Promise<PublicDe
     publicId: stringValue(deck.public_id),
     slug: stringValue(deck.slug),
     supportedCardTypes: Object.freeze(stringArray(deck.card_kinds).map(cardType)),
+    theme: deckTheme(deck.theme),
     title: stringValue(deck.title, "Published deck"),
     updatedAt: stringValue(deck.updated_at),
     visibility: stringValue(deck.visibility, "unlisted") as PublicDeckView["visibility"],

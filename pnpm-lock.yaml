@@ -178,6 +178,14 @@ importers:
         specifier: 4.110.0
         version: 4.110.0
 
+  apps/worker:
+    dependencies:
+      '@lumen/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@supabase/supabase-js':
+        specifier: 2.110.5
+        version: 2.110.5
   packages/auth:
     dependencies:
       zod:

@@ -82,6 +82,7 @@ export interface CompiledTemplate {
 
 export interface TemplateMediaValue {
   readonly kind: "media";
+  readonly mediaKind: "audio" | "image";
   readonly assetId: string;
   readonly alt: string;
 }
@@ -102,6 +103,12 @@ export interface TemplateRenderContext {
   readonly fields: Readonly<Record<string, TemplateValue | undefined>>;
   readonly front?: TemplateRenderResult;
   readonly maxLoopItems?: number;
+  readonly media?: Readonly<Record<string, TemplateMediaSource | undefined>>;
+}
+
+export interface TemplateMediaSource {
+  readonly kind: "audio" | "image";
+  readonly signedUrl: string;
 }
 
 const FIELD_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,63}$/u;
@@ -470,14 +477,45 @@ function valuePlainText(value: TemplateValue | undefined): string {
   return extractRichDocumentText(value as RichDocument);
 }
 
-function valueHtml(value: TemplateValue | undefined): string {
+function safeMediaUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) return null;
+    if (url.protocol === "https:") return value;
+    if (url.protocol === "http:" && ["127.0.0.1", "::1", "localhost"].includes(url.hostname)) {
+      return value;
+    }
+  } catch {
+    // An unavailable or malformed source falls back to the authored description.
+  }
+  return null;
+}
+
+function mediaHtml(value: TemplateMediaValue, media: TemplateRenderContext["media"]): string {
+  if (!ASSET_PATTERN.test(value.assetId)) return escapeHtml(value.alt);
+  const source = media?.[value.assetId];
+  const signedUrl = source?.kind === value.mediaKind ? safeMediaUrl(source.signedUrl) : null;
+  if (signedUrl && value.mediaKind === "image") {
+    return `<img data-lumen-asset="${escapeHtml(value.assetId)}" src="${escapeHtml(signedUrl)}" alt="${escapeHtml(value.alt)}" decoding="async" loading="lazy" />`;
+  }
+  if (signedUrl && value.mediaKind === "audio") {
+    return `<audio data-lumen-audio="${escapeHtml(value.assetId)}" src="${escapeHtml(signedUrl)}" aria-label="${escapeHtml(value.alt)}" controls preload="metadata">${escapeHtml(value.alt)}</audio>`;
+  }
+  return value.mediaKind === "image"
+    ? `<span role="img" data-lumen-asset="${escapeHtml(value.assetId)}" aria-label="${escapeHtml(value.alt)}">${escapeHtml(value.alt)}</span>`
+    : `<span data-lumen-audio="${escapeHtml(value.assetId)}">${escapeHtml(value.alt)}</span>`;
+}
+
+function valueHtml(
+  value: TemplateValue | undefined,
+  media?: TemplateRenderContext["media"],
+): string {
   if (value === undefined) return "";
   if (typeof value === "string") return escapeHtml(value);
   if (Array.isArray(value))
     return `<ul>${value.map((entry) => `<li>${escapeHtml(entry)}</li>`).join("")}</ul>`;
   if ("kind" in value && value.kind === "media") {
-    if (!ASSET_PATTERN.test(value.assetId)) return escapeHtml(value.alt);
-    return `<span role="img" data-lumen-asset="${escapeHtml(value.assetId)}" aria-label="${escapeHtml(value.alt)}">${escapeHtml(value.alt)}</span>`;
+    return mediaHtml(value, media);
   }
   return renderRichDocumentHtml(value as RichDocument);
 }
@@ -498,7 +536,7 @@ export function renderTemplate(
         if (node.type === "item") return escapeHtml(item ?? "");
         const value = context.fields[node.field];
         if (value === undefined) missingFields.add(node.field);
-        if (node.type === "field") return valueHtml(value);
+        if (node.type === "field") return valueHtml(value, context.media);
         if (node.type === "if")
           return valuePlainText(value).trim() ? renderNodes(node.children, item) : "";
         if (node.type === "each") {
@@ -509,7 +547,7 @@ export function renderTemplate(
           return `<span data-lumen-type-answer="${escapeHtml(node.field)}" aria-label="Type the answer"></span>`;
         }
         if (node.helper === "hint") {
-          return `<details data-lumen-hint="true"><summary>Hint</summary>${valueHtml(value)}</details>`;
+          return `<details data-lumen-hint="true"><summary>Hint</summary>${valueHtml(value, context.media)}</details>`;
         }
         if (node.helper === "language") {
           const language = valuePlainText(value).trim();
@@ -518,9 +556,9 @@ export function renderTemplate(
             : "";
         }
         if (node.helper === "cloze") {
-          return `<span data-lumen-cloze-field="${escapeHtml(node.field)}">${valueHtml(value)}</span>`;
+          return `<span data-lumen-cloze-field="${escapeHtml(node.field)}">${valueHtml(value, context.media)}</span>`;
         }
-        return `<span data-lumen-media-field="${escapeHtml(node.field)}">${valueHtml(value)}</span>`;
+        return `<span data-lumen-media-field="${escapeHtml(node.field)}">${valueHtml(value, context.media)}</span>`;
       })
       .join("");
 

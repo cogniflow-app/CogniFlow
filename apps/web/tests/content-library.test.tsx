@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LibraryDashboard } from "../components/content/library-dashboard.client";
 import { WorkspaceNavigation } from "../components/content/workspace-navigation.client";
@@ -30,6 +30,8 @@ describe("content library dashboard", () => {
     navigation.push.mockReset();
     navigation.refresh.mockReset();
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   it("renders a truthful educational empty state with real creation actions", async () => {
     const user = userEvent.setup();
@@ -92,6 +94,50 @@ describe("content library dashboard", () => {
     );
   });
 
+  it("reuses deck and folder creation keys when their first responses are lost", async () => {
+    const deck = populatedLibrarySnapshot.decks[0]!;
+    const folder = populatedLibrarySnapshot.folders[0]!;
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("deck response lost"))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: deck, status: "created" }), {
+          headers: { "Content-Type": "application/json" },
+          status: 201,
+        }),
+      )
+      .mockRejectedValueOnce(new TypeError("folder response lost"))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: folder, status: "created" }), {
+          headers: { "Content-Type": "application/json" },
+          status: 201,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<LibraryDashboard canCreate learnerName="Ari" snapshot={emptyLibrarySnapshot} />);
+
+    await user.click(screen.getAllByRole("button", { name: "Create deck" })[0]!);
+    await user.type(screen.getByRole("textbox", { name: "Deck title" }), "Biology");
+    await user.click(screen.getByRole("button", { name: "Create and add notes" }));
+    expect(await screen.findByText("deck response lost")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Create and add notes" }));
+
+    await user.click(screen.getAllByRole("button", { name: /new folder|create folder/i })[0]!);
+    await user.type(screen.getByRole("textbox", { name: "Folder name" }), "Science");
+    await user.click(screen.getByRole("button", { name: "Create folder" }));
+    expect(await screen.findByText("folder response lost")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Create folder" }));
+
+    const keys = fetchMock.mock.calls.map((call) => {
+      const request = call[1] as RequestInit;
+      return (JSON.parse(String(request.body)) as { idempotencyKey: string }).idempotencyKey;
+    });
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[2]).toBe(keys[3]);
+    expect(keys[0]).not.toBe(keys[2]);
+  });
+
   it("keeps content creation controls out of a managed learner session", () => {
     render(
       <LibraryDashboard
@@ -134,7 +180,7 @@ describe("workspace content navigation", () => {
     expect(screen.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Library" })).toHaveAttribute("href", "/app");
     expect(screen.getByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "All decks" })).toHaveAttribute("href", "/app/library");
+    expect(screen.queryByRole("link", { name: "All decks" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute(
       "href",
       "/app/settings/profile",

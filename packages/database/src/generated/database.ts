@@ -2750,6 +2750,44 @@ export type Database = {
       };
     };
     Functions: {
+      admin_abandon_media_asset_upload: {
+        Args: {
+          p_actor_account_id: string;
+          p_idempotency_key: string;
+          p_media_asset_id: string;
+        };
+        Returns: {
+          alt_text: string | null;
+          byte_size: number;
+          created_at: string;
+          delete_after: string | null;
+          deleted_at: string | null;
+          detected_mime_type: string | null;
+          duration_ms: number | null;
+          height: number | null;
+          id: string;
+          kind: Database["public"]["Enums"]["media_kind"];
+          magic_verified: boolean;
+          metadata: Json;
+          mime_type: string;
+          owner_account_id: string;
+          public_id: string;
+          reference_count: number;
+          sha256: string;
+          status: Database["public"]["Enums"]["media_status"];
+          storage_bucket: string;
+          storage_path: string;
+          updated_at: string;
+          version: number;
+          width: number | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "media_assets";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       admin_cancel_account_deletion: {
         Args: {
           p_actor_account_id: string;
@@ -2758,6 +2796,15 @@ export type Database = {
           p_reauthentication_proof_hash: string;
         };
         Returns: boolean;
+      };
+      admin_claim_due_media_deletions: {
+        Args: { p_lease_seconds?: number; p_limit: number; p_worker_id: string };
+        Returns: {
+          lease_token: string;
+          media_asset_id: string;
+          storage_bucket: string;
+          storage_path: string;
+        }[];
       };
       admin_complete_current_account_onboarding: {
         Args: {
@@ -2801,6 +2848,15 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      admin_complete_media_deletion: {
+        Args: {
+          p_error?: string;
+          p_lease_token: string;
+          p_media_asset_id: string;
+          p_succeeded: boolean;
+        };
+        Returns: Json;
       };
       admin_configure_learner_profile_access: {
         Args: {
@@ -3423,6 +3479,52 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "profiles";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      current_apply_deck_settings_and_publication: {
+        Args: {
+          p_action: string;
+          p_deck_id: string;
+          p_expected_version: number;
+          p_idempotency_key: string;
+          p_patch: Json;
+          p_visibility: Database["public"]["Enums"]["deck_visibility"];
+        };
+        Returns: {
+          archived_at: string | null;
+          card_count: number;
+          content_hash: string;
+          cover_asset_id: string | null;
+          created_at: string;
+          current_version: number;
+          default_note_type_id: string;
+          deleted_at: string | null;
+          description_doc: Json;
+          description_plain: string;
+          fork_mode: string | null;
+          id: string;
+          language_back: string | null;
+          language_front: string | null;
+          license: Database["public"]["Enums"]["deck_license"];
+          note_count: number;
+          owner_account_id: string;
+          public_id: string;
+          published_at: string | null;
+          published_version: number | null;
+          slug: string;
+          source_deck_id: string | null;
+          status: Database["public"]["Enums"]["deck_status"];
+          theme: string;
+          title: string;
+          updated_at: string;
+          version: number;
+          visibility: Database["public"]["Enums"]["deck_visibility"];
+        };
+        SetofOptions: {
+          from: "*";
+          to: "decks";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -4420,6 +4522,21 @@ export type Database = {
           p_expected_version: number;
           p_fields: Json;
           p_idempotency_key: string;
+          p_note_id: string;
+          p_note_type_code: string;
+          p_tags: string[];
+        };
+        Returns: Json;
+      };
+      current_upsert_note_definition_with_media: {
+        Args: {
+          p_card_payload: Json;
+          p_custom_note_type_definition?: Json;
+          p_deck_id: string;
+          p_expected_version: number;
+          p_fields: Json;
+          p_idempotency_key: string;
+          p_media_links: Json;
           p_note_id: string;
           p_note_type_code: string;
           p_tags: string[];

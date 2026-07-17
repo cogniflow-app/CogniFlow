@@ -203,7 +203,7 @@ set local "request.jwt.claims" = '{"sub":"11000000-0000-4000-8000-000000000001",
 
 select throws_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from hardening_ids where name = 'source_deck'),
       '16000000-0000-4000-8000-000000000001',
       'basic', 0,
@@ -213,6 +213,8 @@ select throws_ok(
       }'::jsonb,
       '{"authoringData":{
         "kind":"basic","schemaVersion":1,
+        "imageAssetId":"19000000-0000-4000-8000-000000000099",
+        "imageAlt":"Missing",
         "front":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Atomic front"}]}]},
         "back":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Atomic back"}]}]}
       }}'::jsonb,
@@ -221,9 +223,9 @@ select throws_ok(
       '15000000-0000-4000-8000-000000000008'
     )
   $$,
-  '42501',
-  null,
-  'an unavailable media link rolls the entire note transaction back'
+  '22023',
+  'note media links do not match authoring payload',
+  'an unavailable embedded media identity rolls the entire note transaction back'
 );
 select is(
   (select count(*)::integer from public.notes
@@ -242,7 +244,7 @@ select ok(
 
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from hardening_ids where name = 'source_deck'),
       '16000000-0000-4000-8000-000000000001',
       'basic', 0,
@@ -250,11 +252,19 @@ select lives_ok(
         "Front":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"Atomic front","position":0},
         "Back":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"Atomic back","position":1}
       }'::jsonb,
-      '{"authoringData":{
-        "kind":"basic","schemaVersion":1,
-        "front":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Atomic front"}]}]},
-        "back":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Atomic back"}]}]}
-      }}'::jsonb,
+      pg_catalog.jsonb_set(
+        pg_catalog.jsonb_set(
+          '{"authoringData":{
+            "kind":"basic","schemaVersion":1,
+            "front":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Atomic front"}]}]},
+            "back":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Atomic back"}]}]
+          }}}'::jsonb,
+          '{authoringData,imageAssetId}',
+          pg_catalog.to_jsonb((select id::text from hardening_ids where name = 'media'))
+        ),
+        '{authoringData,imageAlt}',
+        '"A cell diagram"'::jsonb
+      ),
       array['RemoveMe']::text[],
       pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
         'assetId', (select id from hardening_ids where name = 'media'),
@@ -291,14 +301,32 @@ select is(
 );
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from hardening_ids where name = 'source_deck'),
       '16000000-0000-4000-8000-000000000001',
-      'basic', 999,
-      '{}'::jsonb,
-      '{}'::jsonb,
-      '{}'::text[],
-      '[]'::jsonb,
+      'basic', 0,
+      '{
+        "Front":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"Atomic front","position":0},
+        "Back":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"Atomic back","position":1}
+      }'::jsonb,
+      pg_catalog.jsonb_set(
+        pg_catalog.jsonb_set(
+          '{"authoringData":{
+            "kind":"basic","schemaVersion":1,
+            "front":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Atomic front"}]}]},
+            "back":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Atomic back"}]}]
+          }}}'::jsonb,
+          '{authoringData,imageAssetId}',
+          pg_catalog.to_jsonb((select id::text from hardening_ids where name = 'media'))
+        ),
+        '{authoringData,imageAlt}',
+        '"A cell diagram"'::jsonb
+      ),
+      array['RemoveMe']::text[],
+      pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'assetId', (select id from hardening_ids where name = 'media'),
+        'purpose', 'prompt', 'position', 0, 'altText', 'A cell diagram'
+      )),
       '15000000-0000-4000-8000-000000000009'
     )
   $$,
@@ -337,7 +365,7 @@ set local "request.jwt.claims" = '{"sub":"11000000-0000-4000-8000-000000000001",
 
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from hardening_ids where name = 'source_deck'),
       '16000000-0000-4000-8000-000000000002',
       'basic', 0,
@@ -364,11 +392,13 @@ from public.current_create_note_type(
   '[
     {"fieldKey":"Term","label":"Term","fieldType":"rich_text","position":0,"required":true},
     {"fieldKey":"Definition","label":"Definition","fieldType":"rich_text","position":1,"required":true},
-    {"fieldKey":"Secret","label":"Secret","fieldType":"rich_text","position":2,"required":false}
+    {"fieldKey":"Secret","label":"Secret","fieldType":"rich_text","position":2,"required":false},
+    {"fieldKey":"media","label":"Media keyword secret","fieldType":"rich_text","position":3,"required":false},
+    {"fieldKey":"if","label":"If keyword secret","fieldType":"rich_text","position":4,"required":false}
   ]'::jsonb,
   '[{
     "templateKey":"definition","name":"Definition","ordinal":0,
-    "frontTemplate":"{{Term}}","backTemplate":"{{Definition}}",
+    "frontTemplate":"{{media Term}}","backTemplate":"{{#if Definition}}{{Definition}}{{/if}}",
     "answerFieldKey":"Definition"
   }]'::jsonb,
   '15000000-0000-4000-8000-000000000011'
@@ -376,36 +406,56 @@ from public.current_create_note_type(
 
 select lives_ok(
   pg_catalog.format(
-    'select public.current_upsert_note_with_media(%L,%L,%L,0,%L::jsonb,%L::jsonb,%L::text[],%L::jsonb,%L)',
+    'select public.current_upsert_note_definition_with_media(%L,%L,%L,0,%L::jsonb,%L::jsonb,%L::text[],%L::jsonb,%L,%L::jsonb)',
     (select id from hardening_ids where name = 'source_deck'),
     '16000000-0000-4000-8000-000000000003',
     (select code from public.note_types where id = (select id from hardening_ids where name = 'custom_note_type')),
     '{
       "Term":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"Osmosis","position":0},
       "Definition":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"Movement through a membrane","position":1},
-      "Secret":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"Never publish this","position":2}
+      "Secret":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"Never publish this","position":2},
+      "media":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"KEYWORD-MEDIA-SECRET","position":3},
+      "if":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"KEYWORD-IF-SECRET","position":4}
     }'::jsonb,
     '{"authoringData":{
       "kind":"custom","schemaVersion":1,
       "fields":{
         "Term":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Osmosis"}]}]},
         "Definition":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Movement through a membrane"}]}]},
-        "Secret":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Never publish this"}]}]}
+        "Secret":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Never publish this"}]}]},
+        "media":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"KEYWORD-MEDIA-SECRET"}]}]},
+        "if":{"schemaVersion":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"KEYWORD-IF-SECRET"}]}]}
       },
       "templates":[{
         "semanticKey":"definition","name":"Definition",
-        "frontTemplate":"{{Term}}","backTemplate":"{{Definition}}"
+        "frontTemplate":"{{media Term}}","backTemplate":"{{#if Definition}}{{Definition}}{{/if}}"
       }]
     }}'::jsonb,
     '{}'::text[], '[]'::jsonb,
-    '15000000-0000-4000-8000-000000000012'
+    '15000000-0000-4000-8000-000000000012',
+    '{
+      "displayName":"Filtered publication type",
+      "description":"Secret is not referenced by its template",
+      "fields":[
+        {"fieldKey":"Term","label":"Term","fieldType":"rich_text","position":0,"required":true},
+        {"fieldKey":"Definition","label":"Definition","fieldType":"rich_text","position":1,"required":true},
+        {"fieldKey":"Secret","label":"Secret","fieldType":"rich_text","position":2,"required":false},
+        {"fieldKey":"media","label":"Media keyword secret","fieldType":"rich_text","position":3,"required":false},
+        {"fieldKey":"if","label":"If keyword secret","fieldType":"rich_text","position":4,"required":false}
+      ],
+      "templates":[{
+        "templateKey":"definition","name":"Definition","ordinal":0,
+        "frontTemplate":"{{media Term}}","backTemplate":"{{#if Definition}}{{Definition}}{{/if}}",
+        "answerFieldKey":"Definition","schemaVersion":1
+      }]
+    }'::jsonb
   ),
   'custom publication fixture persists through the atomic wrapper'
 );
 
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from hardening_ids where name = 'source_deck'),
       '16000000-0000-4000-8000-000000000004',
       'image_occlusion', 0,
@@ -814,6 +864,46 @@ select is(
 reset role;
 
 set local role anon;
+select ok(
+  (
+    select field_values ? 'Term'
+      and field_values ? 'Definition'
+      and not (field_values ?| array['Secret', 'media', 'if'])
+      and pg_catalog.strpos(field_values::text, 'KEYWORD-MEDIA-SECRET') = 0
+      and pg_catalog.strpos(field_values::text, 'KEYWORD-IF-SECRET') = 0
+    from public.card_publications
+    where deck_public_id = (select id from hardening_ids where name = 'source_public_id')
+      and generation_key = 'g1:custom:definition'
+  ),
+  'anonymous raw frozen field values exclude unused fields named after DSL keywords'
+);
+select ok(
+  (
+    select coalesce(
+        card_payload #> '{authoringData,fields}',
+        card_payload -> 'fields',
+        '{}'::jsonb
+      ) ? 'Term'
+      and coalesce(
+        card_payload #> '{authoringData,fields}',
+        card_payload -> 'fields',
+        '{}'::jsonb
+      ) ? 'Definition'
+      and not (
+        coalesce(
+          card_payload #> '{authoringData,fields}',
+          card_payload -> 'fields',
+          '{}'::jsonb
+        ) ?| array['Secret', 'media', 'if']
+      )
+      and pg_catalog.strpos(card_payload::text, 'KEYWORD-MEDIA-SECRET') = 0
+      and pg_catalog.strpos(card_payload::text, 'KEYWORD-IF-SECRET') = 0
+    from public.card_publications
+    where deck_public_id = (select id from hardening_ids where name = 'source_public_id')
+      and generation_key = 'g1:custom:definition'
+  ),
+  'anonymous raw frozen card payload excludes unused fields named after DSL keywords'
+);
 select ok(
   not exists(
     select 1

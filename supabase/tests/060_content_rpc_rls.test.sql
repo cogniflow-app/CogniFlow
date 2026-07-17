@@ -157,7 +157,7 @@ select throws_ok(
 
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from content_fixture_ids where name = 'deck'),
       '86000000-0000-0000-0000-000000000001',
       'basic', 0,
@@ -209,7 +209,7 @@ where note_id = '86000000-0000-0000-0000-000000000001' and active;
 
 select throws_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from content_fixture_ids where name = 'deck'),
       '86000000-0000-0000-0000-000000000001', 'basic', 0,
       '{
@@ -228,7 +228,7 @@ select throws_ok(
 
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from content_fixture_ids where name = 'deck'),
       '86000000-0000-0000-0000-000000000001', 'basic', 1,
       '{
@@ -257,7 +257,7 @@ select is(
 
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from content_fixture_ids where name = 'deck'),
       '86000000-0000-0000-0000-000000000002', 'optional_reversed', 0,
       '{
@@ -281,7 +281,7 @@ select is(
 
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from content_fixture_ids where name = 'deck'),
       '86000000-0000-0000-0000-000000000003', 'cloze', 0,
       '{
@@ -306,7 +306,7 @@ select is(
 
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from content_fixture_ids where name = 'deck'),
       '86000000-0000-0000-0000-000000000004', 'diagram', 0,
       '{
@@ -515,7 +515,7 @@ set local role authenticated;
 set local "request.jwt.claims" = '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated","session_id":"82000000-0000-0000-0000-000000000001"}';
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from content_fixture_ids where name = 'deck'),
       '86000000-0000-0000-0000-000000000001', 'basic', 2,
       '{
@@ -784,14 +784,25 @@ set local role authenticated;
 set local "request.jwt.claims" = '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated","session_id":"82000000-0000-0000-0000-000000000001"}';
 select lives_ok(
   pg_catalog.format(
-    'select public.current_upsert_note_with_media(%L, %L, %L, 0, %L::jsonb, %L::jsonb, %L::text[], %L::jsonb, %L)',
+    'select public.current_upsert_note_definition_with_media(%L, %L, %L, 0, %L::jsonb, %L::jsonb, %L::text[], %L::jsonb, %L)',
     (select id from content_fixture_ids where name = 'deck'),
     test_case.note_id,
     test_case.note_type_code,
     test_case.fields,
     test_case.payload,
     '{}'::text[],
-    '[]'::jsonb,
+    case
+      when test_case.note_type_code = 'audio_prompt' then
+        pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+          'assetId', (
+            select id from content_fixture_ids where name = 'audio_media'
+          ),
+          'purpose', 'prompt',
+          'position', 0,
+          'altText', 'cell'
+        ))
+      else '[]'::jsonb
+    end,
     test_case.idempotency_key
   ),
   test_case.note_type_code || ' persists through the actor-derived note RPC'
@@ -855,7 +866,7 @@ select ok(
 );
 select throws_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from content_fixture_ids where name = 'deck'),
       '86000000-0000-0000-0000-000000000017', 'drawing', 0,
       '{
@@ -890,7 +901,7 @@ from public.current_create_note_type(
 ) as note_type;
 select lives_ok(
   pg_catalog.format(
-    'select public.current_upsert_note_with_media(%L, %L, %L, 0, %L::jsonb, %L::jsonb, %L::text[], %L::jsonb, %L)',
+    'select public.current_upsert_note_definition_with_media(%L, %L, %L, 0, %L::jsonb, %L::jsonb, %L::text[], %L::jsonb, %L, %L::jsonb)',
     (select id from content_fixture_ids where name = 'deck'),
     '86000000-0000-0000-0000-000000000018',
     (select code from public.note_types where id = (select id from content_fixture_ids where name = 'conditional_custom_type')),
@@ -898,10 +909,31 @@ select lives_ok(
       "Prompt":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"Prompt value","position":0},
       "Extra":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"","position":1}
     }'::jsonb,
-    '{"authoringData":{"kind":"custom"}}'::jsonb,
+    '{"authoringData":{
+      "kind":"custom","schemaVersion":1,
+      "fields":{
+        "Prompt":{"schemaVersion":1,"type":"doc","content":[]},
+        "Extra":{"schemaVersion":1,"type":"doc","content":[]}
+      },
+      "templates":[
+        {"semanticKey":"always","name":"Always","frontTemplate":"{{Prompt}}","backTemplate":"{{Extra}}"},
+        {"semanticKey":"when_empty","name":"When empty","frontTemplate":"{{Prompt}}","backTemplate":"{{Extra}}","generationCondition":{"field":"Extra","when":"empty"}}
+      ]
+    }}'::jsonb,
     '{}'::text[],
     '[]'::jsonb,
-    '85000000-0000-0000-0000-000000000035'
+    '85000000-0000-0000-0000-000000000035',
+    '{
+      "displayName":"Conditional custom type","description":"Tests empty-field sibling generation",
+      "fields":[
+        {"fieldKey":"Prompt","label":"Prompt","fieldType":"rich_text","position":0,"required":true},
+        {"fieldKey":"Extra","label":"Extra","fieldType":"rich_text","position":1,"required":false}
+      ],
+      "templates":[
+        {"templateKey":"always","name":"Always","ordinal":0,"frontTemplate":"{{Prompt}}","backTemplate":"{{Extra}}","answerFieldKey":"Extra","schemaVersion":1},
+        {"templateKey":"when_empty","name":"When empty","ordinal":1,"frontTemplate":"{{Prompt}}","backTemplate":"{{Extra}}","answerFieldKey":"Extra","schemaVersion":1,"generationCondition":{"field":"Extra","when":"empty"}}
+      ]
+    }'::jsonb
   ),
   'custom note conditions reconcile through the same note RPC'
 );
@@ -913,7 +945,7 @@ select is(
 );
 select lives_ok(
   pg_catalog.format(
-    'select public.current_upsert_note_with_media(%L, %L, %L, 1, %L::jsonb, %L::jsonb, %L::text[], %L::jsonb, %L)',
+    'select public.current_upsert_note_definition_with_media(%L, %L, %L, 1, %L::jsonb, %L::jsonb, %L::text[], %L::jsonb, %L, %L::jsonb)',
     (select id from content_fixture_ids where name = 'deck'),
     '86000000-0000-0000-0000-000000000018',
     (select code from public.note_types where id = (select id from content_fixture_ids where name = 'conditional_custom_type')),
@@ -921,10 +953,31 @@ select lives_ok(
       "Prompt":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"Prompt value","position":0},
       "Extra":{"doc":{"schemaVersion":1,"type":"doc","content":[]},"plainText":"Now populated","position":1}
     }'::jsonb,
-    '{"authoringData":{"kind":"custom"}}'::jsonb,
+    '{"authoringData":{
+      "kind":"custom","schemaVersion":1,
+      "fields":{
+        "Prompt":{"schemaVersion":1,"type":"doc","content":[]},
+        "Extra":{"schemaVersion":1,"type":"doc","content":[]}
+      },
+      "templates":[
+        {"semanticKey":"always","name":"Always","frontTemplate":"{{Prompt}}","backTemplate":"{{Extra}}"},
+        {"semanticKey":"when_empty","name":"When empty","frontTemplate":"{{Prompt}}","backTemplate":"{{Extra}}","generationCondition":{"field":"Extra","when":"empty"}}
+      ]
+    }}'::jsonb,
     '{}'::text[],
     '[]'::jsonb,
-    '85000000-0000-0000-0000-000000000036'
+    '85000000-0000-0000-0000-000000000036',
+    '{
+      "displayName":"Conditional custom type","description":"Tests empty-field sibling generation",
+      "fields":[
+        {"fieldKey":"Prompt","label":"Prompt","fieldType":"rich_text","position":0,"required":true},
+        {"fieldKey":"Extra","label":"Extra","fieldType":"rich_text","position":1,"required":false}
+      ],
+      "templates":[
+        {"templateKey":"always","name":"Always","ordinal":0,"frontTemplate":"{{Prompt}}","backTemplate":"{{Extra}}","answerFieldKey":"Extra","schemaVersion":1},
+        {"templateKey":"when_empty","name":"When empty","ordinal":1,"frontTemplate":"{{Prompt}}","backTemplate":"{{Extra}}","answerFieldKey":"Extra","schemaVersion":1,"generationCondition":{"field":"Extra","when":"empty"}}
+      ]
+    }'::jsonb
   ),
   'changing a conditional custom field reconciles the sibling set'
 );

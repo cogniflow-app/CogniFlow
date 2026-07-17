@@ -7,7 +7,7 @@ import {
   type ImageOcclusionRegion,
 } from "./geometry";
 import { extractRichDocumentText, richDocumentSchema, type RichDocument } from "./rich-document";
-import { parseTemplate, validateAndScopeTemplateCss } from "./template";
+import { parseTemplate, validateAndScopeTemplateCss, type TemplateMediaValue } from "./template";
 import {
   DomainValidationError,
   createRuntimeSchema,
@@ -86,9 +86,25 @@ export interface CustomTemplateDefinition {
   };
 }
 
+export type CustomFieldValue = RichDocument | readonly string[] | TemplateMediaValue;
+
 export interface CustomCardData extends CardDataBase<"custom"> {
-  readonly fields: Readonly<Record<string, RichDocument>>;
+  readonly fields: Readonly<Record<string, CustomFieldValue>>;
   readonly templates: readonly CustomTemplateDefinition[];
+}
+
+export function isCustomFieldList(value: CustomFieldValue): value is readonly string[] {
+  return Array.isArray(value);
+}
+
+export function isCustomFieldMedia(value: CustomFieldValue): value is TemplateMediaValue {
+  return !isCustomFieldList(value) && "kind" in value && value.kind === "media";
+}
+
+export function customFieldPlainText(value: CustomFieldValue): string {
+  if (isCustomFieldList(value)) return value.join(" ");
+  if (isCustomFieldMedia(value)) return value.alt;
+  return extractRichDocumentText(value);
 }
 
 export interface TypedAnswerCardData extends CardDataBase<"typed_answer"> {
@@ -244,6 +260,7 @@ export interface CardTypeDefinition<TKind extends CardKind = CardKind> {
 }
 
 const SEMANTIC_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/u;
+const CUSTOM_TEMPLATE_KEY_PATTERN = /^[a-z][a-z0-9_.:-]{0,79}$/u;
 const FIELD_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,63}$/u;
 const ASSET_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
 const LANGUAGE_PATTERN = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/u;
@@ -431,7 +448,11 @@ const parseCustomTemplate: SchemaParser<CustomTemplateDefinition> = (input, path
     path,
     issues,
   );
-  const semanticKey = readSemanticKey(record.semanticKey, `${path}.semanticKey`, issues);
+  const semanticKey = readString(record.semanticKey, `${path}.semanticKey`, issues, {
+    min: 1,
+    max: 80,
+    pattern: CUSTOM_TEMPLATE_KEY_PATTERN,
+  });
   const name = readString(record.name, `${path}.name`, issues, { min: 1, max: 120 });
   const frontTemplate = readString(record.frontTemplate, `${path}.frontTemplate`, issues, {
     min: 1,
@@ -490,11 +511,11 @@ export const customCardSchema = createRuntimeSchema<CustomCardData>(
     hasOnlyKeys(record, ["kind", "schemaVersion", "fields", "templates"], path, issues);
     const base = parseBase(record, "custom", path, issues);
     const fieldRecord = readRecord(record.fields, `${path}.fields`, issues);
-    const fields: Record<string, RichDocument> = {};
+    const fields: Record<string, CustomFieldValue> = {};
     if (fieldRecord) {
       const entries = Object.entries(fieldRecord);
-      if (entries.length === 0 || entries.length > 100) {
-        issue(issues, `${path}.fields`, "invalid_length", "Custom cards require 1 to 100 fields");
+      if (entries.length === 0 || entries.length > 64) {
+        issue(issues, `${path}.fields`, "invalid_length", "Custom cards require 1 to 64 fields");
       }
       for (const [key, value] of entries) {
         if (
@@ -504,7 +525,49 @@ export const customCardSchema = createRuntimeSchema<CustomCardData>(
           issue(issues, `${path}.fields.${key}`, "unsafe_field_key", "Invalid custom field key");
           continue;
         }
-        const document = parseDocument(value, `${path}.fields.${key}`, issues);
+        if (Array.isArray(value)) {
+          const items = readArray(
+            value,
+            `${path}.fields.${key}`,
+            issues,
+            (item, itemPath, itemIssues) =>
+              readString(item, itemPath, itemIssues, { min: 1, max: 2_000 }),
+            { max: 100 },
+          );
+          if (items) fields[key] = Object.freeze(items);
+          continue;
+        }
+        const candidate = readRecord(value, `${path}.fields.${key}`, issues);
+        if (!candidate) continue;
+        if (candidate.kind === "media") {
+          hasOnlyKeys(
+            candidate,
+            ["kind", "mediaKind", "assetId", "alt"],
+            `${path}.fields.${key}`,
+            issues,
+          );
+          const kind = readLiteral(candidate.kind, "media", `${path}.fields.${key}.kind`, issues);
+          const mediaKind = readOneOf(
+            candidate.mediaKind,
+            ["audio", "image"] as const,
+            `${path}.fields.${key}.mediaKind`,
+            issues,
+          );
+          const assetId = readString(candidate.assetId, `${path}.fields.${key}.assetId`, issues, {
+            min: 1,
+            max: 128,
+            pattern: ASSET_ID_PATTERN,
+          });
+          const alt = readString(candidate.alt, `${path}.fields.${key}.alt`, issues, {
+            min: 1,
+            max: 2_000,
+          });
+          if (kind && mediaKind && assetId && alt) {
+            fields[key] = Object.freeze({ kind, mediaKind, assetId, alt });
+          }
+          continue;
+        }
+        const document = parseDocument(candidate, `${path}.fields.${key}`, issues);
         if (document) fields[key] = document;
       }
     }
@@ -526,7 +589,7 @@ export const customCardSchema = createRuntimeSchema<CustomCardData>(
     ) {
       return undefined;
     }
-    if (!Object.values(fields).some((document) => extractRichDocumentText(document).trim())) {
+    if (!Object.values(fields).some((value) => customFieldPlainText(value).trim())) {
       issue(
         issues,
         `${path}.fields`,

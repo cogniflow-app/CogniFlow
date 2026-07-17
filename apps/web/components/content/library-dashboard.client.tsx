@@ -1,29 +1,25 @@
 "use client";
 
 import { Badge, Button, Dialog, FormField, Input, LinkButton, Select } from "@lumen/ui";
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 
 import type {
-  ContentApiError,
   ContentMutationResult,
   DeckSummary,
   FolderSummary,
   LibrarySnapshot,
 } from "@/lib/content/view-models";
+import {
+  conflictRecoveryMessage,
+  ContentApiRequestError,
+  PendingContentMutations,
+  performContentMutation,
+} from "@/lib/content/client-mutations";
 
 type LibraryView = "grid" | "list";
 type StatusFilter = "active" | "all" | "archived";
-
-async function readResponse<T>(response: Response): Promise<T> {
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const error = body as Partial<ContentApiError> | null;
-    throw new Error(error?.message ?? "That change could not be saved. Please try again.");
-  }
-  return body as T;
-}
 
 function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: LibraryView }) {
   return (
@@ -94,6 +90,27 @@ function EmptyLibrary({
   );
 }
 
+function LibraryMutationError({
+  error,
+  onReload,
+}: {
+  readonly error: Error | null;
+  readonly onReload: () => void;
+}) {
+  if (!error) return null;
+  const conflict = error instanceof ContentApiRequestError && error.code === "CONFLICT";
+  return (
+    <div className="grid gap-2" role="alert">
+      <p className="m-0 text-sm text-[var(--color-danger)]">{error.message}</p>
+      {conflict && (
+        <Button onClick={onReload} size="sm" variant="secondary">
+          Reload current library
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function LibraryDashboard({
   canCreate,
   learnerName,
@@ -114,7 +131,21 @@ export function LibraryDashboard({
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [managedFolder, setManagedFolder] = useState<FolderSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+  const pendingMutations = useRef(new PendingContentMutations());
+
+  function mutationError(caught: unknown, fallback: string, resource: string): void {
+    setError(
+      caught instanceof ContentApiRequestError && caught.code === "CONFLICT"
+        ? new ContentApiRequestError(
+            { ...caught, message: conflictRecoveryMessage(caught, resource) },
+            fallback,
+          )
+        : caught instanceof Error
+          ? caught
+          : new Error(fallback),
+    );
+  }
 
   const visibleDecks = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -137,28 +168,27 @@ export function LibraryDashboard({
     setSubmitting(true);
     setError(null);
     const form = new FormData(event.currentTarget);
+    const command = {
+      description: String(form.get("description") ?? ""),
+      folderId:
+        form.get("folderId") === "none" || !form.get("folderId") ? null : form.get("folderId"),
+      title: String(form.get("title") ?? ""),
+      visibility: "private",
+    } as const;
     try {
-      const result = await readResponse<ContentMutationResult<DeckSummary>>(
-        await fetch("/api/content/decks", {
-          body: JSON.stringify({
-            description: String(form.get("description") ?? ""),
-            folderId:
-              form.get("folderId") === "none" || !form.get("folderId")
-                ? null
-                : form.get("folderId"),
-            idempotencyKey: crypto.randomUUID(),
-            title: String(form.get("title") ?? ""),
-            visibility: "private",
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        }),
-      );
+      const result = await performContentMutation<ContentMutationResult<DeckSummary>>({
+        body: command,
+        fallbackMessage: "The deck could not be created.",
+        method: "POST",
+        operation: "library:create-deck",
+        pending: pendingMutations.current,
+        url: "/api/content/decks",
+      });
       setDecks((current) => [result.data, ...current]);
       setDeckDialogOpen(false);
       router.push(`/app/decks/${result.data.id}/edit` as Route);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The deck could not be created.");
+      mutationError(caught, "The deck could not be created.", "This library");
     } finally {
       setSubmitting(false);
     }
@@ -169,27 +199,26 @@ export function LibraryDashboard({
     setSubmitting(true);
     setError(null);
     const form = new FormData(event.currentTarget);
+    const command = {
+      name: String(form.get("name") ?? ""),
+      parentId:
+        form.get("parentId") === "none" || !form.get("parentId") ? null : form.get("parentId"),
+    } as const;
     try {
-      const result = await readResponse<ContentMutationResult<FolderSummary>>(
-        await fetch("/api/content/folders", {
-          body: JSON.stringify({
-            idempotencyKey: crypto.randomUUID(),
-            name: String(form.get("name") ?? ""),
-            parentId:
-              form.get("parentId") === "none" || !form.get("parentId")
-                ? null
-                : form.get("parentId"),
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        }),
-      );
+      const result = await performContentMutation<ContentMutationResult<FolderSummary>>({
+        body: command,
+        fallbackMessage: "The folder could not be created.",
+        method: "POST",
+        operation: "library:create-folder",
+        pending: pendingMutations.current,
+        url: "/api/content/folders",
+      });
       setFolders((current) => [...current, result.data]);
       setFolderDialogOpen(false);
       setSelectedFolder(result.data.id);
       router.refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The folder could not be created.");
+      mutationError(caught, "The folder could not be created.", "This folder");
     } finally {
       setSubmitting(false);
     }
@@ -201,19 +230,19 @@ export function LibraryDashboard({
     setSubmitting(true);
     setError(null);
     const form = new FormData(event.currentTarget);
+    const command = {
+      expectedVersion: managedFolder.version,
+      name: String(form.get("name") ?? ""),
+      parentId: form.get("parentId") === "none" ? null : form.get("parentId"),
+    } as const;
     try {
-      const result = await readResponse<ContentMutationResult<FolderSummary>>(
-        await fetch(`/api/content/folders/${managedFolder.id}`, {
-          body: JSON.stringify({
-            expectedVersion: managedFolder.version,
-            idempotencyKey: crypto.randomUUID(),
-            name: String(form.get("name") ?? ""),
-            parentId: form.get("parentId") === "none" ? null : form.get("parentId"),
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "PATCH",
-        }),
-      );
+      const result = await performContentMutation<ContentMutationResult<FolderSummary>>({
+        body: command,
+        fallbackMessage: "The folder could not be updated.",
+        operation: `library:update-folder:${managedFolder.id}`,
+        pending: pendingMutations.current,
+        url: `/api/content/folders/${managedFolder.id}`,
+      });
       setFolders((current) =>
         current.map((folder) =>
           folder.id === result.data.id ? { ...result.data, deckCount: folder.deckCount } : folder,
@@ -222,7 +251,7 @@ export function LibraryDashboard({
       setManagedFolder(null);
       router.refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The folder could not be updated.");
+      mutationError(caught, "The folder could not be updated.", "This folder");
     } finally {
       setSubmitting(false);
     }
@@ -233,22 +262,20 @@ export function LibraryDashboard({
     setSubmitting(true);
     setError(null);
     try {
-      await readResponse<{ readonly data: { readonly id: string } }>(
-        await fetch(`/api/content/folders/${managedFolder.id}`, {
-          body: JSON.stringify({
-            expectedVersion: managedFolder.version,
-            idempotencyKey: crypto.randomUUID(),
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "DELETE",
-        }),
-      );
+      await performContentMutation<{ readonly data: { readonly id: string } }>({
+        body: { expectedVersion: managedFolder.version },
+        fallbackMessage: "The folder could not be deleted.",
+        method: "DELETE",
+        operation: `library:delete-folder:${managedFolder.id}`,
+        pending: pendingMutations.current,
+        url: `/api/content/folders/${managedFolder.id}`,
+      });
       setFolders((current) => current.filter((folder) => folder.id !== managedFolder.id));
       if (selectedFolder === managedFolder.id) setSelectedFolder(null);
       setManagedFolder(null);
       router.refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The folder could not be deleted.");
+      mutationError(caught, "The folder could not be deleted.", "This folder");
     } finally {
       setSubmitting(false);
     }
@@ -272,8 +299,8 @@ export function LibraryDashboard({
           </h1>
           <p>
             Create notes once, generate the cards each idea needs, and keep every draft, sibling,
-            and revision organized. Scheduling begins in the next phase; this library reports only
-            real content.
+            and revision organized. Everything shown here comes from your saved decks, folders,
+            notes, generated siblings, and recent edits.
           </p>
         </div>
         {canCreate && (
@@ -498,11 +525,7 @@ export function LibraryDashboard({
                 defaultValue={selectedFolder ?? "none"}
               />
             </FormField>
-            {error && (
-              <p role="alert" className="m-0 text-sm text-[var(--color-danger)]">
-                {error}
-              </p>
-            )}
+            <LibraryMutationError error={error} onReload={() => window.location.reload()} />
             <div className="flex flex-wrap justify-end gap-2">
               <Button onClick={() => setDeckDialogOpen(false)} variant="ghost">
                 Cancel
@@ -540,11 +563,7 @@ export function LibraryDashboard({
                 ]}
               />
             </FormField>
-            {error && (
-              <p role="alert" className="m-0 text-sm text-[var(--color-danger)]">
-                {error}
-              </p>
-            )}
+            <LibraryMutationError error={error} onReload={() => window.location.reload()} />
             <div className="flex flex-wrap justify-between gap-2">
               <Button loading={submitting} onClick={() => void deleteFolder()} variant="danger">
                 Delete folder
@@ -586,11 +605,7 @@ export function LibraryDashboard({
                 defaultValue="none"
               />
             </FormField>
-            {error && (
-              <p role="alert" className="m-0 text-sm text-[var(--color-danger)]">
-                {error}
-              </p>
-            )}
+            <LibraryMutationError error={error} onReload={() => window.location.reload()} />
             <div className="flex flex-wrap justify-end gap-2">
               <Button onClick={() => setFolderDialogOpen(false)} variant="ghost">
                 Cancel

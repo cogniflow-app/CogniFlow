@@ -1,75 +1,53 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 const runId = process.env.HOSTED_ACCEPTANCE_RUN_ID;
-const supabaseUrl = process.env.HOSTED_PREVIEW_SUPABASE_URL;
-const supabaseSecretKey = process.env.HOSTED_PREVIEW_SUPABASE_SECRET_KEY;
+const fixtureConfirmationFile = process.env.HOSTED_FIXTURE_CONFIRMATION_FILE;
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL;
-if (!runId || !supabaseUrl || !supabaseSecretKey || !baseUrl) {
+if (!runId || !fixtureConfirmationFile || !baseUrl) {
   throw new Error("The guarded hosted-content environment is incomplete.");
 }
 
-interface AdminUser {
-  readonly email?: string;
-  readonly id: string;
-}
-
-function adminHeaders(): Readonly<Record<string, string>> {
-  return {
-    apikey: supabaseSecretKey!,
-    Authorization: `Bearer ${supabaseSecretKey}`,
-    "Content-Type": "application/json",
-  };
-}
-
-async function readAdminUsers(): Promise<readonly AdminUser[]> {
-  const response = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=100`, {
-    headers: adminHeaders(),
-  });
-  if (!response.ok) throw new Error("Preview Auth fixture lookup failed.");
-  const body: unknown = await response.json();
-  if (!body || typeof body !== "object" || !("users" in body) || !Array.isArray(body.users)) {
-    throw new Error("Preview Auth returned an invalid user inventory.");
-  }
-  return body.users.filter(
-    (candidate): candidate is AdminUser =>
-      Boolean(candidate) &&
-      typeof candidate === "object" &&
-      "id" in candidate &&
-      typeof candidate.id === "string",
-  );
-}
-
-async function confirmAndMarkFixture(email: string): Promise<void> {
-  let user: AdminUser | undefined;
+async function waitForFixtureConfirmation(): Promise<void> {
   await expect
     .poll(
       async () => {
-        user = (await readAdminUsers()).find((candidate) => candidate.email === email);
-        return Boolean(user);
+        try {
+          return (await readFile(fixtureConfirmationFile, "utf8")).trim() === runId;
+        } catch {
+          return false;
+        }
       },
-      { timeout: 20_000 },
+      { timeout: 30_000 },
     )
     .toBe(true);
-
-  const response = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user!.id}`, {
-    body: JSON.stringify({
-      email_confirm: true,
-      user_metadata: { lumen_hosted_acceptance: runId },
-    }),
-    headers: adminHeaders(),
-    method: "PUT",
-  });
-  if (!response.ok) throw new Error("Preview Auth fixture confirmation failed.");
 }
 
-function protectedContextHeaders(): Readonly<Record<string, string>> | undefined {
-  const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
-  return bypass
-    ? {
-        "x-vercel-protection-bypass": bypass,
-        "x-vercel-set-bypass-cookie": "true",
-      }
-    : undefined;
+async function signOut(page: Page): Promise<void> {
+  const response = await page.request.post(`${baseUrl}/api/auth/sign-out`, {
+    data: { scope: "current" },
+    headers: {
+      "Content-Type": "application/json",
+      Origin: baseUrl!,
+      "X-Lumen-CSRF": "1",
+    },
+  });
+  expect(response.status()).toBe(200);
+  expect(await response.json()).toMatchObject({ status: "signed_out" });
+}
+
+async function signIn(
+  page: Page,
+  email: string,
+  password: string,
+  returnTo?: string,
+): Promise<void> {
+  const query = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : "";
+  await page.goto(`/auth/sign-in${query}`);
+  await page.getByRole("textbox", { name: "Email address" }).fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(new URL(returnTo ?? "/app", baseUrl).toString());
 }
 
 async function assertTheme(page: Page, theme: "dark" | "light"): Promise<void> {
@@ -78,7 +56,6 @@ async function assertTheme(page: Page, theme: "dark" | "light"): Promise<void> {
 }
 
 test("Preview supports the complete disposable Phase 02 account and content path", async ({
-  browser,
   page,
 }) => {
   const compactRunId = runId.replaceAll("-", "");
@@ -86,7 +63,17 @@ test("Preview supports the complete disposable Phase 02 account and content path
   const password = `Preview-only-${compactRunId}-Pass!`;
   const deckTitle = `Preview cell recall ${compactRunId.slice(0, 8)}`;
 
-  await page.goto("/auth/sign-up?returnTo=%2Fapp");
+  const healthResponse = await page.request.get("/api/health");
+  expect(healthResponse.status()).toBe(200);
+  expect(await healthResponse.json()).toMatchObject({
+    deploymentProfile: "vercel_beta",
+    provider: "vercel",
+    status: "ok",
+    supabaseProjectRef: "cfwddajyjbueggpzfomh",
+    vercelEnvironment: "preview",
+  });
+
+  await page.goto("/auth/sign-up?returnTo=%2Fapp%2Fdecks%2Fnew");
   await page.getByRole("combobox", { name: /which age range describes you/i }).click();
   await page.getByRole("option", { name: "18 or older" }).click();
   await page.getByRole("textbox", { name: "Email address" }).fill(email);
@@ -94,21 +81,24 @@ test("Preview supports the complete disposable Phase 02 account and content path
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/auth\/check-email$/u);
 
-  await confirmAndMarkFixture(email);
+  await waitForFixtureConfirmation();
   await page.getByRole("link", { name: "Return to sign in" }).click();
   await page.getByRole("textbox", { name: "Email address" }).fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/onboarding\?returnTo=%2Fapp$/u);
+  await expect(page).toHaveURL(/\/onboarding\?returnTo=%2Fapp%2Fdecks%2Fnew$/u);
 
   await page.getByRole("textbox", { name: "Display name" }).fill("Preview author");
   await page.getByRole("textbox", { name: "Handle" }).fill(`preview_${compactRunId.slice(0, 12)}`);
   await page.getByRole("button", { name: "Finish account setup" }).click();
-  await expect(page).toHaveURL(/\/app$/u);
+  await expect(page).toHaveURL(/\/app\/decks\/new$/u);
+  await page.goto("/app");
   await expect(
     page.getByRole("heading", { level: 2, name: "Create your first deck" }),
   ).toBeVisible();
   await expect(page.locator(".library-metric strong")).toHaveText(["0", "0", "0", "0", "0"]);
+  await signOut(page);
+  await signIn(page, email, password);
 
   const workspaceAppearance = page.locator(".workspace-appearance").last();
   await workspaceAppearance.locator("> summary").click();
@@ -143,20 +133,6 @@ test("Preview supports the complete disposable Phase 02 account and content path
   const deckId = createdBody.data.id;
   await expect(page).toHaveURL(new RegExp(`/app/decks/${deckId}/edit$`, "u"));
   await assertTheme(page, "dark");
-
-  const privateDeckContext = await browser.newContext({
-    extraHTTPHeaders: protectedContextHeaders(),
-  });
-  try {
-    const [publicPage, embedPage] = await Promise.all([
-      privateDeckContext.request.get(`${baseUrl}/deck/${deckId}`),
-      privateDeckContext.request.get(`${baseUrl}/embed/deck/${deckId}`),
-    ]);
-    expect(publicPage.status()).toBe(404);
-    expect(embedPage.status()).toBe(404);
-  } finally {
-    await privateDeckContext.close();
-  }
 
   await page
     .getByRole("textbox", { name: "Front / prompt" })
@@ -201,34 +177,35 @@ test("Preview supports the complete disposable Phase 02 account and content path
     data: { publicId: string; publicSlug: string };
   };
 
-  let anonymousContext: BrowserContext | undefined;
-  try {
-    anonymousContext = await browser.newContext({ extraHTTPHeaders: protectedContextHeaders() });
-    const anonymousPage = await anonymousContext.newPage();
-    await anonymousPage.goto(`${baseUrl}/deck/${publishedBody.data.publicSlug}`);
-    await expect(anonymousPage.getByRole("heading", { level: 1, name: deckTitle })).toBeVisible();
-    const card = anonymousPage.getByRole("region", { name: "Prompt card preview" });
-    await expect(card).toContainText("What molecule carries cellular energy?");
-    await anonymousPage.getByRole("button", { name: "Reveal answer" }).click();
-    await expect(anonymousPage.getByRole("region", { name: "Answer card preview" })).toContainText(
-      "ATP",
-    );
+  await signOut(page);
+  await page.goto(`${baseUrl}/deck/${publishedBody.data.publicSlug}`);
+  await expect(page.getByRole("heading", { level: 1, name: deckTitle })).toBeVisible();
+  const card = page.getByRole("region", { name: "Prompt card preview" });
+  await expect(card).toContainText("What molecule carries cellular energy?");
+  await page.getByRole("button", { name: "Reveal answer" }).click();
+  await expect(page.getByRole("region", { name: "Answer card preview" })).toContainText("ATP");
 
-    await page.goto(`/app/decks/${deckId}/settings`);
-    const unpublishResponse = page.waitForResponse(
-      (response) =>
-        response.url().endsWith(`/api/content/decks/${deckId}`) &&
-        response.request().method() === "PATCH",
-    );
-    await page.getByRole("button", { name: "Unpublish" }).click();
-    expect((await unpublishResponse).ok()).toBe(true);
-    await anonymousPage.reload();
-    await expect(
-      anonymousPage.getByRole("heading", { level: 1, name: /couldn't find that page/i }),
-    ).toBeVisible();
-  } finally {
-    await anonymousContext?.close();
-  }
+  await signIn(page, email, password, `/app/decks/${deckId}/settings`);
+  const unpublishResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/content/decks/${deckId}`) &&
+      response.request().method() === "PATCH",
+  );
+  await page.getByRole("button", { name: "Unpublish" }).click();
+  expect((await unpublishResponse).ok()).toBe(true);
+  await signOut(page);
+  const [privatePublicPage, privateEmbedPage] = await Promise.all([
+    page.request.get(`${baseUrl}/deck/${publishedBody.data.publicSlug}`),
+    page.request.get(`${baseUrl}/embed/deck/${publishedBody.data.publicId}`),
+  ]);
+  expect(privatePublicPage.status()).toBe(404);
+  expect(privateEmbedPage.status()).toBe(404);
+  await page.goto(`${baseUrl}/deck/${publishedBody.data.publicSlug}`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: /couldn't find that page/i }),
+  ).toBeVisible();
+
+  await signIn(page, email, password, `/app/decks/${deckId}/settings`);
 
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   const deleteResponse = page.waitForResponse(

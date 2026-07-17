@@ -21,7 +21,7 @@ import {
 
 import { MediaUploader, type UploadedMediaAsset } from "./media-uploader.client";
 
-interface RichEditorProps {
+export interface RichEditorProps {
   readonly document?: RichDocument;
   readonly label: string;
   readonly language?: string;
@@ -284,6 +284,14 @@ function inlineNodes(node: Node, marks: readonly RichTextMark[] = []): readonly 
     return text ? [{ type: "text", text, ...(marks.length ? { marks } : {}) }] : [];
   }
   if (!(node instanceof Element)) return [];
+  if (node.getAttribute("data-node") === "inlineMath") {
+    return [
+      {
+        type: "inlineMath",
+        attrs: { latex: node.getAttribute("data-latex") ?? node.textContent ?? "" },
+      },
+    ];
+  }
   if (node.tagName.toLowerCase() === "br") return [{ type: "hardBreak" }];
   const mark = elementMark(node);
   const nextMarks = mark ? marksWith(marks, mark) : marks;
@@ -449,19 +457,146 @@ function serializeEditor(element: HTMLElement, language?: string): RichDocument 
   }).document;
 }
 
-function insertNodeAtSelection(node: Node, fallback?: HTMLElement | null): void {
-  const selection = window.getSelection();
-  if (!selection?.rangeCount || (fallback && !fallback.contains(selection.anchorNode))) {
-    fallback?.append(node);
-    return;
+type InsertionPlacement = "block" | "inline";
+
+function rangeIsInside(range: Range, editor: HTMLElement): boolean {
+  const contains = (node: Node) => node === editor || editor.contains(node);
+  return contains(range.startContainer) && contains(range.endContainer);
+}
+
+function directEditorChild(editor: HTMLElement, node: Node): ChildNode | null {
+  if (node === editor) return null;
+  let candidate: Node | null = node;
+  while (candidate?.parentNode && candidate.parentNode !== editor) candidate = candidate.parentNode;
+  return candidate?.parentNode === editor ? (candidate as ChildNode) : null;
+}
+
+function isSplittableTextBlock(node: Node): boolean {
+  if (!(node instanceof HTMLElement)) return false;
+  const tag = node.tagName.toLowerCase();
+  return (
+    tag === "p" ||
+    tag === "blockquote" ||
+    /^h[1-6]$/u.test(tag) ||
+    (tag === "div" && ["callout", "citation"].includes(node.dataset.node ?? ""))
+  );
+}
+
+function inlineContainer(node: Node, editor: HTMLElement): HTMLElement | null {
+  let candidate = node instanceof HTMLElement ? node : node.parentElement;
+  while (candidate && candidate !== editor) {
+    if (isSplittableTextBlock(candidate)) return candidate;
+    candidate = candidate.parentElement;
   }
-  const range = selection.getRangeAt(0);
+  return null;
+}
+
+function selectRange(range: Range): void {
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
+function insertNodeAtSelection(
+  node: Node,
+  fallback: HTMLElement | null,
+  placement: InsertionPlacement,
+  preferredRange?: Range | null,
+): Range | null {
+  if (!fallback) return null;
+  const insertedNodes =
+    node instanceof DocumentFragment ? Array.from(node.childNodes) : ([node] as const);
+  if (insertedNodes.length === 0) return null;
+
+  const selection = window.getSelection();
+  const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const range =
+    preferredRange && rangeIsInside(preferredRange, fallback)
+      ? preferredRange.cloneRange()
+      : selectedRange && rangeIsInside(selectedRange, fallback)
+        ? selectedRange.cloneRange()
+        : null;
+
+  if (!range) {
+    if (placement === "inline") {
+      const lastChild = fallback.lastChild;
+      const container =
+        lastChild instanceof HTMLElement && isSplittableTextBlock(lastChild) ? lastChild : null;
+      const paragraph = container ?? document.createElement("p");
+      if (!container) fallback.append(paragraph);
+      paragraph.append(node);
+    } else {
+      fallback.append(node);
+    }
+    const caret = document.createRange();
+    caret.setStartAfter(insertedNodes.at(-1) ?? fallback);
+    caret.collapse(true);
+    selectRange(caret);
+    return caret;
+  }
+
+  if (placement === "inline") {
+    const startContainer = inlineContainer(range.startContainer, fallback);
+    const endContainer = inlineContainer(range.endContainer, fallback);
+    if (startContainer && startContainer === endContainer) {
+      range.deleteContents();
+      range.insertNode(node);
+      const caret = document.createRange();
+      caret.setStartAfter(insertedNodes.at(-1) ?? startContainer);
+      caret.collapse(true);
+      selectRange(caret);
+      return caret;
+    }
+
+    range.deleteContents();
+    const paragraph = document.createElement("p");
+    paragraph.append(node);
+    if (range.startContainer === fallback) {
+      fallback.insertBefore(paragraph, fallback.childNodes.item(range.startOffset));
+    } else {
+      const rootChild = directEditorChild(fallback, range.startContainer);
+      fallback.insertBefore(paragraph, rootChild?.nextSibling ?? null);
+    }
+    const caret = document.createRange();
+    caret.selectNodeContents(paragraph);
+    caret.collapse(false);
+    selectRange(caret);
+    return caret;
+  }
+
   range.deleteContents();
-  range.insertNode(node);
-  range.setStartAfter(node);
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
+  if (range.startContainer === fallback) {
+    fallback.insertBefore(node, fallback.childNodes.item(range.startOffset));
+    const caret = document.createRange();
+    caret.setStartAfter(insertedNodes.at(-1) ?? fallback);
+    caret.collapse(true);
+    selectRange(caret);
+    return caret;
+  }
+
+  const rootChild = directEditorChild(fallback, range.startContainer);
+  if (rootChild instanceof HTMLElement && isSplittableTextBlock(rootChild)) {
+    const trailingRange = document.createRange();
+    trailingRange.setStart(range.startContainer, range.startOffset);
+    trailingRange.setEnd(rootChild, rootChild.childNodes.length);
+    const trailingBlock = rootChild.cloneNode(false) as HTMLElement;
+    trailingBlock.append(trailingRange.extractContents());
+    const reference = rootChild.nextSibling;
+    fallback.insertBefore(node, reference);
+    fallback.insertBefore(trailingBlock, reference);
+    const caret = document.createRange();
+    caret.selectNodeContents(trailingBlock);
+    caret.collapse(true);
+    selectRange(caret);
+    return caret;
+  }
+
+  fallback.insertBefore(node, rootChild?.nextSibling ?? null);
+  const caret = document.createRange();
+  caret.setStartAfter(insertedNodes.at(-1) ?? fallback);
+  caret.collapse(true);
+  selectRange(caret);
+  return caret;
 }
 
 export function RichEditor({
@@ -490,10 +625,32 @@ export function RichEditor({
   const [imageCrop, setImageCrop] = useState({ x: 0, y: 0, width: 1, height: 1 });
   const [mathKind, setMathKind] = useState<"inlineMath" | "mathBlock" | null>(null);
   const currentRef = useRef(initialDocument ?? emptyRichDocument(language));
+  const selectionRef = useRef<Range | null>(null);
+  const contentLanguage = language ?? initialDocument?.attrs?.language;
+
+  const rememberSelection = useCallback(() => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection?.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    if (rangeIsInside(range, editor)) selectionRef.current = range.cloneRange();
+  }, []);
+
+  function insertAtSelection(node: Node, placement: InsertionPlacement) {
+    selectionRef.current = insertNodeAtSelection(
+      node,
+      editorRef.current,
+      placement,
+      selectionRef.current,
+    );
+  }
 
   const synchronize = useCallback(() => {
     if (!editorRef.current) return currentRef.current;
-    const value = serializeEditor(editorRef.current, language);
+    const value = serializeEditor(
+      editorRef.current,
+      language ?? currentRef.current.attrs?.language,
+    );
     currentRef.current = value;
     const text = extractRichDocumentText(value);
     setCounts({
@@ -551,13 +708,12 @@ export function RichEditor({
     code.append(document.createTextNode(source));
     highlightCode(code);
     pre.append(code);
-    insertNodeAtSelection(pre, editorRef.current);
+    insertAtSelection(pre, "block");
     setCodeOpen(false);
     synchronize();
   }
 
   function insertSpecial(type: "callout" | "citation" | "hint" | "mathBlock" | "table") {
-    editorRef.current?.focus();
     if (type === "table") {
       const table = document.createElement("table");
       const body = document.createElement("tbody");
@@ -571,19 +727,19 @@ export function RichEditor({
         body.append(row);
       }
       table.append(body);
-      insertNodeAtSelection(table, editorRef.current);
+      insertAtSelection(table, "block");
     } else if (type === "mathBlock") {
       const block = document.createElement("div");
       block.dataset.node = "mathBlock";
       block.dataset.latex = "x^2";
       block.textContent = "x^2";
-      insertNodeAtSelection(block, editorRef.current);
+      insertAtSelection(block, "block");
     } else {
       const block = document.createElement("div");
       block.dataset.node = type === "hint" ? "callout" : type;
       if (type === "hint") block.dataset.kind = "hint";
       block.textContent = type === "citation" ? "Source or citation" : "Add helpful context";
-      insertNodeAtSelection(block, editorRef.current);
+      insertAtSelection(block, "block");
     }
     setCommandOpen(false);
     synchronize();
@@ -602,7 +758,7 @@ export function RichEditor({
     image.style.clipPath = `inset(${String(imageCrop.y * 100)}% ${String(cropRight * 100)}% ${String(cropBottom * 100)}% ${String(imageCrop.x * 100)}%)`;
     if (annotationImage) image.dataset.annotationAssetId = annotationImage.id;
     if (pendingImage.signedUrl) image.src = pendingImage.signedUrl;
-    insertNodeAtSelection(image, editorRef.current);
+    insertAtSelection(image, "block");
     setImageOpen(false);
     setPendingImage(null);
     setAnnotationImage(null);
@@ -618,7 +774,7 @@ export function RichEditor({
     element.dataset.latex = latex.trim();
     element.className = "rich-math";
     element.textContent = latex.trim();
-    insertNodeAtSelection(element, editorRef.current);
+    insertAtSelection(element, mathKind === "inlineMath" ? "inline" : "block");
     setMathKind(null);
     synchronize();
   }
@@ -632,7 +788,13 @@ export function RichEditor({
     paragraph.textContent = "Task";
     item.append(paragraph);
     list.append(item);
-    insertNodeAtSelection(list, editorRef.current);
+    insertAtSelection(list, "block");
+    setCommandOpen(false);
+    synchronize();
+  }
+
+  function insertDivider() {
+    insertAtSelection(document.createElement("hr"), "block");
     setCommandOpen(false);
     synchronize();
   }
@@ -643,7 +805,7 @@ export function RichEditor({
     element.dataset.assetId = asset.id;
     element.dataset.transcript = asset.transcript;
     element.textContent = `Audio: ${asset.transcript}`;
-    insertNodeAtSelection(element, editorRef.current);
+    insertAtSelection(element, "block");
     setAudioOpen(false);
     synchronize();
   }
@@ -673,7 +835,7 @@ export function RichEditor({
       element.dataset.url = url.toString();
       element.dataset.title = title.trim();
       element.textContent = `Video: ${title.trim()}`;
-      insertNodeAtSelection(element, editorRef.current);
+      insertAtSelection(element, "block");
       setVideoOpen(false);
       synchronize();
     } catch {
@@ -695,11 +857,12 @@ export function RichEditor({
     const safe = sanitizeRichDocument({ type: "doc", schemaVersion: 2, content: raw }).document;
     const fragment = document.createDocumentFragment();
     for (const node of safe.content) fragment.append(richNodeToDom(node));
-    insertNodeAtSelection(fragment, editorRef.current);
+    insertAtSelection(fragment, "block");
     synchronize();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    rememberSelection();
     if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "k") {
       event.preventDefault();
       setCommandOpen(true);
@@ -744,7 +907,12 @@ export function RichEditor({
       <span className="visually-hidden" id={labelId}>
         {label}
       </span>
-      <div className="rich-editor__toolbar" role="toolbar" aria-label={`${label} formatting`}>
+      <div
+        className="rich-editor__toolbar"
+        onMouseDownCapture={rememberSelection}
+        role="toolbar"
+        aria-label={`${label} formatting`}
+      >
         <button
           aria-label="Bold"
           onClick={() => command("bold")}
@@ -823,14 +991,20 @@ export function RichEditor({
         className="rich-editor__content"
         contentEditable
         data-placeholder={placeholder}
+        lang={contentLanguage}
         onBlur={() => {
+          rememberSelection();
           const value = synchronize();
           if (editorRef.current) highlightCodeBlocks(editorRef.current);
           onBlur?.(value);
         }}
-        onInput={synchronize}
+        onInput={() => {
+          rememberSelection();
+          synchronize();
+        }}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
+        onSelect={rememberSelection}
         role="textbox"
         spellCheck
         suppressContentEditableWarning
@@ -891,7 +1065,7 @@ export function RichEditor({
           <Button onClick={() => insertSpecial("citation")} variant="secondary">
             Citation
           </Button>
-          <Button onClick={() => command("insertHorizontalRule")} variant="secondary">
+          <Button onClick={insertDivider} variant="secondary">
             Divider
           </Button>
           <Button onClick={() => command("formatBlock", "h3")} variant="secondary">

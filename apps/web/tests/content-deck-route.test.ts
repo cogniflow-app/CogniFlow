@@ -78,12 +78,7 @@ describe("deck command route", () => {
   });
 
   it("persists every deck detail before publishing the resulting version", async () => {
-    mocks.rpc
-      .mockResolvedValueOnce({
-        data: { ...deckRow, published_version: null, version: 5 },
-        error: null,
-      })
-      .mockResolvedValueOnce({ data: deckRow, error: null });
+    mocks.rpc.mockResolvedValueOnce({ data: deckRow, error: null });
 
     const response = await PATCH(
       request({ ...settings("publish"), visibility: "public" }),
@@ -91,10 +86,12 @@ describe("deck command route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.rpc).toHaveBeenNthCalledWith(1, "current_update_deck", {
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledWith("current_apply_deck_settings_and_publication", {
+      p_action: "publish",
       p_deck_id: deckId,
       p_expected_version: 4,
-      p_idempotency_key: expect.not.stringMatching(idempotencyKey),
+      p_idempotency_key: idempotencyKey,
       p_patch: {
         coverAssetId,
         descriptionDoc: expect.objectContaining({
@@ -114,11 +111,6 @@ describe("deck command route", () => {
         license: "cc_by",
         theme: "ocean",
       },
-    });
-    expect(mocks.rpc).toHaveBeenNthCalledWith(2, "current_publish_deck", {
-      p_deck_id: deckId,
-      p_expected_version: 5,
-      p_idempotency_key: idempotencyKey,
       p_visibility: "public",
     });
     expect(await response.json()).toMatchObject({
@@ -127,30 +119,30 @@ describe("deck command route", () => {
   });
 
   it("persists pending deck details before unpublishing", async () => {
-    mocks.rpc
-      .mockResolvedValueOnce({ data: { ...deckRow, version: 5 }, error: null })
-      .mockResolvedValueOnce({
-        data: {
-          ...deckRow,
-          published_version: null,
-          version: 6,
-          visibility: "private",
-        },
-        error: null,
-      });
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        ...deckRow,
+        published_version: null,
+        version: 6,
+        visibility: "private",
+      },
+      error: null,
+    });
 
     const response = await PATCH(request(settings("unpublish")), params());
 
     expect(response.status).toBe(200);
-    expect(mocks.rpc).toHaveBeenNthCalledWith(
-      1,
-      "current_update_deck",
-      expect.objectContaining({ p_expected_version: 4 }),
-    );
-    expect(mocks.rpc).toHaveBeenNthCalledWith(2, "current_unpublish_deck", {
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledWith("current_apply_deck_settings_and_publication", {
+      p_action: "unpublish",
       p_deck_id: deckId,
-      p_expected_version: 5,
+      p_expected_version: 4,
       p_idempotency_key: idempotencyKey,
+      p_patch: expect.objectContaining({
+        coverAssetId,
+        descriptionPlain: "Cell respiration sources",
+      }),
+      p_visibility: "private",
     });
   });
 

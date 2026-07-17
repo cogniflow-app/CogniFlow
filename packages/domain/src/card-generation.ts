@@ -1,5 +1,9 @@
-import { cardAuthoringSchema, type CardAuthoringData, type CardKind } from "./card-types";
-import { extractRichDocumentText } from "./rich-document";
+import {
+  cardAuthoringSchema,
+  customFieldPlainText,
+  type CardAuthoringData,
+  type CardKind,
+} from "./card-types";
 import { createStudyRendererContract, type StudyRendererContract } from "./study-renderer";
 import { DomainValidationError, contentFingerprint } from "./validation";
 
@@ -94,9 +98,9 @@ function semanticKeysForCard(card: CardAuthoringData): readonly string[] {
       return card.templates
         .filter((template) => {
           if (!template.generationCondition) return true;
-          const document = card.fields[template.generationCondition.field];
-          if (!document) return false;
-          const value = extractRichDocumentText(document).trim();
+          const field = card.fields[template.generationCondition.field];
+          if (!field) return false;
+          const value = customFieldPlainText(field).trim();
           return template.generationCondition.when === "nonempty"
             ? value.length > 0
             : value.length === 0;

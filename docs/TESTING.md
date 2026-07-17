@@ -5,23 +5,23 @@
 
 ## Test layers
 
-| Layer            | Root command                                               | What it protects                                                                                              | External prerequisite                                             |
-| ---------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Formatting       | `pnpm format:check`                                        | Deterministic source/config/docs formatting                                                                   | None                                                              |
-| Secret scan      | `pnpm secret:scan`                                         | Accidental credentials in repository content                                                                  | None                                                              |
-| Lint/boundaries  | `pnpm lint`                                                | Next/React/a11y rules and forbidden dependency directions                                                     | None                                                              |
-| Types            | `pnpm typecheck`                                           | Strict package and application contracts                                                                      | None                                                              |
-| Unit/property/UI | `pnpm test`                                                | Identity plus card/rich/template/generation/media/public-projection contracts and UI behavior                 | None                                                              |
-| Database         | `pnpm test:db`                                             | Migration chain, identity/content grants, RLS actors, version/idempotency/publication/media RPCs, and pgTAP   | Running local Supabase                                            |
-| Production build | `pnpm build`                                               | Next.js and package production compilation plus fail-fast environment checks                                  | Complete environment values                                       |
-| Portable build   | `pnpm build:portable`                                      | OpenNext/Cloudflare transform and Edge-middleware compatibility                                               | None for build; no deployment                                     |
-| End-to-end       | `pnpm test:e2e`                                            | Identity flows plus desktop/mobile deck authoring, publication, preview, cleanup, and appearance persistence  | Local Supabase and pinned Chromium                                |
-| Accessibility    | `pnpm test:a11y`                                           | axe and keyboard checks across public/Auth plus library, dialogs, rich editor, visual tools, and deck preview | Local Supabase and pinned Chromium                                |
-| Lighthouse       | `pnpm test:lighthouse`                                     | Public performance/accessibility/best-practice budgets                                                        | Chrome/Chromium                                                   |
-| Load smoke       | `pnpm test:load`                                           | Real `/api/health` availability and latency threshold                                                         | k6 `2.1.0`                                                        |
-| Hosted database  | `pnpm db:verify:preview` / `pnpm db:verify:beta`           | Remote migration/grant/RLS/schema/storage/type parity without seed or reset                                   | Authenticated Supabase CLI and explicit operator authority        |
-| Hosted smoke     | `pnpm test:hosted:preview` / `pnpm test:hosted:production` | Non-mutating public/auth/redirect/neutral-response/header/no-index behavior                                   | Deployed HTTPS URL, Chromium, and protection bypass when required |
-| Hosted content   | `pnpm test:hosted:preview:content`                         | Guarded disposable Auth/dashboard/appearance/basic-card/publication flow plus enforced cleanup                | Exact Vercel Preview, authenticated Supabase CLI, optional bypass |
+| Layer            | Root command                                               | What it protects                                                                                              | External prerequisite                                                             |
+| ---------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Formatting       | `pnpm format:check`                                        | Deterministic source/config/docs formatting                                                                   | None                                                                              |
+| Secret scan      | `pnpm secret:scan`                                         | Accidental credentials in repository content                                                                  | None                                                                              |
+| Lint/boundaries  | `pnpm lint`                                                | Next/React/a11y rules and forbidden dependency directions                                                     | None                                                                              |
+| Types            | `pnpm typecheck`                                           | Strict package and application contracts                                                                      | None                                                                              |
+| Unit/property/UI | `pnpm test`                                                | Identity plus card/rich/template/generation/media/worker/public-projection contracts and UI behavior          | None                                                                              |
+| Database         | `pnpm test:db`                                             | Migration chain, identity/content grants, RLS actors, version/idempotency/publication/media RPCs, and pgTAP   | Running local Supabase                                                            |
+| Production build | `pnpm build`                                               | Next.js and package production compilation plus fail-fast environment checks                                  | Complete environment values                                                       |
+| Portable build   | `pnpm build:portable`                                      | OpenNext/Cloudflare transform and Edge-middleware compatibility                                               | None for build; no deployment                                                     |
+| End-to-end       | `pnpm test:e2e`                                            | Identity flows plus desktop/mobile deck authoring, publication, preview, cleanup, and appearance persistence  | Local Supabase and pinned Chromium                                                |
+| Accessibility    | `pnpm test:a11y`                                           | axe and keyboard checks across public/Auth plus library, dialogs, rich editor, visual tools, and deck preview | Local Supabase and pinned Chromium                                                |
+| Lighthouse       | `pnpm test:lighthouse`                                     | Public performance/accessibility/best-practice budgets                                                        | Chrome/Chromium                                                                   |
+| Load smoke       | `pnpm test:load`                                           | Real `/api/health` availability and latency threshold                                                         | k6 `2.1.0`                                                                        |
+| Hosted database  | `pnpm db:verify:preview` / `pnpm db:verify:beta`           | Remote migration/grant/RLS/schema/storage/type parity without seed or reset                                   | Authenticated Supabase CLI and explicit operator authority                        |
+| Hosted smoke     | `pnpm test:hosted:preview` / `pnpm test:hosted:production` | Non-mutating public/auth/redirect/neutral-response/header/no-index behavior                                   | Deployed HTTPS URL, Chromium, fresh Vercel auth, and one existing project bypass  |
+| Hosted content   | `pnpm test:hosted:preview:content`                         | Guarded disposable Auth/dashboard/appearance/basic-card/publication flow plus enforced cleanup                | Exact Preview, authenticated Supabase CLI, fresh Vercel auth, and existing bypass |
 
 `pnpm verify` runs the practical local aggregate, including local database reset/tests, database-type drift check, both production builds, browser and accessibility checks, Lighthouse budgets, and the k6 smoke test. It therefore requires Docker/Supabase, Chromium, and k6. The wrapper supplies deterministic, visibly inert configuration values without creating an environment file. Browser/a11y wrappers read the already-running local Supabase URL and generated keys into the child process without printing or writing them. Normal `pnpm build` and deployment builds remain strict and require real configuration. CI invokes the layers explicitly so cleanup and failure-artifact steps are reliable.
 
@@ -85,12 +85,20 @@ Phase 02 unit/property/UI coverage adds:
   canonical `/app`, and `/app/library` redirect behavior;
 - exactly 17 card options, type-specific authoring surfaces, generated sibling preview, note save,
   and explicit conflict recovery choices;
+- stable client idempotency keys across lost/retryable responses, rotation after success or a
+  definitive rejection/payload edit, and typed conflict metadata across deck/folder/note/bulk
+  mutation surfaces;
 - labelled rich-editor toolbar/block palette, keyboard access, safe JSON serialization, visual
   region mode/list alternatives, and drawing typed fallback/undo/redo;
-- media explicit-upload behavior, SHA-256/transcript payload, and honest MediaRecorder unsupported
-  state; and
+- media explicit-upload behavior, SHA-256/transcript payload, honest MediaRecorder unsupported
+  state, coalesced recording starts, and track cleanup after late permission or unmount;
+- service-only physical-media worker claim/remove/complete behavior, conservative provider `404`
+  requeue, bounded retry outcome, contradictory completion rejection, and invalid operator bounds;
+  and
 - frozen public card flip/traversal/keyboard controls, attribution/license/type summary, safe return
-  links, and no claim of persistent progress.
+  links, applied frozen theme variants, and no claim of persistent progress;
+- readable immutable-version differences for card type, prompt, answer, source, and tags instead of
+  count-only history summaries.
 
 Appearance tests additionally cover self-only persistence, managed/unauthenticated rejection,
 complete-tuple writes, optimistic stale-projection reconciliation, expired/rejected fallback,
@@ -172,14 +180,16 @@ database boundary. Exact assertion counts and command results belong only in
 real Phase 02 content. It denies a direct account-status bypass; verifies publication withdrawal,
 deck/note/field/card/custom-note-type minimization, history-payload redaction with structural
 coordinates retained, mutation-receipt removal, immediately eligible owned media, preserved audit
-evidence, and exact replay idempotency. Physical Storage-object deletion remains an operated-worker
-test boundary, not a pgTAP claim.
+evidence, and exact replay idempotency. pgTAP verifies eligibility and durable queue semantics; the
+worker unit suite verifies the provider removal protocol. Neither is evidence that a hosted
+recurring schedule is deployed.
 
 `supabase/tests/080_content_integration_hardening.test.sql` covers the composed note/media graph,
 bulk tag/move behavior, exact library counts, private media resolution, derived publication-only
-identities, unused custom-field removal, opaque published media replacement, and service-only
-Storage location. `supabase/tests/090_content_guarded_read_volatility.test.sql` fixes the PostgREST
-transaction contract for guarded reads that take the shared device/session lock.
+identities, unused custom-field removal—including raw anonymous frozen projections when unused field
+names collide with template helper/block keywords—opaque published media replacement, and
+service-only Storage location. `supabase/tests/090_content_guarded_read_volatility.test.sql` fixes
+the PostgREST transaction contract for guarded reads that take the shared device/session lock.
 
 `supabase/tests/100_content_security_audit_hardening.test.sql` exercises the adversarial follow-up:
 browser denial for non-atomic note/link/release components; expected-version `0` creation and null
@@ -188,6 +198,29 @@ permission recheck after editor revocation; pending-object write authorization v
 immutability; and reference-count/delayed-deletion transitions for deck covers, audio,
 pronunciation, and drawing usage. The migration also backfills authoritative counts and retires
 stale usages belonging to deleted notes.
+
+`supabase/tests/110_content_atomic_authoring_and_media_deletion.test.sql` verifies that the only
+browser-callable note boundary atomically validates and resolves custom definitions, uses
+copy-on-write schema evolution, and rolls definition creation back with a failed note command. It
+also covers atomic deck-settings/publication behavior and grants, private media-job isolation,
+service-only bounded claim/complete leases, full usage/publication eligibility rechecks, successful
+locator tombstoning, retry backoff, stale-lease denial, and expired-lease recovery.
+
+`supabase/tests/120_content_receipt_payload_binding.test.sql` statically verifies every legacy
+browser-reachable content implementation uses the payload-bound receipt lookup, then exercises an
+exact successful retry and a changed-payload rejection for every affected folder, note-type, deck,
+note, bulk, publication, media-registration, and version-restore RPC family. It enumerates all 21
+authenticated content mutation grants, retains changed-payload coverage for the self-fingerprinted
+atomic note and settings/publication boundaries, rechecks an exact retry after collaborator
+revocation, and verifies advisory-lock plus pending/completed receipt constraints. It also proves a
+pre-binding unbound receipt fails closed and newly completed receipts retain canonical 64-hex
+command fingerprints.
+
+`supabase/tests/130_content_version_media_graph.test.sql` verifies schema-v2 immutable version
+snapshots capture and atomically restore the exact authored media-reference graph, while legacy
+snapshots reconstruct only their valid deck-local references. It covers the cross-deck media guard,
+direct RPC payload validation, owner-only version duplication, and remediation of frozen
+publication payloads that formerly retained internal media identifiers.
 
 ### Hosted database verification
 
@@ -219,8 +252,9 @@ CI always stops the local Supabase stack, including on failure. It does not uplo
 
 ## Hosted deployment smoke tests
 
-The hosted Playwright configuration has no local fallback and rejects non-HTTPS, credential-bearing,
-or non-origin targets. Its eleven checks cover the public landing page and canonical apex; safe
+The hosted runner has no local fallback, rejects non-HTTPS, credential-bearing, or non-origin
+targets, and preflights the selected Vercel environment plus exact public Preview/Beta Supabase
+project reference before Playwright starts. Its eleven checks cover the public landing page and canonical apex; safe
 health/capability projection; auth-page rendering with OAuth disabled; protected-route redirect;
 unsafe-return normalization; neutral invalid callback/confirmation routing; neutral recovery
 initiation for a reserved nonexistent address plus host-only production cookie attributes;
@@ -228,10 +262,21 @@ rejection of the retired Production origin for a mutation; unauthenticated sign-
 public/embed projection denial; security headers; and site-wide no-index. It creates no Auth user
 and submits no personal information.
 Recovery initiation creates the normal bounded private rate-limit record under a server-HMACed
-subject; it does not store the reserved test address. A protected Vercel deployment may use
-`VERCEL_AUTOMATION_BYPASS_SECRET` as a transient test-process value; the runner never prints or
-stores it, accepts only the exact `recallflash.com` apex or this project's Vercel hostname family,
-and disables Playwright traces while the credential is present.
+subject; it does not store the reserved test address. Every run treats a hostname match only as an
+early filter: an authenticated `api.vercel.com` lookup first binds the exact URL/alias and ready
+deployment to the linked project/team and requested target. A second read-only project GET requires
+exactly one existing `automation-bypass` entry; the runner never creates, rotates, replaces, or
+`PATCH`es it. An optional transient `VERCEL_AUTOMATION_BYPASS_SECRET` must equal that discovered
+token. The runner uses the bypass once to mint a validated exact-host `_vercel_jwt`, removes both
+long-lived Vercel credentials and other inherited operator/provider secrets from the child, and
+installs no global Playwright request headers. The cookie-bearing attestation is a mode-`0600`
+one-use file inside a fresh mode-`0700` directory; configuration consumes/deletes it and removes the
+path environment variable before workers start. The child receives an allowlisted environment plus
+an empty temporary home/config tree, not the operator's Vercel, Supabase, npm, cloud, SSH, or
+database credential locators. CI supplies `VERCEL_TOKEN` and the standard project/team link
+variables. Local operators run `npx vercel@56.3.0 whoami` immediately before each suite because the
+runner validates but does not refresh the short-lived CLI OAuth access token. Trace capture stays
+off while the scoped cookie is present.
 
 Use `HOSTED_PREVIEW_URL` or `HOSTED_PRODUCTION_URL`, or pass an explicit `--url` through the runner
 as documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). Live email confirmation, delivered
@@ -249,25 +294,38 @@ The persistent hosted flow is deliberately separate from the non-mutating baseli
 only against this repository's Vercel Preview hostname family:
 
 ```bash
+npx vercel@56.3.0 whoami
 pnpm test:hosted:preview:content --url https://<exact-preview-host>.vercel.app
 ```
 
-The wrapper generates one UUIDv4 run identity and reserved `example.test` address, captures the
-fixed Preview project's secret key in memory through the authenticated Supabase CLI, and injects it
-only into a trace/video-disabled Playwright child. The browser performs signup/check-email,
-admin-confirmed fixture handoff, onboarding to `/app`, zero-count empty library, durable dark theme
-through settings/reload, deck creation, basic front/back/source save and reopen, card-browser
-inspection, publish/anonymous reveal, unpublish denial, and deck deletion. The successful sign-in
-against the admin-confirmed Preview identity also proves the application is using Preview Auth
-rather than the Beta project.
+Before retrieving that key or creating an identity, the wrapper rejects Production aliases and
+authenticates the exact ready Preview URL/alias, project, team, and environment through the fixed
+Vercel API origin. It then reads that exact project's bypass inventory without mutation, requires
+exactly one existing automation entry, and requires `/api/health` to report Vercel `preview`, a
+non-development build, and the exact public Preview Supabase project reference. The bypass is sent
+only after ownership authentication. The wrapper validates Vercel's same-origin cookie redirect,
+then gives Playwright the host-scoped cookie through the consumed one-use file rather than a global
+header or credential environment value. The wrapper generates one UUIDv4 run identity and reserved
+`example.test` address and captures the fixed Preview project's secret key in parent memory through
+the authenticated Supabase CLI. The parent polls for and confirms only that exact Auth fixture, then
+writes a nonsecret completion marker in the child's private sandbox; the server key never reaches a
+worker. The browser performs signup/check-email, the retained `/app/decks/new` onboarding return,
+the default `/app` sign-in return, zero-count empty library, durable dark theme through
+settings/reload, deck creation, basic front/back/source save and reopen, card-browser inspection,
+publish/anonymous reveal, and anonymous denial of both the exact slug and public ID after
+unpublish, followed by deck deletion. The successful sign-in against the parent-confirmed Preview
+identity also proves the application is using Preview Auth rather than the Beta project.
 
-Cleanup runs even after a test failure. It serializes with other hosted database operations, links
-only the fixed Preview project, finds only the exact email/run marker, uses provisional rejection or
-the normal reauthenticated due account-deletion boundary, and asserts Auth removal, publication
-withdrawal, content minimization, and zero recursive objects in `lumen-content-media` before
-unlinking. Do not invoke `e2e/hosted-content.spec.ts` directly: that bypasses the key-lifetime,
-locking, and cleanup contract. After success, rerun `pnpm db:verify:preview` and record exact results
-in [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md).
+Normal test failure and the first graceful `SIGINT`/`SIGTERM` reach one cleanup attempt. It
+serializes with other hosted database operations, links only the fixed Preview project, finds only
+the exact email/run marker, uses provisional rejection or the normal reauthenticated due
+account-deletion boundary, and asserts Auth removal, publication withdrawal, privacy-minimized
+content tombstones, and zero recursive objects in `lumen-content-media` before unlinking/releasing
+the lock. Required opaque/structural and append-only audit evidence remains. Cleanup failure,
+`SIGKILL`, or process/host loss requires operator inspection and is never reported as leak-free. Do
+not invoke `e2e/hosted-content.spec.ts` directly: that bypasses the key lifetime, locking, signal,
+and cleanup contract. After success, rerun `pnpm db:verify:preview` and record exact results in
+[IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md).
 
 ## Playwright end-to-end tests
 

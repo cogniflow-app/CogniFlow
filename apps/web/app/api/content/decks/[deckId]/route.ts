@@ -36,21 +36,6 @@ function settingsPatch(input: DeckCommandInput): Record<string, unknown> {
   return patch;
 }
 
-async function childIdempotencyKey(parent: string): Promise<string> {
-  const digest = new Uint8Array(
-    await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(`lumen:deck-settings-before-publication:v1:${parent}`),
-    ),
-  );
-  digest[6] = ((digest[6] ?? 0) & 0x0f) | 0x50;
-  digest[8] = ((digest[8] ?? 0) & 0x3f) | 0x80;
-  const value = Array.from(digest.slice(0, 16), (byte) => byte.toString(16).padStart(2, "0")).join(
-    "",
-  );
-  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
-}
-
 export async function PATCH(
   request: NextRequest,
   { params }: { readonly params: Promise<{ deckId: string }> },
@@ -68,24 +53,6 @@ export async function PATCH(
   const { deckId } = await params;
   const input = parsed.data;
   const patch = settingsPatch(input);
-  let expectedVersion = input.expectedVersion;
-  if (
-    (input.action === "publish" || input.action === "unpublish") &&
-    Object.keys(patch).length > 0
-  ) {
-    const settingsResult = await context.database.client.rpc("current_update_deck", {
-      p_deck_id: deckId,
-      p_expected_version: expectedVersion,
-      p_idempotency_key: await childIdempotencyKey(input.idempotencyKey),
-      p_patch: toDatabaseJson(patch),
-    });
-    if (settingsResult.error || !settingsResult.data)
-      return contentDatabaseError(
-        settingsResult.error ?? {},
-        "The deck settings could not be saved before publication changed.",
-      );
-    expectedVersion = settingsResult.data.version;
-  }
   let result;
   if (input.action === "archive") {
     result = await context.database.client.rpc("current_archive_deck", {
@@ -113,17 +80,22 @@ export async function PATCH(
       p_title: input.title ?? "Deck copy",
     });
   } else if (input.action === "publish") {
-    result = await context.database.client.rpc("current_publish_deck", {
+    result = await context.database.client.rpc("current_apply_deck_settings_and_publication", {
+      p_action: "publish",
       p_deck_id: deckId,
-      p_expected_version: expectedVersion,
+      p_expected_version: input.expectedVersion,
       p_idempotency_key: input.idempotencyKey,
+      p_patch: toDatabaseJson(patch),
       p_visibility: input.visibility === "public" ? "public" : "unlisted",
     });
   } else if (input.action === "unpublish") {
-    result = await context.database.client.rpc("current_unpublish_deck", {
+    result = await context.database.client.rpc("current_apply_deck_settings_and_publication", {
+      p_action: "unpublish",
       p_deck_id: deckId,
-      p_expected_version: expectedVersion,
+      p_expected_version: input.expectedVersion,
       p_idempotency_key: input.idempotencyKey,
+      p_patch: toDatabaseJson(patch),
+      p_visibility: "private",
     });
   } else if (input.action === "restore_version") {
     result = await context.database.client.rpc("current_restore_deck_version", {

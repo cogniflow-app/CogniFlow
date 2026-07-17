@@ -239,16 +239,28 @@ export async function POST(request: NextRequest) {
     return contentDatabaseError(registration.error ?? {}, "The media could not be registered.");
   let asset = registration.data;
   if (asset.status !== "ready") {
-    const upload = await context.database.client.storage
+    if (asset.status !== "pending")
+      return apiError(409, {
+        code: "CONFLICT",
+        message: "This media reservation is no longer available. Upload the file again.",
+        retryable: false,
+      });
+    const privileged = createPrivilegedDatabaseClient();
+    const upload = await privileged.storage
       .from(asset.storage_bucket)
-      .upload(asset.storage_path, buffer, { contentType: mime, upsert: false });
-    if (upload.error && !upload.error.message.toLocaleLowerCase().includes("already exists"))
+      .upload(asset.storage_path, buffer, { contentType: mime, upsert: true });
+    if (upload.error) {
+      await privileged.rpc("admin_abandon_media_asset_upload", {
+        p_actor_account_id: context.accountId,
+        p_idempotency_key: idempotencyKey,
+        p_media_asset_id: asset.id,
+      });
       return apiError(500, {
         code: "INTERNAL",
         message: "The private upload could not be completed. Retry safely.",
         retryable: true,
       });
-    const privileged = createPrivilegedDatabaseClient();
+    }
     const finalized = await privileged.rpc("admin_finalize_media_asset", {
       p_actor_account_id: context.accountId,
       p_detected_mime_type: mime,

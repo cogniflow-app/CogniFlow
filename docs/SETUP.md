@@ -82,7 +82,7 @@ pnpm db:types
 ```
 
 `db:reset` applies the Phase 00 foundation, every additive Phase 01 migration through
-`20260715006900_hosted_grant_parity.sql`, and the Phase 02 content chain:
+`20260715006900_hosted_grant_parity.sql`, and the eleven-migration Phase 02 content chain:
 
 ```text
 20260716000000_content_schema.sql
@@ -93,6 +93,9 @@ pnpm db:types
 20260716005000_content_security_audit_hardening.sql
 20260716006000_content_note_create_identity.sql
 20260716007000_content_conflict_sqlstate.sql
+20260716008000_content_atomic_authoring_and_media_deletion.sql
+20260716009000_content_receipt_payload_binding.sql
+20260716010000_content_version_media_graph.sql
 ```
 
 The content chain creates the 17 system note types, folders/decks/notes/generated cards, immutable
@@ -102,8 +105,13 @@ arguments, classifies guarded reads correctly, requires explicit concurrency ver
 and reauthorizes mutation replay, makes ready objects browser-immutable, and reconciles embedded
 media usage. It also assigns an omitted new-note ID from the required idempotency UUID and raises
 typed stale-version outcomes with non-serialization SQLSTATE `P0001`, avoiding duplicate creation
-identities and automatic serialization retry loops. It does not create learner scheduling state or
-seed product rows. `pnpm db:types` writes the generated public database contract;
+identities and automatic serialization retry loops. Migration 080 makes a custom
+field/template definition and note/media graph one copy-on-write transaction, makes optional deck
+settings and publication state one transaction, and adds a private leased physical-media cleanup
+queue with service-only claim/complete RPCs. The receipt-binding migration then fingerprints every
+browser-reachable content command, and the final migration captures/restores an exact schema-v2
+version media graph while reconstructing legacy snapshots safely. It does not create learner
+scheduling state or seed product rows. `pnpm db:types` writes the generated public database contract;
 `pnpm db:types:check` verifies that the committed contract matches a fresh local schema.
 
 `db:reset` is intentionally destructive to the local development database only. Never point the local command at a hosted database. Stop services without deleting local volumes using:
@@ -140,17 +148,17 @@ Forgot-password requests use independent signed pending state. Before requesting
 
 `.env.example` is the canonical inventory.
 
-Phase 02 adds no environment variable. Media quotas are currently versioned application and
-database policy, not deployment overrides: 5 MiB per image, 10 MiB per audio asset, 50 MiB media
-per account, uploaded video disabled, and a seven-day delayed-unreferenced-media
-window. A future configurable quota must be added to the typed parser, `.env.example`,
-[HOSTED_ENVIRONMENT.md](./HOSTED_ENVIRONMENT.md), migrations/RPCs, and tests together; do not invent
-an unparsed provider variable.
+Phase 02 adds two optional worker-only numeric bounds and no provider credential. Media quotas are
+still versioned application/database policy, not deployment overrides: 5 MiB per image, 10 MiB per
+audio asset, 50 MiB media per account, uploaded video disabled, and a seven-day
+delayed-unreferenced-media window. A future configurable quota must be added to the typed parser,
+`.env.example`, [HOSTED_ENVIRONMENT.md](./HOSTED_ENVIRONMENT.md), migrations/RPCs, and tests
+together; do not invent an unparsed provider variable.
 
 For the exhaustive hosted scope, source, required/optional, and browser/server classification, see
 [HOSTED_ENVIRONMENT.md](./HOSTED_ENVIRONMENT.md). Do not infer a hosted variable from a feature
-name: session, recovery, CSRF, and worker secrets that the parser does not accept must not be
-invented.
+name: session, recovery, CSRF, and media-specific worker secrets must not be invented. The
+checked-in worker reuses the target project's existing Supabase URL and server secret.
 
 | Variable                                  | Visibility    | Local/default guidance                                                                                |
 | ----------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------- |
@@ -176,6 +184,8 @@ invented.
 | `EXPORT_DOWNLOAD_RETENTION_DAYS`          | Retention     | Default `7`; applies once the later archive worker produces a download                                |
 | `DELETION_GRACE_PERIOD_DAYS`              | Retention     | Default `30`; authenticated request RPC validates 1–90 days; due processing remains service-only      |
 | `AUDIT_EVENT_RETENTION_DAYS`              | Retention     | Default `365`; requires a reviewed scheduled retention job                                            |
+| `MEDIA_DELETION_BATCH_SIZE`               | Worker config | Optional `1`–`100`, default `25`; bounds one physical-media cleanup batch                             |
+| `MEDIA_DELETION_LEASE_SECONDS`            | Worker config | Optional `30`–`900`, default `300`; bounds a claim before crash recovery                              |
 | `RATE_LIMIT_WINDOW_SECONDS`               | Security      | Shared configurable route window; default `900`                                                       |
 | `RATE_LIMIT_SIGNUP_ATTEMPTS`              | Security      | Default `5`                                                                                           |
 | `RATE_LIMIT_PASSWORD_RESET_ATTEMPTS`      | Security      | Default `5`; also used for magic-link requests                                                        |
@@ -326,9 +336,10 @@ require alt text; audio requires a transcript. The browser preprocesses images a
 but the server independently verifies content length, magic bytes, claimed/detected MIME,
 SHA-256, and image dimensions before finalization. A duplicate digest reuses the owner's existing
 matching asset. The registered path begins with an opaque media public UUID rather than the owner
-account UUID. Browser credentials may replace/delete only an exact `pending` registered object;
-the authorization locks the row against a racing trusted finalization, and a verified `ready`
-object is immutable. A newly verified unreferenced asset receives a seven-day cleanup deadline.
+account UUID. Browser credentials cannot insert, replace, or delete Storage objects. The authenticated
+upload route reserves the row, writes the exact pending object through the server-only client, and
+finalizes it only after byte verification; a verified `ready` object is immutable to browser
+credentials. A newly verified unreferenced asset receives a seven-day cleanup deadline.
 Explicit links, deck covers, audio prompts, pronunciation reference audio, and drawing reference
 layers share one authoritative usage count; adding usage clears the deadline and retiring the final
 usage starts it again. A recording remains local until the creator selects the explicit upload
@@ -337,6 +348,37 @@ action.
 Use small, non-sensitive development media. The local private object URL is signed for a short
 preview and must not be copied into fixtures or docs. Uploaded video remains unsupported; a rich
 document may represent only the allowlisted privacy-enhanced external-video descriptor.
+
+### Physical media cleanup worker
+
+The repository implements one bounded cleanup batch:
+
+```bash
+pnpm worker:media-deletions
+```
+
+Run it only in a server/worker environment with the target project's
+`NEXT_PUBLIC_SUPABASE_URL` and server-only `SUPABASE_SECRET_KEY`. Optional
+`MEDIA_DELETION_BATCH_SIZE` accepts `1..100` (default `25`), and
+`MEDIA_DELETION_LEASE_SECONDS` accepts `30..900` (default `300`). These values are process
+configuration; the command does not copy or discover a credential from `apps/web/.env.local`.
+
+Each invocation claims only elapsed abandoned, quarantined, or unreferenced assets with zero
+authoritative usage and no frozen publication, then receives the exact private locator under a
+lease. It removes the object and completes the matching lease. Supabase bulk removal reports an
+already-absent key as a successful empty result, which the worker completes normally. Every error
+actually reported by Storage, including a typed or prose `404`, is stored in bounded form and
+requeued with `attempt_count² × 60` seconds of backoff, clamped from one minute to one day, because
+a not-found response can identify a missing bucket instead of an object. A worker crash leaves an
+expiring lease that a later invocation can reclaim. Successful removal tombstones the asset
+locator and records the durable job as completed.
+
+This command runs one batch and exits. The repository does not install a cron trigger or hosted
+job. Before relying on delayed deletion, the owner must choose a worker host, store the service
+credential there, schedule recurring invocations, monitor claimed/deleted/requeued counts, alert on
+repeated/stale work, and test each environment independently. Do not run a Preview-configured
+worker against Beta/Production or describe an elapsed `delete_after` timestamp as physical byte
+deletion.
 
 ## Run the web application
 
@@ -454,17 +496,35 @@ operator sequence is:
 ```bash
 pnpm db:deploy:preview
 pnpm db:verify:preview
+npx vercel@56.3.0 whoami
 pnpm test:hosted:preview --url https://<exact-preview-host>.vercel.app
+npx vercel@56.3.0 whoami
 pnpm test:hosted:preview:content --url https://<exact-preview-host>.vercel.app
 pnpm db:verify:preview
 ```
 
-The content runner is Preview-only. It creates one UUID-marked disposable adult account/deck,
-captures the Preview project server key only in memory through the authenticated Supabase CLI,
-disables Playwright trace/video, and always attempts Auth/content/publication cleanup plus an empty
-recursive Storage-object assertion. Supply the Vercel automation bypass transiently when the
-project's protection requires it. Do not call the hosted-content Playwright file directly, copy a
-hosted key into `.env.local`, or use this path against Beta/Production.
+The content runner is Preview-only. Before key retrieval or signup, it rejects Production aliases
+and requires the deployed health projection to identify Vercel Preview plus the exact public
+Preview Supabase project reference. It then creates one UUID-marked disposable adult account/deck,
+keeps the Preview project server key in the parent process only after retrieving it through the
+authenticated Supabase CLI, and disables Playwright trace/video. The child receives a one-use
+attestation file that is consumed and deleted before workers start, a private temporary HOME/XDG
+configuration and cache namespace, and only a non-secret fixture-confirmation marker. The runner
+attempts exactly one Auth/content/publication cleanup plus a recursive Storage-object assertion on
+normal completion, failure, or the first graceful `SIGINT`/`SIGTERM`; an uncatchable `SIGKILL` or
+process loss requires operator inspection before rerunning. Cleanup removes the disposable Auth
+identity, publication, and Storage objects while retaining only privacy-minimized deletion
+tombstones and audit evidence required by the data model. Run `whoami` immediately before each local hosted suite: the
+guarded runner accepts only an unexpired CLI OAuth session and deliberately does not refresh it. CI
+instead supplies a non-refreshing `VERCEL_TOKEN` plus the linked project/team IDs.
+
+After deployment ownership succeeds, each runner performs a fixed-origin, read-only project GET and
+requires exactly one existing `automation-bypass` entry. It never creates, rotates, replaces, or
+`PATCH`es Vercel settings. An optional transient `VERCEL_AUTOMATION_BYPASS_SECRET` must equal the
+discovered token; absence does not skip discovery. The bypass is exchanged only with the exact
+authenticated host for its scoped cookie, and neither long-lived Vercel credential reaches
+Playwright. Do not call the hosted-content Playwright file directly, copy a hosted key into
+`.env.local`, or use this path against Beta/Production.
 
 ## Deployment setup summary
 

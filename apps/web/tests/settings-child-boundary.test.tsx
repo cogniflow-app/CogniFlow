@@ -17,6 +17,7 @@ vi.mock("@/lib/server/content-repository", () => ({
   readLibrarySnapshot: mocks.readLibrarySnapshot,
 }));
 vi.mock("next/navigation", () => ({
+  useServerInsertedHTML: () => undefined,
   usePathname: () => "/app",
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
@@ -151,6 +152,6 @@ describe("managed learner account-setting boundary", () => {
     expect(screen.queryByRole("heading", { name: "Privacy defaults" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
     expect(screen.queryByText("guardian-private@example.test")).not.toBeInTheDocument();
-    expect(mocks.readLibrarySnapshot).toHaveBeenCalledWith(accountId);
+    expect(mocks.readLibrarySnapshot).not.toHaveBeenCalled();
   });
 });

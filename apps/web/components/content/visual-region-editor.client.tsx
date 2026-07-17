@@ -2,7 +2,7 @@
 
 import type { NormalizedShape } from "@lumen/domain";
 import { Button, FormField, Input, Select } from "@lumen/ui";
-import { useMemo, useState, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
 export interface VisualRegion {
   readonly aliases: readonly string[];
@@ -97,6 +97,51 @@ function updateShapeBounds(
   };
 }
 
+function polygonClipPath(shape: Extract<NormalizedShape, { kind: "polygon" }>): string {
+  const bounds = shapeBounds(shape);
+  const xScale = Math.max(bounds.width, Number.EPSILON);
+  const yScale = Math.max(bounds.height, Number.EPSILON);
+  const percentage = (value: number, start: number, scale: number) =>
+    String(Number((Math.min(1, Math.max(0, (value - start) / scale)) * 100).toFixed(4)));
+  return `polygon(${shape.points
+    .map(
+      (point) =>
+        `${percentage(point.x, bounds.x, xScale)}% ${percentage(point.y, bounds.y, yScale)}%`,
+    )
+    .join(", ")})`;
+}
+
+interface ImageBox {
+  readonly height: number;
+  readonly width: number;
+  readonly x: number;
+  readonly y: number;
+}
+
+export function containedImageBox(
+  containerWidth: number,
+  containerHeight: number,
+  naturalWidth: number,
+  naturalHeight: number,
+): ImageBox | null {
+  if (
+    ![containerWidth, containerHeight, naturalWidth, naturalHeight].every(
+      (value) => Number.isFinite(value) && value > 0,
+    )
+  ) {
+    return null;
+  }
+  const scale = Math.min(containerWidth / naturalWidth, containerHeight / naturalHeight);
+  const width = naturalWidth * scale;
+  const height = naturalHeight * scale;
+  return Object.freeze({
+    height,
+    width,
+    x: (containerWidth - width) / 2,
+    y: (containerHeight - height) / 2,
+  });
+}
+
 export function VisualRegionEditor({
   imageAlt,
   imageUrl,
@@ -109,10 +154,52 @@ export function VisualRegionEditor({
   const [selected, setSelected] = useState<string | null>(regions[0]?.semanticKey ?? null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [stageSize, setStageSize] = useState({ height: 0, width: 0 });
+  const [naturalImage, setNaturalImage] = useState<{
+    readonly height: number;
+    readonly source: string;
+    readonly width: number;
+  } | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const selectedRegion = useMemo(
     () => regions.find((region) => region.semanticKey === selected) ?? null,
     [regions, selected],
   );
+  const imageReady = !imageUrl || naturalImage?.source === imageUrl;
+  const renderedImageBox = useMemo(
+    () =>
+      imageUrl && imageReady && naturalImage
+        ? containedImageBox(
+            stageSize.width,
+            stageSize.height,
+            naturalImage.width,
+            naturalImage.height,
+          )
+        : null,
+    [imageReady, imageUrl, naturalImage, stageSize.height, stageSize.width],
+  );
+  const canRenderRegions = imageReady && (!imageUrl || renderedImageBox !== null);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const measure = () => {
+      const rect = stage.getBoundingClientRect();
+      setStageSize((current) =>
+        current.width === rect.width && current.height === rect.height
+          ? current
+          : { height: rect.height, width: rect.width },
+      );
+    };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(stage);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
 
   function mutateRegion(key: string, patch: Partial<VisualRegion>) {
     onChange(
@@ -127,17 +214,30 @@ export function VisualRegionEditor({
   }
 
   function moveSelected(event: PointerEvent<HTMLDivElement>) {
-    if (!selectedRegion || event.currentTarget !== event.target) return;
+    if (!selectedRegion) return;
+    if (event.target instanceof Element && event.target.closest(".geometry-mask")) return;
     const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const activeImageBox =
+      imageUrl && imageReady && naturalImage
+        ? containedImageBox(rect.width, rect.height, naturalImage.width, naturalImage.height)
+        : { height: rect.height, width: rect.width, x: 0, y: 0 };
+    if (!activeImageBox) return;
     const bounds = shapeBounds(selectedRegion.shape);
-    const x = Math.min(
-      1 - bounds.width,
-      Math.max(0, (event.clientX - rect.left) / rect.width - bounds.width / 2),
-    );
-    const y = Math.min(
-      1 - bounds.height,
-      Math.max(0, (event.clientY - rect.top) / rect.height - bounds.height / 2),
-    );
+    const stageX = rect.width / 2 + (event.clientX - rect.left - pan.x - rect.width / 2) / zoom;
+    const stageY = rect.height / 2 + (event.clientY - rect.top - pan.y - rect.height / 2) / zoom;
+    if (
+      stageX < activeImageBox.x ||
+      stageX > activeImageBox.x + activeImageBox.width ||
+      stageY < activeImageBox.y ||
+      stageY > activeImageBox.y + activeImageBox.height
+    ) {
+      return;
+    }
+    const pointerX = (stageX - activeImageBox.x) / activeImageBox.width;
+    const pointerY = (stageY - activeImageBox.y) / activeImageBox.height;
+    const x = Math.min(1 - bounds.width, Math.max(0, pointerX - bounds.width / 2));
+    const y = Math.min(1 - bounds.height, Math.max(0, pointerY - bounds.height / 2));
     mutateRegion(selectedRegion.semanticKey, {
       shape: updateShapeBounds(selectedRegion.shape, { x, y }),
     });
@@ -167,6 +267,12 @@ export function VisualRegionEditor({
         <button onClick={() => setPan((value) => ({ ...value, x: value.x + 5 }))} type="button">
           Pan right
         </button>
+        <button onClick={() => setPan((value) => ({ ...value, y: value.y - 5 }))} type="button">
+          Pan up
+        </button>
+        <button onClick={() => setPan((value) => ({ ...value, y: value.y + 5 }))} type="button">
+          Pan down
+        </button>
         <button onClick={() => setPan({ x: 0, y: 0 })} type="button">
           Reset view
         </button>
@@ -187,50 +293,77 @@ export function VisualRegionEditor({
         aria-label={`${kind} image region canvas. Select a region below for a keyboard alternative.`}
         className="geometry-stage"
         onDoubleClick={moveSelected}
+        ref={stageRef}
         role="img"
       >
         <div
+          className="geometry-stage__transform"
           style={{
-            height: "100%",
             transform: `translate(${String(pan.x)}px, ${String(pan.y)}px) scale(${String(zoom)})`,
             transformOrigin: "center",
-            width: "100%",
           }}
         >
-          {imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- this may be a short-lived signed storage URL.
-            <img alt={imageAlt} src={imageUrl} />
-          ) : (
-            <div className="grid min-h-72 place-items-center p-6 text-center text-sm text-[var(--color-text-muted)]">
-              Upload or select an image to position regions visually. The complete region list
-              remains editable without the image.
-            </div>
-          )}
-          {regions.map((region) => {
-            const bounds = shapeBounds(region.shape);
-            const clipPath =
-              region.shape.kind === "polygon"
-                ? `polygon(${region.shape.points.map((point) => `${String(point.x * 100)}% ${String(point.y * 100)}%`).join(",")})`
-                : undefined;
-            return (
-              <button
-                aria-label={`Select ${region.label}`}
-                className="geometry-mask"
-                data-selected={selected === region.semanticKey}
-                data-shape={region.shape.kind}
-                key={region.semanticKey}
-                onClick={() => setSelected(region.semanticKey)}
-                style={{
-                  clipPath,
-                  height: `${String(bounds.height * 100)}%`,
-                  left: `${String(bounds.x * 100)}%`,
-                  top: `${String(bounds.y * 100)}%`,
-                  width: `${String(bounds.width * 100)}%`,
+          <div
+            className="geometry-image-plane"
+            data-image-ready={canRenderRegions}
+            style={
+              imageUrl
+                ? renderedImageBox
+                  ? {
+                      height: `${String(renderedImageBox.height)}px`,
+                      left: `${String(renderedImageBox.x)}px`,
+                      top: `${String(renderedImageBox.y)}px`,
+                      width: `${String(renderedImageBox.width)}px`,
+                    }
+                  : undefined
+                : { inset: 0 }
+            }
+          >
+            {imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- this may be a short-lived signed storage URL.
+              <img
+                alt={imageAlt}
+                onLoad={(event) => {
+                  const image = event.currentTarget;
+                  setNaturalImage({
+                    height: image.naturalHeight,
+                    source: imageUrl,
+                    width: image.naturalWidth,
+                  });
                 }}
-                type="button"
+                src={imageUrl}
               />
-            );
-          })}
+            ) : (
+              <div className="grid h-full place-items-center p-6 text-center text-sm text-[var(--color-text-muted)]">
+                Upload or select an image to position regions visually. The complete region list
+                remains editable without the image.
+              </div>
+            )}
+            {canRenderRegions &&
+              regions.map((region) => {
+                const bounds = shapeBounds(region.shape);
+                const clipPath =
+                  region.shape.kind === "polygon" ? polygonClipPath(region.shape) : undefined;
+                return (
+                  <button
+                    aria-label={`Select ${region.label}`}
+                    className="geometry-mask"
+                    data-selected={selected === region.semanticKey}
+                    data-shape={region.shape.kind}
+                    key={region.semanticKey}
+                    onClick={() => setSelected(region.semanticKey)}
+                    style={{
+                      clipPath,
+                      height: `${String(bounds.height * 100)}%`,
+                      left: `${String(bounds.x * 100)}%`,
+                      top: `${String(bounds.y * 100)}%`,
+                      width: `${String(bounds.width * 100)}%`,
+                    }}
+                    type="button"
+                  />
+                );
+              })}
+          </div>
         </div>
       </div>
 

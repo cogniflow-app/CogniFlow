@@ -2,14 +2,41 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createHostedPlaywrightEnvironment } from "./hosted-child-environment.mjs";
+import hostedPreflightContract from "./hosted-preflight.cjs";
+import {
+  authenticateVercelDeploymentOwnership,
+  createHostedPreflightAttestation,
+  fetchHostedHealthWithScopedBypass,
+  resolveVercelAutomationBypass,
+} from "./vercel-deployment-ownership.mjs";
+
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
+const { createHostedPreflightFile, destroyHostedPreflightFile } = hostedPreflightContract;
 
 const targetVariables = Object.freeze({
   preview: "HOSTED_PREVIEW_URL",
   production: "HOSTED_PRODUCTION_URL",
 });
 
-export function isTrustedVercelAutomationOrigin(origin) {
+const targetHealthContracts = Object.freeze({
+  preview: Object.freeze({
+    supabaseProjectRef: "cfwddajyjbueggpzfomh",
+    vercelEnvironment: "preview",
+  }),
+  production: Object.freeze({
+    supabaseProjectRef: "qccbaynfvtyxigiikpmq",
+    vercelEnvironment: "production",
+  }),
+});
+
+function isProjectDeploymentHostname(hostname) {
+  return /^cogniflow-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?-cogniflow-app-3471s-projects\.vercel\.app$/u.test(
+    hostname,
+  );
+}
+
+export function isCandidateVercelAutomationOrigin(origin) {
   let parsed;
   try {
     parsed = new URL(origin);
@@ -31,8 +58,20 @@ export function isTrustedVercelAutomationOrigin(origin) {
   return (
     hostname === "recallflash.com" ||
     hostname === "cogniflow-pearl.vercel.app" ||
-    /^cogniflow-[a-z0-9]+-cogniflow-app-3471s-projects\.vercel\.app$/u.test(hostname)
+    isProjectDeploymentHostname(hostname)
   );
+}
+
+export function isHostedSmokeOriginForTarget(origin, target) {
+  let parsed;
+  try {
+    if (normalizeHostedBaseUrl(origin) !== origin) return false;
+    parsed = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (target === "preview") return isProjectDeploymentHostname(parsed.hostname);
+  return target === "production" && parsed.origin === "https://recallflash.com";
 }
 
 function usageError(message) {
@@ -95,46 +134,117 @@ export function resolveHostedSmokeRun(argv, environment = process.env) {
 
   const environmentVariable = targetVariables[target];
   const baseURL = normalizeHostedBaseUrl(override ?? environment[environmentVariable]);
-  if (
-    environment.VERCEL_AUTOMATION_BYPASS_SECRET?.trim() &&
-    !isTrustedVercelAutomationOrigin(baseURL)
-  ) {
-    throw usageError(
-      "The Vercel automation bypass may be sent only to this repository's trusted project origins.",
-    );
+  if (!isHostedSmokeOriginForTarget(baseURL, target)) {
+    throw usageError(`The ${target} smoke target does not match its fixed hosted environment.`);
   }
   return Object.freeze({ baseURL, target });
 }
 
+function record(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : null;
+}
+
+export function assertHostedSmokeHealthProjection(value, target) {
+  const health = record(value);
+  const contract = targetHealthContracts[target];
+  if (
+    !contract ||
+    health?.status !== "ok" ||
+    health.provider !== "vercel" ||
+    health.deploymentProfile !== "vercel_beta" ||
+    health.vercelEnvironment !== contract.vercelEnvironment ||
+    health.supabaseProjectRef !== contract.supabaseProjectRef ||
+    typeof health.buildVersion !== "string" ||
+    !health.buildVersion.trim() ||
+    health.buildVersion === "development"
+  ) {
+    throw usageError(
+      `The ${target} health projection does not match its fixed hosted environment.`,
+    );
+  }
+}
+
+export async function preflightHostedSmokeTarget(
+  run,
+  environment = process.env,
+  fetchImplementation = fetch,
+  authenticateOwnershipImplementation = authenticateVercelDeploymentOwnership,
+  resolveBypassImplementation = resolveVercelAutomationBypass,
+) {
+  if (!isHostedSmokeOriginForTarget(run?.baseURL, run?.target)) {
+    throw usageError("The hosted smoke target is not valid for its selected environment.");
+  }
+  const ownership = await authenticateOwnershipImplementation(run.baseURL, run.target, environment);
+  const bypass = await resolveBypassImplementation(ownership, environment, {
+    fetchImplementation,
+  });
+  const { bypassCookie, response } = await fetchHostedHealthWithScopedBypass(
+    run.baseURL,
+    bypass,
+    fetchImplementation,
+  );
+  if (!response.ok || !response.headers.get("cache-control")?.includes("no-store")) {
+    throw usageError(`The ${run.target} hosted health preflight failed.`);
+  }
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw usageError(`The ${run.target} hosted health response was invalid.`);
+  }
+  assertHostedSmokeHealthProjection(body, run.target);
+  return createHostedPreflightAttestation({
+    baseURL: run.baseURL,
+    bypassCookie,
+    ownership,
+    target: run.target,
+  });
+}
+
 export async function runHostedSmoke(argv = process.argv.slice(2), environment = process.env) {
   const run = resolveHostedSmokeRun(argv, environment);
+  const preflight = await preflightHostedSmokeTarget(run, environment);
+  const preflightFile = createHostedPreflightFile(preflight);
   const executable = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-  const child = spawn(
-    executable,
-    ["exec", "playwright", "test", "--config=playwright.hosted.config.ts"],
-    {
-      cwd: repositoryRoot,
-      env: {
-        ...environment,
-        HOSTED_SMOKE_TARGET: run.target,
-        PLAYWRIGHT_BASE_URL: run.baseURL,
+  let sandbox;
+  const signalHandlers = new Map();
+  try {
+    sandbox = createHostedPlaywrightEnvironment(environment, {
+      HOSTED_SMOKE_PREFLIGHT_FILE: preflightFile,
+      HOSTED_SMOKE_TARGET: run.target,
+      PLAYWRIGHT_BASE_URL: run.baseURL,
+    });
+    const child = spawn(
+      executable,
+      ["exec", "playwright", "test", "--config=playwright.hosted.config.ts"],
+      {
+        cwd: repositoryRoot,
+        env: sandbox.environment,
+        stdio: "inherit",
       },
-      stdio: "inherit",
-    },
-  );
+    );
 
-  for (const signal of ["SIGINT", "SIGTERM"]) {
-    process.once(signal, () => {
-      child.kill(signal);
+    for (const signal of ["SIGINT", "SIGTERM"]) {
+      const handler = () => {
+        child.kill(signal);
+      };
+      signalHandlers.set(signal, handler);
+      process.once(signal, handler);
+    }
+
+    return await new Promise((resolve, reject) => {
+      child.once("error", reject);
+      child.once("exit", (code, signal) => {
+        resolve(code ?? (signal ? 1 : 0));
+      });
     });
+  } finally {
+    for (const [signal, handler] of signalHandlers) {
+      process.removeListener(signal, handler);
+    }
+    sandbox?.cleanup();
+    destroyHostedPreflightFile(preflightFile);
   }
-
-  return await new Promise((resolve, reject) => {
-    child.once("error", reject);
-    child.once("exit", (code, signal) => {
-      resolve(code ?? (signal ? 1 : 0));
-    });
-  });
 }
 
 const invokedDirectly =

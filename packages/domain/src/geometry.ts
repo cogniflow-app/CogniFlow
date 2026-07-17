@@ -51,6 +51,7 @@ export interface DiagramHotspot {
   readonly semanticKey: string;
   readonly shape: NormalizedShape;
   readonly label: string;
+  readonly altText: string;
   readonly aliases: readonly string[];
   readonly promptDirection: "label_to_region" | "region_to_label" | "both";
 }
@@ -311,7 +312,7 @@ const parseHotspot: SchemaParser<DiagramHotspot> = (input, path, issues) => {
   if (!record) return undefined;
   hasOnlyKeys(
     record,
-    ["semanticKey", "shape", "label", "aliases", "promptDirection"],
+    ["semanticKey", "shape", "label", "altText", "aliases", "promptDirection"],
     path,
     issues,
   );
@@ -322,6 +323,13 @@ const parseHotspot: SchemaParser<DiagramHotspot> = (input, path, issues) => {
   });
   const shape = parseShape(record.shape, `${path}.shape`, issues);
   const label = readString(record.label, `${path}.label`, issues, { min: 1, max: 500 });
+  // Payloads written before hotspot-specific alternatives were introduced used the
+  // label as their only textual fallback. Keep those notes readable while ensuring
+  // every parsed hotspot has a durable, bounded alternative from this version on.
+  const altText = readString(record.altText ?? record.label, `${path}.altText`, issues, {
+    min: 1,
+    max: 1_000,
+  });
   const aliases = readArray(
     record.aliases ?? [],
     `${path}.aliases`,
@@ -336,11 +344,13 @@ const parseHotspot: SchemaParser<DiagramHotspot> = (input, path, issues) => {
     `${path}.promptDirection`,
     issues,
   );
-  if (!semanticKey || !shape || !label || !aliases || !promptDirection) return undefined;
+  if (!semanticKey || !shape || !label || !altText || !aliases || !promptDirection)
+    return undefined;
   return Object.freeze({
     semanticKey,
     shape,
     label,
+    altText,
     aliases: uniqueAliases(aliases, label, `${path}.aliases`, issues),
     promptDirection,
   });

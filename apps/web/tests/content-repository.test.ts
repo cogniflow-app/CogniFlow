@@ -202,10 +202,17 @@ describe("content repository query bounds", () => {
     const noteOne = uuid(930);
     const noteTwo = uuid(931);
     const noteThree = uuid(932);
+    const noteFour = uuid(933);
     const tagId = uuid(940);
     const payload = {
       back: richText("Answer"),
       front: richText("Prompt"),
+      kind: "basic",
+      schemaVersion: 1,
+    };
+    const oldPayload = {
+      back: richText("Earlier answer"),
+      front: richText("Earlier prompt"),
       kind: "basic",
       schemaVersion: 1,
     };
@@ -221,8 +228,30 @@ describe("content repository query bounds", () => {
             change_kind: "edit",
             content_snapshot: {
               notes: [
-                { contentHash: "old-one", id: noteOne },
-                { contentHash: "old-two", id: noteTwo },
+                {
+                  cardPayload: oldPayload,
+                  contentHash: "old-one",
+                  id: noteOne,
+                  sortText: "Earlier prompt",
+                  sourceReference: "Earlier source",
+                  tagNames: ["archive"],
+                },
+                {
+                  cardPayload: payload,
+                  contentHash: "old-two",
+                  id: noteTwo,
+                  sortText: "Removed prompt",
+                  sourceReference: "Removed source",
+                  tagNames: ["removed"],
+                },
+                {
+                  cardPayload: payload,
+                  contentHash: "same-tag-only",
+                  id: noteFour,
+                  sortText: "Prompt",
+                  sourceReference: "",
+                  tagNames: ["archive"],
+                },
               ],
               schemaVersion: 1,
             },
@@ -259,6 +288,7 @@ describe("content repository query bounds", () => {
         folder_items: [],
         note_tags: [
           { deleted_at: null, note_id: noteOne, tag_id: tagId },
+          { deleted_at: null, note_id: noteFour, tag_id: tagId },
           { deleted_at: null, note_id: uuid(998), tag_id: tagId },
         ],
         notes: [
@@ -283,6 +313,16 @@ describe("content repository query bounds", () => {
             updated_at: "2026-07-16T00:00:00.000Z",
             version: 1,
           },
+          {
+            card_payload: payload,
+            content_hash: "same-tag-only",
+            deck_id: deckId,
+            deleted_at: null,
+            id: noteFour,
+            sort_text: "Prompt",
+            updated_at: "2026-07-16T00:00:00.000Z",
+            version: 1,
+          },
         ],
         tags: [{ deck_id: deckId, deleted_at: null, id: tagId, name: "energy" }],
       },
@@ -295,10 +335,45 @@ describe("content repository query bounds", () => {
     expect(detail?.role).toBe("editor");
     expect(detail?.notes.find((note) => note.id === noteOne)?.source).toBe("Biology 201 lecture 4");
     expect(detail?.notes.find((note) => note.id === noteOne)?.tags).toEqual(["energy"]);
-    expect(detail?.versions[0]?.diffFromCurrent).toEqual({ added: 1, changed: 1, removed: 1 });
+    expect(detail?.versions[0]?.diffFromCurrent).toMatchObject({
+      added: 1,
+      changed: 2,
+      removed: 1,
+    });
+    expect(detail?.versions[0]?.diffFromCurrent.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          changedAreas: ["Prompt", "Answer", "Source", "Tags"],
+          current: expect.objectContaining({ answer: "Answer", prompt: "Prompt" }),
+          kind: "changed",
+          noteId: noteOne,
+          version: expect.objectContaining({
+            answer: "Earlier answer",
+            prompt: "Earlier prompt",
+          }),
+        }),
+        expect.objectContaining({
+          current: expect.objectContaining({ prompt: "Prompt" }),
+          kind: "added",
+          noteId: noteThree,
+          version: null,
+        }),
+        expect.objectContaining({
+          changedAreas: ["Tags"],
+          kind: "changed",
+          noteId: noteFour,
+        }),
+        expect.objectContaining({
+          current: null,
+          kind: "removed",
+          noteId: noteTwo,
+          version: expect.objectContaining({ prompt: "Prompt" }),
+        }),
+      ]),
+    );
     const memberQuery = fixture.queries.find((query) => query.table === "deck_members");
     expect(memberQuery?.equalFilters.get("account_id")).toBe(accountId);
     const noteTags = fixture.queries.find((query) => query.table === "note_tags");
-    expect(noteTags?.inFilters.get("note_id")).toEqual([noteOne, noteThree]);
+    expect(noteTags?.inFilters.get("note_id")).toEqual([noteOne, noteThree, noteFour]);
   });
 });

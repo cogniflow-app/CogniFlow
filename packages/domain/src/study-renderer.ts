@@ -4,10 +4,12 @@ import type {
   ChoiceDefinition,
   ClozeDefinition,
   CustomTemplateDefinition,
+  CustomFieldValue,
   DrawingReferenceLayer,
   ListAnswerItem,
   OrderingItem,
 } from "./card-types";
+import { customFieldPlainText } from "./card-types";
 import type { DiagramHotspot, ImageOcclusionRegion } from "./geometry";
 import { extractRichDocumentText, type RichDocument } from "./rich-document";
 import { parseTemplate } from "./template";
@@ -53,7 +55,7 @@ export interface BidirectionalStudyRenderer extends StudyRendererBase<"bidirecti
 }
 
 export interface CustomStudyRenderer extends StudyRendererBase<"custom"> {
-  readonly fields: Readonly<Record<string, RichDocument>>;
+  readonly fields: Readonly<Record<string, CustomFieldValue>>;
   readonly template: CustomTemplateDefinition;
 }
 
@@ -274,7 +276,7 @@ export function createStudyRendererContract(
           semanticKey,
           generationKey,
           accessibility(
-            Object.values(fields).map(extractRichDocumentText).join(" "),
+            Object.values(fields).map(customFieldPlainText).join(" "),
             "Follow the custom card's labeled prompt.",
             "Every template field remains available as structured text.",
           ),
@@ -431,7 +433,9 @@ export function createStudyRendererContract(
             direction === "region_to_label"
               ? "Name the highlighted region."
               : "Locate the named region.",
-            `Use the textual hotspot label and aliases: ${[hotspot.label, ...hotspot.aliases].join("; ")}`,
+            direction === "region_to_label"
+              ? `Highlighted region description: ${hotspot.altText}`
+              : `Region description: ${hotspot.altText}. Accepted label and aliases: ${[hotspot.label, ...hotspot.aliases].join("; ")}`,
           ),
         ),
         imageAssetId: card.imageAssetId,

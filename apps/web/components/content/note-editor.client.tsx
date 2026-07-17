@@ -5,12 +5,15 @@ import {
   cardAuthoringSchema,
   emptyRichDocument,
   generateCardBlueprints,
+  isCustomFieldList,
+  isCustomFieldMedia,
   type BasicCardData,
   type BasicReversedCardData,
   type CardAuthoringData,
   type ChoiceDefinition,
   type ClozeCardData,
   type CustomCardData,
+  type CustomFieldValue,
   type DiagramCardData,
   type DrawingReferenceLayer,
   type DrawingStroke,
@@ -28,12 +31,13 @@ import type { Route } from "next";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { CARD_TYPE_BY_CODE, CARD_TYPE_DESCRIPTORS } from "@/lib/content/card-types";
-import type {
-  CardTypeCode,
-  ContentApiError,
-  ContentMutationResult,
-  NoteSummary,
-} from "@/lib/content/view-models";
+import {
+  conflictRecoveryMessage,
+  ContentApiRequestError,
+  PendingContentMutations,
+  performContentMutation,
+} from "@/lib/content/client-mutations";
+import type { CardTypeCode, ContentMutationResult, NoteSummary } from "@/lib/content/view-models";
 import { DrawingEditor } from "./drawing-editor.client";
 import { MediaUploader, type UploadedMediaAsset } from "./media-uploader.client";
 import { RichEditor } from "./rich-editor.client";
@@ -185,7 +189,14 @@ function RichField({
   readonly onChange: (value: RichDocument) => void;
   readonly value: RichDocument;
 }) {
-  return <RichEditor document={value} label={label} onChange={onChange} />;
+  return (
+    <RichEditor
+      document={value}
+      label={label}
+      {...(value.attrs?.language ? { language: value.attrs.language } : {})}
+      onChange={onChange}
+    />
+  );
 }
 
 function PairEditor({
@@ -312,19 +323,117 @@ function CustomEditor({
   readonly value: CustomCardData;
 }) {
   const [newField, setNewField] = useState("");
+  const [newFieldType, setNewFieldType] = useState<"list" | "media" | "rich_text">("rich_text");
+  const [newMedia, setNewMedia] = useState<CustomFieldValue | null>(null);
+
+  function mediaValue(asset: UploadedMediaAsset): CustomFieldValue {
+    return Object.freeze({
+      alt:
+        asset.altText.trim() ||
+        asset.transcript.trim() ||
+        (asset.kind === "audio" ? "Audio attachment" : "Image attachment"),
+      assetId: asset.id,
+      kind: "media" as const,
+      mediaKind: asset.kind,
+    });
+  }
+
+  function addField(): void {
+    const fieldValue: CustomFieldValue =
+      newFieldType === "list"
+        ? Object.freeze([])
+        : newFieldType === "media"
+          ? (newMedia ?? emptyRichDocument("en"))
+          : emptyRichDocument("en");
+    onChange({ ...value, fields: { ...value.fields, [newField]: fieldValue } });
+    setNewField("");
+    setNewFieldType("rich_text");
+    setNewMedia(null);
+  }
+
   return (
     <div className="grid gap-5">
       <section className="repeatable-list" aria-labelledby="custom-fields-heading">
         <h3 id="custom-fields-heading">Structured fields</h3>
         {Object.entries(value.fields).map(([key, field]) => (
           <div className="repeatable-row" key={key}>
-            <RichField
-              label={key}
-              onChange={(document) =>
-                onChange({ ...value, fields: { ...value.fields, [key]: document } })
-              }
-              value={field}
-            />
+            {isCustomFieldList(field) ? (
+              <FormField
+                label={`${key} (list)`}
+                description="Enter one bounded template item per line."
+              >
+                <Textarea
+                  aria-label={`${key} list items`}
+                  maxLength={200_000}
+                  onChange={(event) =>
+                    onChange({
+                      ...value,
+                      fields: {
+                        ...value.fields,
+                        [key]: event.target.value
+                          .split("\n")
+                          .map((item) => item.normalize("NFKC").trim())
+                          .filter(Boolean)
+                          .slice(0, 100),
+                      },
+                    })
+                  }
+                  rows={4}
+                  value={field.join("\n")}
+                />
+              </FormField>
+            ) : isCustomFieldMedia(field) ? (
+              <div className="grid gap-3" aria-label={`${key} media field`}>
+                <FormField label={`${key} media alternative text`}>
+                  <Input
+                    maxLength={2_000}
+                    onChange={(event) =>
+                      onChange({
+                        ...value,
+                        fields: {
+                          ...value.fields,
+                          [key]: { ...field, alt: event.target.value },
+                        },
+                      })
+                    }
+                    value={field.alt}
+                  />
+                </FormField>
+                <Badge tone="success">
+                  Custom {field.mediaKind === "audio" ? "audio" : "image"} attached
+                </Badge>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <MediaUploader
+                    kind="image"
+                    label={`Replace ${key} with an image`}
+                    onUploaded={(asset) =>
+                      onChange({
+                        ...value,
+                        fields: { ...value.fields, [key]: mediaValue(asset) },
+                      })
+                    }
+                  />
+                  <MediaUploader
+                    kind="audio"
+                    label={`Replace ${key} with audio`}
+                    onUploaded={(asset) =>
+                      onChange({
+                        ...value,
+                        fields: { ...value.fields, [key]: mediaValue(asset) },
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            ) : (
+              <RichField
+                label={key}
+                onChange={(document) =>
+                  onChange({ ...value, fields: { ...value.fields, [key]: document } })
+                }
+                value={field}
+              />
+            )}
             <Button
               disabled={Object.keys(value.fields).length <= 1}
               onClick={() => {
@@ -346,20 +455,47 @@ function CustomEditor({
             placeholder="ExtraField"
             value={newField}
           />
-          <Button
-            disabled={!/^[A-Za-z][A-Za-z0-9_]{0,63}$/u.test(newField) || newField in value.fields}
-            onClick={() => {
-              onChange({
-                ...value,
-                fields: { ...value.fields, [newField]: emptyRichDocument("en") },
-              });
-              setNewField("");
+          <Select
+            aria-label="New field type"
+            onValueChange={(fieldType) => {
+              setNewFieldType(fieldType as typeof newFieldType);
+              setNewMedia(null);
             }}
+            options={[
+              { label: "Rich text", value: "rich_text" },
+              { label: "List", value: "list" },
+              { label: "Media", value: "media" },
+            ]}
+            value={newFieldType}
+          />
+          <Button
+            disabled={
+              Object.keys(value.fields).length >= 64 ||
+              !/^[A-Za-z][A-Za-z0-9_]{0,63}$/u.test(newField) ||
+              newField in value.fields ||
+              (newFieldType === "media" && newMedia === null)
+            }
+            onClick={addField}
             variant="secondary"
           >
             Add field
           </Button>
         </div>
+        {newFieldType === "media" && (
+          <div className="grid gap-3 sm:grid-cols-2" aria-label="New custom media value">
+            <MediaUploader
+              kind="image"
+              label="New custom image field"
+              onUploaded={(asset) => setNewMedia(mediaValue(asset))}
+            />
+            <MediaUploader
+              kind="audio"
+              label="New custom audio field"
+              onUploaded={(asset) => setNewMedia(mediaValue(asset))}
+            />
+            {newMedia && <Badge tone="success">New custom media ready to add</Badge>}
+          </div>
+        )}
       </section>
       <section className="repeatable-list" aria-labelledby="templates-heading">
         <h3 id="templates-heading">Safe card templates</h3>
@@ -372,6 +508,7 @@ function CustomEditor({
           <div className="repeatable-row" key={template.semanticKey}>
             <FormField label="Template name">
               <Input
+                maxLength={120}
                 value={template.name}
                 onChange={(event) =>
                   onChange({
@@ -387,6 +524,7 @@ function CustomEditor({
             </FormField>
             <FormField label="Front template">
               <Textarea
+                maxLength={50_000}
                 rows={4}
                 value={template.frontTemplate}
                 onChange={(event) =>
@@ -403,6 +541,7 @@ function CustomEditor({
             </FormField>
             <FormField label="Back template">
               <Textarea
+                maxLength={50_000}
                 rows={4}
                 value={template.backTemplate}
                 onChange={(event) =>
@@ -419,6 +558,7 @@ function CustomEditor({
             </FormField>
             <FormField label="Scoped CSS (optional)">
               <Textarea
+                maxLength={20_000}
                 rows={3}
                 value={template.stylingCss ?? ""}
                 onChange={(event) =>
@@ -436,6 +576,7 @@ function CustomEditor({
           </div>
         ))}
         <Button
+          disabled={value.templates.length >= 20}
           onClick={() =>
             onChange({
               ...value,
@@ -649,7 +790,7 @@ function VisualEditor({
     value.kind === "diagram"
       ? value.hotspots.map((hotspot) => ({
           ...hotspot,
-          altText: hotspot.label,
+          altText: hotspot.altText,
           groupKey: hotspot.semanticKey,
         }))
       : value.occlusions.map((region) => ({
@@ -666,13 +807,16 @@ function VisualEditor({
     if (value.kind === "diagram") {
       onChange({
         ...value,
-        hotspots: regionsValue.map(({ semanticKey, shape, label, aliases, promptDirection }) => ({
-          semanticKey,
-          shape,
-          label,
-          aliases,
-          promptDirection,
-        })),
+        hotspots: regionsValue.map(
+          ({ semanticKey, shape, label, altText, aliases, promptDirection }) => ({
+            semanticKey,
+            shape,
+            label,
+            altText,
+            aliases,
+            promptDirection,
+          }),
+        ),
       });
     } else {
       onChange({
@@ -1329,17 +1473,6 @@ function StudyRendererPreview({
   );
 }
 
-async function readMutation(response: Response): Promise<ContentMutationResult<NoteSummary>> {
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const error = body as Partial<ContentApiError> | null;
-    const caught = new Error(error?.message ?? "The note could not be saved.");
-    Object.assign(caught, { code: error?.code, currentVersion: error?.currentVersion });
-    throw caught;
-  }
-  return body as ContentMutationResult<NoteSummary>;
-}
-
 function draftFingerprint(data: CardAuthoringData, source: string, tags: string): string {
   return JSON.stringify({ data, source, tags });
 }
@@ -1371,6 +1504,7 @@ export function NoteEditor({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const firstRender = useRef(true);
+  const pendingMutations = useRef(new PendingContentMutations());
   const latestDraft = useRef(draftFingerprint(data, source, tags));
   latestDraft.current = draftFingerprint(data, source, tags);
   const duplicateMatches = useMemo(() => {
@@ -1430,25 +1564,28 @@ export function NoteEditor({
       return;
     }
     const submittedDraft = draftFingerprint(parsed.data, source, tags);
+    const creating = asNew || !savedNoteId;
+    const command = {
+      authoringData: parsed.data,
+      expectedVersion: creating ? null : currentVersion,
+      noteId: creating ? null : savedNoteId,
+      source,
+      tags: tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    } as const;
     setState("saving");
     setMessage(null);
     try {
-      const response = await fetch(`/api/content/decks/${deckId}/notes`, {
-        method: asNew || !savedNoteId ? "POST" : "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          authoringData: parsed.data,
-          expectedVersion: asNew || !savedNoteId ? null : currentVersion,
-          idempotencyKey: crypto.randomUUID(),
-          noteId: asNew || !savedNoteId ? null : savedNoteId,
-          source,
-          tags: tags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean),
-        }),
+      const result = await performContentMutation<ContentMutationResult<NoteSummary>>({
+        body: command,
+        fallbackMessage: "The note could not be saved.",
+        method: creating ? "POST" : "PATCH",
+        operation: `note-editor:${deckId}:${asNew ? "create-copy" : (savedNoteId ?? "create")}`,
+        pending: pendingMutations.current,
+        url: `/api/content/decks/${deckId}/notes`,
       });
-      const result = await readMutation(response);
       setCurrentVersion(result.data.version);
       setSavedNoteId(result.data.id);
       setConflictVersion(null);
@@ -1460,12 +1597,11 @@ export function NoteEditor({
         router.replace(`/app/decks/${deckId}/edit?note=${result.data.id}` as Route);
       router.refresh();
     } catch (caught) {
-      const conflict = caught as Error & { code?: string; currentVersion?: number };
-      if (conflict.code === "CONFLICT") {
-        setConflictVersion(conflict.currentVersion ?? null);
+      if (caught instanceof ContentApiRequestError && caught.code === "CONFLICT") {
+        setConflictVersion(caught.currentVersion ?? null);
         setState("conflict");
         setMessage(
-          `A newer version${conflict.currentVersion ? ` (${String(conflict.currentVersion)})` : ""} exists. Your draft is still open.`,
+          `A newer version${caught.currentVersion ? ` (${String(caught.currentVersion)})` : ""} exists. Your draft is still open.`,
         );
       } else {
         setState("error");
@@ -1479,34 +1615,25 @@ export function NoteEditor({
     setDeleting(true);
     setDeleteError(null);
     try {
-      const response = await fetch(
-        `/api/content/decks/${encodeURIComponent(deckId)}/notes/${encodeURIComponent(savedNoteId)}`,
-        {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            expectedVersion: currentVersion,
-            idempotencyKey: crypto.randomUUID(),
-          }),
-        },
-      );
-      const body: unknown = await response.json().catch(() => null);
-      if (!response.ok) {
-        const error = body as Partial<ContentApiError> | null;
-        const version = error?.currentVersion;
-        throw new Error(
-          error?.code === "CONFLICT"
-            ? version
-              ? `This note is now at version ${String(version)}. Reload it before deleting.`
-              : "A newer version of this note exists. Reload it before deleting."
-            : (error?.message ?? "The note could not be deleted."),
-        );
-      }
+      await performContentMutation<{ readonly data: { readonly id: string } }>({
+        body: { expectedVersion: currentVersion },
+        fallbackMessage: "The note could not be deleted.",
+        method: "DELETE",
+        operation: `note-editor:${deckId}:${savedNoteId}:delete`,
+        pending: pendingMutations.current,
+        url: `/api/content/decks/${encodeURIComponent(deckId)}/notes/${encodeURIComponent(savedNoteId)}`,
+      });
       setDeleteOpen(false);
       router.replace(`/app/decks/${deckId}/edit` as Route);
       router.refresh();
     } catch (caught) {
-      setDeleteError(caught instanceof Error ? caught.message : "The note could not be deleted.");
+      setDeleteError(
+        caught instanceof ContentApiRequestError && caught.code === "CONFLICT"
+          ? conflictRecoveryMessage(caught, "This note")
+          : caught instanceof Error
+            ? caught.message
+            : "The note could not be deleted.",
+      );
     } finally {
       setDeleting(false);
     }

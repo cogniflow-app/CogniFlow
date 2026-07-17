@@ -270,10 +270,17 @@ export function parseBulkNoteInput(
   if (!value || !Array.isArray(value.notes) || value.notes.length < 1 || value.notes.length > 100)
     return failure("notes", "Submit 1 to 100 notes at a time.");
   const notes: Array<NoteMutationInput & { clientId: string }> = [];
+  const clientIds = new Set<string>();
   for (const [index, candidate] of value.notes.entries()) {
     const row = record(candidate);
     if (!row || typeof row.clientId !== "string" || !uuidPattern.test(row.clientId))
       return failure(`notes.${String(index)}.clientId`, "The row identifier is invalid.");
+    if (clientIds.has(row.clientId))
+      return failure(
+        `notes.${String(index)}.clientId`,
+        "Every quick-add row needs a unique identifier.",
+      );
+    clientIds.add(row.clientId);
     const parsed = parseNoteMutationInput({
       ...row,
       expectedVersion: null,

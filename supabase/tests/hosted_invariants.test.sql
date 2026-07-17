@@ -238,12 +238,17 @@ begin
   if exists(
     select 1 from pg_catalog.pg_policies
     where schemaname = 'storage'
-      and policyname not in (
-        'content_media_read', 'content_media_insert',
-        'content_media_update', 'content_media_delete'
-      )
+      and policyname <> 'content_media_read'
   ) then
     raise exception 'the storage schema contains an unreviewed policy';
+  end if;
+
+  if pg_catalog.has_function_privilege(
+    'authenticated',
+    'private.can_write_content_media_object(uuid,text,text)',
+    'execute'
+  ) then
+    raise exception 'browser credentials can write content Storage directly';
   end if;
 
   if exists(

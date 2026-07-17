@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   createContentMutationContext: vi.fn(),
   createPrivilegedDatabaseClient: vi.fn(),
   createSignedUrl: vi.fn(),
+  privilegedStorageFrom: vi.fn(),
+  privilegedUpload: vi.fn(),
+  privilegedRpc: vi.fn(),
   rpc: vi.fn(),
   storageFrom: vi.fn(),
 }));
@@ -54,6 +57,13 @@ function webmBytes(): Uint8Array<ArrayBuffer> {
 describe("bounded media upload route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.privilegedRpc.mockResolvedValue({ data: null, error: null });
+    mocks.privilegedUpload.mockResolvedValue({ data: { path: "opaque/media" }, error: null });
+    mocks.privilegedStorageFrom.mockReturnValue({ upload: mocks.privilegedUpload });
+    mocks.createPrivilegedDatabaseClient.mockReturnValue({
+      rpc: mocks.privilegedRpc,
+      storage: { from: mocks.privilegedStorageFrom },
+    });
     mocks.createSignedUrl.mockResolvedValue({
       data: { signedUrl: "https://storage.example.test/private/image.png?signature=test" },
       error: null,
@@ -200,6 +210,157 @@ describe("bounded media upload route", () => {
       "current_register_media_asset",
       expect.objectContaining({ p_kind: "audio", p_mime_type: "audio/webm", p_sha256: digest }),
     );
+  });
+
+  it("writes a pending reservation only through the privileged validated route", async () => {
+    const bytes = webmBytes();
+    const digest = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+      (value) => value.toString(16).padStart(2, "0"),
+    ).join("");
+    const assetId = "0190d9f0-0000-7000-8000-000000000096";
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        alt_text: null,
+        id: assetId,
+        kind: "audio",
+        mime_type: "audio/webm",
+        status: "pending",
+        storage_bucket: "private-media",
+        storage_path: "opaque/pending-success.webm",
+      },
+      error: null,
+    });
+    mocks.privilegedRpc.mockResolvedValueOnce({
+      data: {
+        alt_text: null,
+        id: assetId,
+        kind: "audio",
+        mime_type: "audio/webm",
+        status: "ready",
+        storage_bucket: "private-media",
+        storage_path: "opaque/pending-success.webm",
+      },
+      error: null,
+    });
+    const form = new FormData();
+    form.set("file", new File([bytes], "pending.webm", { type: "audio/webm" }));
+    form.set("idempotencyKey", "0190d9f0-0000-7000-8000-000000000014");
+    form.set("kind", "audio");
+    form.set("sha256", digest);
+    form.set("transcript", "Validated server upload");
+
+    const response = await POST(
+      new NextRequest(endpoint, {
+        body: form,
+        headers: {
+          "Content-Length": "1024",
+          Origin: "http://127.0.0.1:3100",
+          "Sec-Fetch-Site": "same-origin",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(mocks.privilegedStorageFrom).toHaveBeenCalledWith("private-media");
+    expect(mocks.privilegedUpload).toHaveBeenCalledWith(
+      "opaque/pending-success.webm",
+      expect.any(ArrayBuffer),
+      { contentType: "audio/webm", upsert: true },
+    );
+    expect(mocks.storageFrom).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses to write a reservation after deletion or quarantine has begun", async () => {
+    const bytes = webmBytes();
+    const digest = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+      (value) => value.toString(16).padStart(2, "0"),
+    ).join("");
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        alt_text: null,
+        id: "0190d9f0-0000-7000-8000-000000000095",
+        kind: "audio",
+        mime_type: "audio/webm",
+        status: "deleting",
+        storage_bucket: "private-media",
+        storage_path: "opaque/unavailable.webm",
+      },
+      error: null,
+    });
+    const form = new FormData();
+    form.set("file", new File([bytes], "unavailable.webm", { type: "audio/webm" }));
+    form.set("idempotencyKey", "0190d9f0-0000-7000-8000-000000000015");
+    form.set("kind", "audio");
+    form.set("sha256", digest);
+    form.set("transcript", "Unavailable reservation");
+
+    const response = await POST(
+      new NextRequest(endpoint, {
+        body: form,
+        headers: {
+          "Content-Length": "1024",
+          Origin: "http://127.0.0.1:3100",
+          "Sec-Fetch-Site": "same-origin",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "CONFLICT", retryable: false });
+    expect(mocks.createPrivilegedDatabaseClient).not.toHaveBeenCalled();
+  });
+
+  it("compensates a registered pending asset when its private Storage upload fails", async () => {
+    const bytes = webmBytes();
+    const digest = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+      (value) => value.toString(16).padStart(2, "0"),
+    ).join("");
+    const assetId = "0190d9f0-0000-7000-8000-000000000097";
+    const idempotencyKey = "0190d9f0-0000-7000-8000-000000000013";
+    mocks.privilegedUpload.mockResolvedValue({ error: { message: "Storage unavailable" } });
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        alt_text: null,
+        id: assetId,
+        kind: "audio",
+        mime_type: "audio/webm",
+        status: "pending",
+        storage_bucket: "private-media",
+        storage_path: "opaque/pending.webm",
+      },
+      error: null,
+    });
+    const form = new FormData();
+    form.set("file", new File([bytes], "pending.webm", { type: "audio/webm" }));
+    form.set("idempotencyKey", idempotencyKey);
+    form.set("kind", "audio");
+    form.set("sha256", digest);
+    form.set("transcript", "Retryable recording");
+
+    const response = await POST(
+      new NextRequest(endpoint, {
+        body: form,
+        headers: {
+          "Content-Length": "1024",
+          Origin: "http://127.0.0.1:3100",
+          "Sec-Fetch-Site": "same-origin",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ code: "INTERNAL", retryable: true });
+    expect(mocks.privilegedRpc).toHaveBeenCalledWith("admin_abandon_media_asset_upload", {
+      p_actor_account_id: "0190d9f0-0000-7000-8000-000000000001",
+      p_idempotency_key: idempotencyKey,
+      p_media_asset_id: assetId,
+    });
   });
 
   it("rejects arbitrary MIME parameters even when the base type and magic match", async () => {

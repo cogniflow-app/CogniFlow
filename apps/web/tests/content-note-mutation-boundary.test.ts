@@ -101,8 +101,9 @@ describe("note mutation database boundary", () => {
 
     expect(response.status).toBe(201);
     expect(mocks.rpc).toHaveBeenCalledWith(
-      "current_upsert_note_with_media",
+      "current_upsert_note_definition_with_media",
       expect.objectContaining({
+        p_custom_note_type_definition: null,
         p_deck_id: deckId,
         p_expected_version: 0,
         p_media_links: [],
@@ -126,7 +127,7 @@ describe("note mutation database boundary", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.rpc).toHaveBeenCalledWith(
-      "current_upsert_note_with_media",
+      "current_upsert_note_definition_with_media",
       expect.objectContaining({ p_expected_version: 3, p_note_id: noteId }),
     );
   });
@@ -141,11 +142,244 @@ describe("note mutation database boundary", () => {
 
     expect(response.status).toBe(201);
     expect(mocks.rpc).toHaveBeenCalledWith(
-      "current_upsert_note_with_media",
+      "current_upsert_note_definition_with_media",
       expect.objectContaining({
+        p_custom_note_type_definition: null,
         p_expected_version: 0,
         p_media_links: [],
         p_note_id: null,
+      }),
+    );
+  });
+
+  it("retains visual-card media references during quick add", async () => {
+    const imageAssetId = "0190d9f0-0000-7000-8000-000000000015";
+    const response = await saveQuickNotes(
+      request(`/api/content/decks/${deckId}/notes/bulk`, {
+        notes: [
+          {
+            authoringData: {
+              imageAlt: "A labeled cell",
+              imageAssetId,
+              kind: "image_occlusion",
+              mode: "hide_one_reveal_others",
+              occlusions: [
+                {
+                  altText: "Circular region in the center",
+                  groupKey: "nucleus",
+                  label: "Nucleus",
+                  semanticKey: "nucleus-mask",
+                  shape: { height: 0.2, kind: "rectangle", width: 0.2, x: 0.4, y: 0.4 },
+                },
+              ],
+              schemaVersion: 1,
+            },
+            clientId: idempotencyKey,
+            tags: [],
+          },
+        ],
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(201);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "current_upsert_note_definition_with_media",
+      expect.objectContaining({
+        p_media_links: [expect.objectContaining({ assetId: imageAssetId })],
+      }),
+    );
+  });
+
+  it("keeps a full audio transcript in the card payload while bounding link metadata", async () => {
+    const transcript = "spoken prompt ".repeat(120);
+    const response = await saveQuickNotes(
+      request(`/api/content/decks/${deckId}/notes/bulk`, {
+        notes: [
+          {
+            authoringData: {
+              audioPrompt: {
+                answer: document("A complete answer"),
+                assetId: "0190d9f0-0000-7000-8000-000000000016",
+                transcript,
+              },
+              kind: "audio_prompt",
+              playbackSpeed: 1,
+              schemaVersion: 1,
+            },
+            clientId: idempotencyKey,
+            tags: [],
+          },
+        ],
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(201);
+    const call = mocks.rpc.mock.calls[0]?.[1] as {
+      p_card_payload: { authoringData: { audioPrompt: { transcript: string } } };
+      p_media_links: readonly { altText: string }[];
+    };
+    expect(call.p_card_payload.authoringData.audioPrompt.transcript).toBe(transcript.trim());
+    expect([...String(call.p_media_links[0]?.altText)].length).toBe(1_000);
+  });
+
+  it("rejects a dangling visual asset identifier before any quick-add row is saved", async () => {
+    const response = await saveQuickNotes(
+      request(`/api/content/decks/${deckId}/notes/bulk`, {
+        notes: [
+          {
+            authoringData: {
+              imageAlt: "A labeled cell",
+              imageAssetId: "bogus",
+              kind: "image_occlusion",
+              mode: "hide_one_reveal_others",
+              occlusions: [
+                {
+                  altText: "Circular region in the center",
+                  groupKey: "nucleus",
+                  label: "Nucleus",
+                  semanticKey: "nucleus-mask",
+                  shape: { height: 0.2, kind: "rectangle", width: 0.2, x: 0.4, y: 0.4 },
+                },
+              ],
+              schemaVersion: 1,
+            },
+            clientId: idempotencyKey,
+            tags: [],
+          },
+        ],
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        code: "INVALID_INPUT",
+        fieldErrors: expect.objectContaining({
+          "notes.0.authoringData.imageAssetId": [
+            "Embedded media references must use canonical asset UUIDs.",
+          ],
+        }),
+      }),
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a dangling custom media identifier before the atomic mutation", async () => {
+    const response = await saveNote(
+      request(`/api/content/decks/${deckId}/notes`, {
+        authoringData: {
+          fields: {
+            Illustration: {
+              alt: "Broken illustration",
+              assetId: "bogus",
+              kind: "media",
+              mediaKind: "image",
+            },
+          },
+          kind: "custom",
+          schemaVersion: 1,
+          templates: [
+            {
+              backTemplate: "{{media Illustration}}",
+              frontTemplate: "{{Illustration}}",
+              name: "Recall",
+              semanticKey: "recall",
+            },
+          ],
+        },
+        idempotencyKey,
+        source: "",
+        tags: [],
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(422);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not report quick-add success when an RPC response lacks its note identity", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { cards: [], note: {} }, error: null });
+
+    const response = await saveQuickNotes(
+      request(`/api/content/decks/${deckId}/notes/bulk`, {
+        notes: [{ authoringData, clientId: idempotencyKey, tags: [] }],
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({ code: "INTERNAL", retryable: true }),
+    );
+  });
+
+  it("rejects duplicate quick-add row identities before any note can be replayed", async () => {
+    const response = await saveQuickNotes(
+      request(`/api/content/decks/${deckId}/notes/bulk`, {
+        notes: [
+          { authoringData, clientId: idempotencyKey, tags: [] },
+          { authoringData, clientId: idempotencyKey, tags: [] },
+        ],
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        code: "INVALID_INPUT",
+        fieldErrors: expect.objectContaining({
+          "notes.1.clientId": ["Every quick-add row needs a unique identifier."],
+        }),
+      }),
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("persists an edited custom definition inside the same note/media mutation", async () => {
+    const custom = {
+      fields: { Answer: document("Mitochondria"), Prompt: document("Organelle?") },
+      kind: "custom",
+      schemaVersion: 1,
+      templates: [
+        {
+          backTemplate: "{{Answer}}",
+          frontTemplate: "{{Prompt}}",
+          name: "Recall",
+          semanticKey: "recall",
+        },
+      ],
+    };
+
+    const response = await saveNote(
+      request(`/api/content/decks/${deckId}/notes`, {
+        authoringData: custom,
+        expectedVersion: 3,
+        idempotencyKey,
+        noteId,
+        source: "",
+        tags: [],
+      }),
+      params(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "current_upsert_note_definition_with_media",
+      expect.objectContaining({
+        p_custom_note_type_definition: expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({ fieldKey: "Answer" }),
+            expect.objectContaining({ fieldKey: "Prompt" }),
+          ]),
+          templates: [expect.objectContaining({ templateKey: "recall" })],
+        }),
+        p_note_type_code: "custom",
       }),
     );
   });

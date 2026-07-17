@@ -5,12 +5,12 @@ variables accepted by the application, repository tools, Vercel, and the local S
 The runtime parsers remain authoritative; `.env.example` is the copyable local template. Do not
 put real values in either file.
 
-Phase 02 adds no accepted environment variable and no provider credential. Its image/audio size,
-per-account media quota, private-bucket name, allowed MIME set, and delayed-deletion interval are
-enforced in the application/migrations and reviewed as code. Do not add ad hoc Vercel variables
-such as `MAX_MEDIA_BYTES` unless a later change first adds the typed parser, public template,
-database/application enforcement, tests, and this inventory. The existing server-held Supabase
-credential is used only by the bounded media finalizer; it is not a new or media-specific secret.
+Phase 02 adds two optional worker-only numeric bounds and no provider credential. Image/audio size,
+per-account media quota, private-bucket name, allowed MIME set, and the seven-day logical-deletion
+interval remain enforced in application/migration code. Do not add ad hoc Vercel variables such as
+`MAX_MEDIA_BYTES` unless a later change first adds the parser, public template,
+database/application enforcement, tests, and this inventory. The physical-cleanup worker reuses
+the existing server-held Supabase credential; it does not introduce a media-specific secret.
 
 In the tables below, **required** means that a production build or runtime fails closed when the
 value is absent. **Optional** means that absence is an accepted state. A provider-managed value is
@@ -35,8 +35,10 @@ Supabase project `qccbaynfvtyxigiikpmq`.
 - Generate new `APP_ENCRYPTION_KEY`, `GUEST_TOKEN_SIGNING_KEY`, and
   `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` values for each scope. The three values must also be
   distinct within a scope.
-- Leave `DATABASE_URL`, parental-consent verifier settings, OAuth credentials, custom SMTP,
-  analytics, monitoring, and cloud-AI settings absent from Vercel for this bootstrap.
+- Leave `DATABASE_URL`, worker-only media-deletion bounds, parental-consent verifier settings,
+  OAuth credentials, custom SMTP, analytics, monitoring, and cloud-AI settings absent from the
+  Vercel web project for this bootstrap. A separately deployed worker receives only its own
+  environment's Supabase URL/secret and optional bounds.
 
 ## Browser-safe application variables
 
@@ -86,6 +88,8 @@ flags never authorize a mutation.
 | `ENABLE_PUBLIC_CHILD_CONTENT`      | Local/test; Vercel Preview/Production   | Optional boolean; safe disabled default is `false`; ineffective unless child profiles are allowed | Requests independent child public publishing                        | Operator-owned safety control              | `false` in both hosted scopes                                |
 | `ENABLE_FREE_TEXT_GAME_CHAT`       | Local/test; Vercel Preview/Production   | Optional boolean; safe disabled default is `false`; forced off on Vercel/production               | Requests unrestricted free-text game chat                           | Operator-owned safety control              | `false` in both hosted scopes                                |
 | `PARENTAL_CONSENT_MODE`            | Local/test; optional consent provider   | Optional; `disabled`, `test_only`, or `external_verified`; defaults to `disabled`                 | Selects the managed-profile consent adapter                         | Operator-owned safety control              | `disabled` in both hosted scopes                             |
+| `MEDIA_DELETION_BATCH_SIZE`        | Optional content-media worker only      | Optional integer `1..100`; defaults to `25`                                                       | Bounds assets claimed by one worker invocation                      | Operator-owned worker control              | Absent from Vercel web; configure per worker environment     |
+| `MEDIA_DELETION_LEASE_SECONDS`     | Optional content-media worker only      | Optional integer `30..900`; defaults to `300`                                                     | Bounds a physical-deletion claim before crash recovery              | Operator-owned worker control              | Absent from Vercel web; configure per worker environment     |
 
 Production parsing forces child profiles, public child content, free-text game chat, and parental
 consent off even if an unsafe value is requested. Configure the explicit disabled values anyway so
@@ -135,42 +139,65 @@ not application secrets and not manually generated environment values.
 These variables do not belong in the Vercel application environment. Hosted URLs are non-secret,
 but keeping them as transient shell values avoids stale deployment targets.
 
-| Exact name                        | Category                          | Requirement/default                                                                             | Exposure                 | Purpose and source                                                | Preview versus Production                           |
-| --------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------- | --------------------------------------------------- |
-| `PLAYWRIGHT_BASE_URL`             | Local E2E/a11y; hosted smoke tool | Local tests default to `http://127.0.0.1:3100`; hosted config requires a non-local HTTPS origin | Test-process only        | Playwright target, operator/tool supplied                         | Runner sets it to the selected hosted target        |
-| `HOSTED_PREVIEW_URL`              | Hosted smoke operator input       | Optional if `--url` is passed; otherwise required by Preview runner                             | Test-process only        | Preview deployment origin, operator/Vercel output                 | Preview only                                        |
-| `HOSTED_PRODUCTION_URL`           | Hosted smoke operator input       | Optional if `--url` is passed; otherwise required by Production runner                          | Test-process only        | Stable Production deployment origin, operator/Vercel output       | Production only                                     |
-| `VERCEL_AUTOMATION_BYPASS_SECRET` | Hosted smoke operator credential  | Optional unless Deployment Protection blocks the selected target; absence sends no bypass       | Test-process secret      | Project-scoped Automation Bypass secret from Vercel               | Covers protected deployments in this Vercel project |
-| `BASE_URL`                        | Local k6 load test                | Optional; defaults to `http://127.0.0.1:3100`                                                   | Test-process only        | k6 target, operator supplied                                      | Not a Vercel variable                               |
-| `CI`                              | GitHub Actions/test tools         | Optional locally; workflow sets `true`                                                          | Tool control, non-secret | Enables CI reporters, retries, and `forbidOnly`                   | Not a Vercel application variable                   |
-| `ANALYZE`                         | Local build analysis              | Optional; bundle analyzer is enabled only by exact value `true`                                 | Build-process only       | Operator-owned diagnostic switch                                  | Leave absent in both Vercel scopes                  |
-| `CHROME_PATH`                     | Lighthouse CI tool                | Supplied inline by CI when Lighthouse runs                                                      | Tool path, non-secret    | Points Lighthouse to the installed Playwright Chromium executable | Not a Vercel variable                               |
-| `NEXT_TELEMETRY_DISABLED`         | Local/CI Next.js tool             | Optional; CI sets `1`                                                                           | Tool control, non-secret | Disables Next.js telemetry                                        | Not a Vercel application variable                   |
-| `SUPABASE_TELEMETRY_DISABLED`     | Local/CI Supabase CLI             | Optional; CI sets `true`                                                                        | Tool control, non-secret | Disables Supabase CLI telemetry                                   | Not a Vercel application variable                   |
-| `NO_COLOR`                        | Hosted database operator tool     | Internally forced to `1` by the hosted database runner                                          | Tool control, non-secret | Keeps CLI output deterministic                                    | Same for Preview and Beta database commands         |
+| Exact name                        | Category                          | Requirement/default                                                                                       | Exposure                 | Purpose and source                                                            | Preview versus Production                         |
+| --------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------- |
+| `PLAYWRIGHT_BASE_URL`             | Local E2E/a11y; hosted smoke tool | Local tests default to `http://127.0.0.1:3100`; hosted config requires a non-local HTTPS origin           | Test-process only        | Playwright target, operator/tool supplied                                     | Runner sets it to the selected hosted target      |
+| `HOSTED_PREVIEW_URL`              | Hosted smoke operator input       | Optional if `--url` is passed; otherwise required by Preview runner                                       | Test-process only        | Preview deployment origin, operator/Vercel output                             | Preview only                                      |
+| `HOSTED_PRODUCTION_URL`           | Hosted smoke operator input       | Optional if `--url` is passed; otherwise required by Production runner                                    | Test-process only        | Stable Production deployment origin, operator/Vercel output                   | Production only                                   |
+| `VERCEL_AUTOMATION_BYPASS_SECRET` | Hosted bypass equality override   | Optional; when supplied, it must equal the runner-discovered existing project token                       | Test-process secret      | Optional approved-store check against Vercel's one existing Automation Bypass | Never creates, rotates, or replaces project state |
+| `VERCEL_TOKEN`                    | Hosted ownership API credential   | Required for every guarded hosted run in noninteractive CI; a fresh local CLI OAuth token is the fallback | Operator/CI tool secret  | Authenticates deployment ownership and the read-only project bypass inventory | Never inherited by the Playwright child           |
+| `VERCEL_PROJECT_ID`               | Hosted ownership link fallback    | Required with `VERCEL_ORG_ID` only when ignored `.vercel/project.json` is unavailable                     | Tool input, non-secret   | Standard Vercel CI project link                                               | Same project for both application targets         |
+| `VERCEL_ORG_ID`                   | Hosted ownership link fallback    | Required with `VERCEL_PROJECT_ID` only when ignored `.vercel/project.json` is unavailable                 | Tool input, non-secret   | Standard Vercel CI team/account link                                          | Same owner for both application targets           |
+| `BASE_URL`                        | Local k6 load test                | Optional; defaults to `http://127.0.0.1:3100`                                                             | Test-process only        | k6 target, operator supplied                                                  | Not a Vercel variable                             |
+| `CI`                              | GitHub Actions/test tools         | Optional locally; workflow sets `true`                                                                    | Tool control, non-secret | Enables CI reporters, retries, and `forbidOnly`                               | Not a Vercel application variable                 |
+| `ANALYZE`                         | Local build analysis              | Optional; bundle analyzer is enabled only by exact value `true`                                           | Build-process only       | Operator-owned diagnostic switch                                              | Leave absent in both Vercel scopes                |
+| `CHROME_PATH`                     | Lighthouse CI tool                | Supplied inline by CI when Lighthouse runs                                                                | Tool path, non-secret    | Points Lighthouse to the installed Playwright Chromium executable             | Not a Vercel variable                             |
+| `NEXT_TELEMETRY_DISABLED`         | Local/CI Next.js tool             | Optional; CI sets `1`                                                                                     | Tool control, non-secret | Disables Next.js telemetry                                                    | Not a Vercel application variable                 |
+| `SUPABASE_TELEMETRY_DISABLED`     | Local/CI Supabase CLI             | Optional; CI sets `true`                                                                                  | Tool control, non-secret | Disables Supabase CLI telemetry                                               | Not a Vercel application variable                 |
+| `NO_COLOR`                        | Hosted database operator tool     | Internally forced to `1` by the hosted database runner                                                    | Tool control, non-secret | Keeps CLI output deterministic                                                | Same for Preview and Beta database commands       |
 
-The baseline hosted smoke runner internally sets `HOSTED_SMOKE_TARGET`; the application does not
-consume it, so it is not an operator configuration variable.
+The baseline hosted smoke runner internally sets `HOSTED_SMOKE_TARGET` plus the path-only
+`HOSTED_SMOKE_PREFLIGHT_FILE` after its checks. They are not operator configuration variables. The
+credential-bearing attestation is written in a fresh mode-`0700` temporary directory to a
+mode-`0600` regular file, never to an environment value. The Playwright configuration consumes and
+deletes that file, then removes the path variable before workers start. The attestation is issued
+only after the authenticated Vercel API returns the exact linked project, team/account, deployment
+URL or alias, readiness, and Preview/Production target, then a read-only project lookup returns
+exactly one existing `automation-bypass` entry.
 
 ### Guarded Preview content-runner process values
 
 `pnpm test:hosted:preview:content` is an operator tool, not an application runtime. It generates a
-UUIDv4 run ID, retrieves the exact Preview project's server key through the operator's authenticated
-Supabase CLI, and injects these values only into its Playwright child process:
+UUIDv4 run ID and retrieves the exact Preview project's server key through the operator's
+authenticated Supabase CLI. The key remains in the parent process, which confirms only the exact
+reserved fixture and writes a nonsecret completion marker. The Playwright child receives only:
 
-| Exact name                           | Source and lifetime                                  | Purpose                                                     |
-| ------------------------------------ | ---------------------------------------------------- | ----------------------------------------------------------- |
-| `HOSTED_ACCEPTANCE_RUN_ID`           | Runner-generated; one disposable acceptance run      | Names/marks the exact fixture and cleanup target            |
-| `HOSTED_PREVIEW_SUPABASE_URL`        | Fixed Preview project URL; one child process         | Admin Auth endpoint for fixture confirmation                |
-| `HOSTED_PREVIEW_SUPABASE_SECRET_KEY` | CLI-retrieved in memory; secret; one child process   | Confirms/marks only the reserved disposable Auth fixture    |
-| `PLAYWRIGHT_BASE_URL`                | Validated exact Vercel Preview origin                | Targets the application under review                        |
-| `VERCEL_AUTOMATION_BYPASS_SECRET`    | Optional operator secret; inherited only when needed | Crosses Standard Deployment Protection without weakening it |
+| Exact name                         | Source and lifetime                                       | Purpose                                                   |
+| ---------------------------------- | --------------------------------------------------------- | --------------------------------------------------------- |
+| `HOSTED_ACCEPTANCE_RUN_ID`         | Runner-generated; one disposable acceptance run           | Names/marks the exact fixture and cleanup target          |
+| `HOSTED_CONTENT_PREFLIGHT_FILE`    | Path to one mode-`0600` file; consumed before workers     | Prevents direct raw Playwright invocation after preflight |
+| `HOSTED_FIXTURE_CONFIRMATION_FILE` | Nonsecret marker in the child's private temporary sandbox | Synchronizes the parent-only fixture confirmation         |
+| `PLAYWRIGHT_BASE_URL`              | Validated exact Vercel Preview origin                     | Targets the application under review                      |
 
-Operators supply only the exact Preview URL and, when protection requires it, the existing bypass
-secret through an approved transient source. They must not set, persist, or copy the runner's
-Supabase secret variable. The runner disables trace/video, never prints the captured key, limits the
-target to this repository's Vercel hostname family, and always attempts fixture cleanup before
-returning the test result.
+Operators supply the exact Preview URL and fresh Vercel authentication. They may additionally load
+the already-configured bypass from an approved transient source as an equality check; absence does
+not skip the project lookup. They must not set, persist, or copy the runner's Supabase secret or
+internal file paths. Before any target request, the runner uses the fixed Vercel API origin and an
+operator access token to require the exact linked project/team, deployment URL or alias, ready
+state, and Preview target. A second authenticated, read-only project GET must return exactly one
+existing automation bypass. Only then may the target health request carry that bypass and request
+Vercel's host-only, secure, HttpOnly, SameSite=Lax `_vercel_jwt`. The runner
+follows the same-origin health redirect using only that cookie and requires Vercel Preview plus the
+exact public Preview Supabase project reference. Both the Vercel API token and long-lived bypass
+secret are absent from the Playwright child. The credential-bearing cookie attestation crosses only
+through the private one-use file; the configuration deletes the file and its environment locator
+before workers start. The child's exact environment allowlist replaces `HOME`, `USERPROFILE`,
+`APPDATA`, `LOCALAPPDATA`, every XDG directory, and temporary directories with an empty mode-`0700`
+sandbox, so operator Vercel, Supabase, npm, cloud, SSH, database, and provider credential locators
+are not inherited. The parent-only Supabase key confirms the exact fixture and never reaches a
+worker. The runner disables trace/video and never prints captured credentials. Normal test failure
+and the first graceful `SIGINT`/`SIGTERM` trigger one serialized cleanup attempt; a failed cleanup,
+`SIGKILL`, or host/process loss still requires operator inspection before another run.
 
 ## Local Supabase CLI output aliases
 
@@ -229,17 +256,29 @@ Every other variable in this document must retain its exact non-public name. In 
 create a `NEXT_PUBLIC_` form of `SUPABASE_SECRET_KEY`, `DATABASE_URL`, `APP_ENCRYPTION_KEY`,
 `GUEST_TOKEN_SIGNING_KEY`, `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`,
 `PARENTAL_CONSENT_VERIFIER_API_KEY`, `PARENTAL_CONSENT_VERIFIER_URL`, or
-`VERCEL_AUTOMATION_BYPASS_SECRET`. The runner-internal
-`HOSTED_PREVIEW_SUPABASE_SECRET_KEY` is equally secret and must never become application
-configuration. Database passwords, Supabase secret/service-role keys, OAuth client secrets, SMTP
+`VERCEL_AUTOMATION_BYPASS_SECRET`. The Preview server key retrieved by the content runner remains a
+parent-process secret and must never become child or application configuration. Database passwords,
+Supabase secret/service-role keys, OAuth client secrets, SMTP
 credentials, provider API tokens, CLI tokens, signing keys, and encryption keys are always
 server/tool secrets.
 
-The Vercel automation bypass is not an application environment value. Supply it only through a
-transient operator shell/keychain, or an approved GitHub Actions secret if hosted smoke is later
-automated. Never add it to the Vercel application environment, `.env.local`, `.env.example`, or a
-tracked runbook. The runner sends it only to the exact `recallflash.com` apex or the fixed
-`cogniflow` project hostname family and disables Playwright trace capture while it is present.
+The Vercel automation bypass is not an application environment value. The runner normally discovers
+the one existing project token through an authenticated read-only project GET. An optional transient
+shell/keychain or approved CI value is only an equality override and must match that discovered
+token. Never add it to the Vercel application environment, `.env.local`, `.env.example`, or a
+tracked runbook. A matching hostname is only an early rejection rule: before sending the bypass,
+the runner authenticates the exact URL/alias, deployment ID, project ID, owner/team ID, readiness,
+and Preview/Production target through `api.vercel.com`, then verifies that the same project exposes
+exactly one `automation-bypass` entry. It performs no `PATCH`, creation, rotation, or replacement.
+The Playwright configuration also requires the target-bound runner attestation, installs only the
+validated exact-host cookie, and disables trace capture while that cookie is present. It never
+installs a global bypass header; cross-origin subresources therefore cannot receive either Vercel
+credential.
+
+For a local operator, run `npx vercel@56.3.0 whoami` immediately before each hosted suite. The
+runner accepts the CLI OAuth file only when it contains a refresh token and an unexpired
+seconds-based `expiresAt`; it deliberately does not refresh that session itself. An explicit
+`VERCEL_TOKEN` is a non-refreshing CI/process credential and remains the operator's responsibility.
 
 ## Intentionally absent variables
 
@@ -251,9 +290,10 @@ Do not invent environment values for subsystems that do not have a Phase 01/02 v
   `APP_ENCRYPTION_KEY`, and Supabase owns recovery-session issuance.
 - **CSRF secret:** there is no `CSRF_SECRET`. Cookie-authenticated mutations require a matching
   configured application origin, `Sec-Fetch-Site` checks, and the application request contract.
-- **Worker secret:** there is no deployed worker and no accepted worker-specific secret. The
-  optional server-only `DATABASE_URL` reserves a clean boundary for a future direct-Postgres
-  worker; leave it absent on Vercel until that worker and its parser exist.
+- **Worker secret:** the implemented content-media worker has no worker-specific secret. It uses
+  the target project's existing `NEXT_PUBLIC_SUPABASE_URL` and server-only
+  `SUPABASE_SECRET_KEY` through Supabase HTTP APIs. No schedule is deployed. `DATABASE_URL` remains
+  unnecessary for this worker and absent from Vercel.
 - **Direct messaging:** there is no direct-message feature or enablement variable. Absence is the
   disabled state.
 - **Cloud AI:** there is no cloud-AI provider variable in the current application. Absence is the

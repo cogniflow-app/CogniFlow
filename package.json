@@ -42,6 +42,7 @@
     "test:hosted:preview:content": "node scripts/run-hosted-content-acceptance.mjs",
     "test:hosted:production": "node scripts/run-hosted-smoke.mjs production",
     "typecheck": "turbo run typecheck",
+    "worker:media-deletions": "pnpm --filter @lumen/worker media:deletions",
     "verify": "node scripts/run-with-verification-environment.mjs pnpm run verify:configured",
     "verify:configured": "pnpm format:check && pnpm secret:scan && pnpm lint && pnpm typecheck && pnpm test && pnpm db:reset && pnpm test:db && pnpm db:types:check && pnpm build && pnpm build:portable && pnpm test:e2e && pnpm test:a11y && pnpm test:lighthouse:configured && pnpm test:load"
   },

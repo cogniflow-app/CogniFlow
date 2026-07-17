@@ -26,8 +26,10 @@ This file is the architectural decision record (ADR) for implementation choices 
 | 0014 | Active learner owns the appearance projection          | Accepted; qualified by 0018      |
 | 0015 | Production Auth is HTTPS-only; managed identity is off | Accepted with launch gate        |
 | 0016 | Edge middleware owns portable cookie refresh           | Accepted                         |
-| 0017 | Semantic card identities and frozen publications       | Accepted                         |
+| 0017 | Semantic card identities and frozen publications       | Accepted; qualified by 0019/0020 |
 | 0018 | Mutation-aware appearance and workspace returns        | Accepted; qualifies 0014         |
+| 0019 | Retry-stable atomic authoring and leased media cleanup | Accepted; qualifies 0017         |
+| 0020 | Versioned media graphs and fail-closed projections     | Accepted; qualifies 0017/0019    |
 
 ## ADR-0001: Pinned Node and pnpm Turborepo workspace
 
@@ -358,13 +360,14 @@ tables, member rows, internal owner/card/media IDs, revisions, mutation receipts
 and learner state never enter the client projection. A service-only locator projection exists only
 to mint bounded signed delivery URLs. The underlying bucket remains private.
 
-Storage objects are mutable through a browser credential only while the matching registered asset
-is pending verification. The authorization predicate holds a row-share lock so trusted
-finalization cannot race an already authorized replacement. Once ready, bytes are immutable to
-browser update/delete. Explicit links plus deck covers, audio prompts, pronunciation references,
-and drawing reference layers all participate in one authoritative usage count. Active use revives
-an asset scheduled for deletion; the transition to zero uses schedules the seven-day cleanup
-deadline. Physical byte removal remains an operated worker boundary.
+Storage objects are never mutable through a browser credential. The authenticated Route Handler
+validates request size, digest, declared/detected MIME, magic bytes, and image dimensions before a
+server-only client writes the exact pending object and a service-only RPC finalizes it. This keeps
+the verified buffer and stored bytes on one trusted path. Explicit links plus deck covers, audio
+prompts, pronunciation references, and drawing reference layers all participate in one
+authoritative usage count. Active use revives an asset scheduled for deletion; the transition to
+zero uses schedules the seven-day cleanup deadline. Physical byte removal remains an operated
+worker boundary.
 
 **Consequences.**
 
@@ -439,3 +442,106 @@ navigation hazards, and `/api`, `/auth`, `/onboarding`, or `/_next` destinations
   persistence. Profile switch/sign-out cleanup continues to reset shared-device state.
 - New Auth entry or callback routes must use the shared authentication-return normalizer and keep
   `/app` as the safe fallback.
+
+## ADR-0019: Retry-stable atomic authoring and leased media cleanup
+
+**Context.** ADR-0017 established an atomic note/media graph, frozen publications, and delayed
+logical media deletion. A final Phase 02 audit found four remaining split boundaries: creating or
+editing a custom field/template definition occurred before its note transaction; saving deck
+settings could occur before publish/unpublish; browser retries generated a new idempotency UUID;
+and no repository worker crossed the gap from an elapsed media deadline to physical Storage
+removal. The frozen theme was present in the projection but not applied by public rendering, and
+version history exposed only aggregate change counts instead of reviewable content differences.
+
+**Decision.** The only browser-callable note command is
+`current_upsert_note_definition_with_media()`. For a custom authoring payload it validates the
+closed field/template definition and its agreement with the payload, reuses the current
+account-owned note type only when the canonical definition hash matches, and otherwise creates a
+copy-on-write definition. Definition resolution, the note/media graph, generated cards, revision,
+impact record, and deck-version bump are one transaction. The earlier composed note/media wrapper
+and its component functions have no browser-role execute grant.
+
+`current_apply_deck_settings_and_publication()` applies an optional validated metadata/theme patch
+and publishes or unpublishes the resulting expected deck version in one transaction. A failed
+publication precondition therefore cannot leave the form's settings committed independently.
+
+Interactive authoring owns a per-surface pending-mutation ledger. It fingerprints the canonical
+logical command and retains one client UUID after network or explicitly retryable failure while the
+outcome is uncertain. Success, a definitive nonretryable response, or a changed payload retires the
+entry. Typed API errors preserve the error code, current version, field errors, and retryable bit;
+conflict recovery reloads server state rather than converting a stale command into last-write-wins.
+
+The database independently binds every browser-reachable legacy content receipt to the hash of its
+complete canonical command. Receipt lookup serializes the account/key pair, inserts a pending row in
+the command transaction, and permits replay only when the operation and command fingerprint match
+and current resource permission is re-established. A changed command under the same key and a
+pre-binding receipt without a trustworthy fingerprint fail closed; a failed command rolls its
+pending receipt back with its side effects.
+
+Frozen public rendering consumes and visibly applies the publication's bounded deck theme.
+Version-history comparison derives side-by-side card type, prompt, answer, source, and tag values
+from immutable snapshots and the current sanitized authoring contract; it does not expose raw HTML
+or private revision metadata.
+
+Physical media cleanup uses `private.content_media_deletion_jobs` plus service-role-only claim,
+completion, and failed-upload compensation entry points. Claim locks each due abandoned,
+quarantined, or unreferenced asset, rechecks zero explicit and specialized usage, cover/reference
+absence, and frozen-publication absence, then returns its private locator under a bounded lease.
+The portable worker removes that exact Storage object and completes with the lease token. An
+already-absent key is a successful empty bulk deletion. Every error actually reported by Storage,
+including not-found, stores a bounded message and requeues with quadratic backoff capped at one day
+because a `404` can describe a missing bucket rather than an object; an expired crash lease is
+reclaimable. Successful completion tombstones the asset locator. Browser roles receive no job table
+or locator access, and the first durable job permanently fences that old asset identity. Identical
+bytes uploaded later receive a fresh public ID/path so a stale old worker cannot affect them.
+
+**Consequences.**
+
+- A custom schema edit cannot commit without its note, and it cannot silently rewrite other notes
+  that still use the prior schema.
+- A settings save and publication transition have one visible success/failure boundary.
+- An exact browser content retry converges on the server receipt rather than repeating side effects;
+  reusing that key for an edited command is rejected, and the client gives the edit a new key.
+- Logical deletion eligibility, worker claim, provider byte removal, and database tombstoning are
+  distinct auditable states. A timestamp or queued/leased job is not proof of physical deletion.
+- The worker command runs one bounded batch and exits. Deployment, environment-scoped service
+  credentials, recurring scheduling, monitoring, and alerting remain owner-operated and are not
+  claimed by a successful application or migration deployment.
+
+## ADR-0020: Versioned media graphs and fail-closed frozen projections
+
+**Context.** The original immutable deck snapshot captured notes, fields, tags, and sources but not
+the explicit `media_references` graph. A restore could therefore retire current links without
+recreating the historical graph, leaving specialized payload IDs, authoritative reference counts,
+and delayed-deletion fences inconsistent. Direct RPC callers also required an independent database
+check that every embedded media discriminator, kind, and graph edge matched the closed authoring
+shape. Legacy frozen projections could contain an internal media or deck-description identity that
+had no safe public mapping.
+
+**Decision.** New deck snapshots use schema version two and capture every exact active media edge
+with its stable identity, attachment coordinates, purpose, position, accessibility fallback, and
+creator metadata. The note transaction records the exact version row it created in a
+transaction-local context and may finalize only that row, after link reconciliation, to the exact
+current capture. This is an insertion-finalization exception, not a general update path; immutable
+version triggers still reject every later or unrelated rewrite.
+
+Restore preflights the complete snapshot before changing state, rejects a note identity that now
+belongs to another deck, restores explicit links and specialized uses in the same transaction, and
+reconciles exact counts/deletion fences. A schema-one restore constructs only the deterministic
+links proven by its immutable payload and deliberately omits historical links it cannot prove.
+Collaborators may retain a current same-note attachment but cannot import an arbitrary tombstone or
+foreign asset. Duplicating a media-bearing deck is source-owner-only and relinks a complete safe
+copy. The publicizer maps only attached verified internal media IDs to opaque publication IDs;
+missing or inconsistent mappings fail closed. A forward remediation withdraws affected frozen
+deck/card projections, including description documents, without rewriting authoring history.
+
+**Consequences.**
+
+- A version means the complete authored content graph required to reproduce that head, not only its
+  textual fields.
+- Restore failure is atomic: both decks, every media edge, counts, jobs, and immutable history remain
+  byte-for-byte unchanged when validation fails.
+- Version-one compatibility is conservative and deterministic; unavailable historical information
+  is not guessed.
+- Public content never exposes an internal media identity merely because it survived in a legacy
+  payload or deck description.

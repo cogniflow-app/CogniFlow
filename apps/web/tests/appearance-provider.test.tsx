@@ -88,6 +88,7 @@ describe("appearance preferences", () => {
       expect(document.documentElement).toHaveAttribute("data-motion", "reduce");
       expect(document.documentElement).toHaveAttribute("data-serious-mode", "true");
     });
+    expect(document.querySelector("script[data-lumen-account-appearance]")).toBeNull();
 
     await userEvent.click(screen.getByText("Appearance"));
     expect(screen.getByLabelText("Color theme")).toHaveValue("dark");

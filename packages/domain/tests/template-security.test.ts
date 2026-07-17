@@ -49,6 +49,62 @@ describe("safe template parser and renderer", () => {
     expect(front.referencedFields).toEqual(["Answer", "Items", "Term"]);
   });
 
+  it("renders only trusted matching custom image and audio sources with accessible fallbacks", () => {
+    const fields = {
+      Audio: {
+        alt: "Spoken cell definition",
+        assetId: "audio-asset",
+        kind: "media" as const,
+        mediaKind: "audio" as const,
+      },
+      Image: {
+        alt: "Labeled cell diagram",
+        assetId: "image-asset",
+        kind: "media" as const,
+        mediaKind: "image" as const,
+      },
+    };
+    const rendered = renderTemplate(parseTemplate("{{Image}}{{media Audio}}"), {
+      fields,
+      media: {
+        "audio-asset": {
+          kind: "audio",
+          signedUrl: "https://media.example.test/cell.webm?signature=test",
+        },
+        "image-asset": {
+          kind: "image",
+          signedUrl: "https://media.example.test/cell.png?signature=test",
+        },
+      },
+    });
+    const container = document.createElement("div");
+    container.innerHTML = rendered.html;
+
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "https://media.example.test/cell.png?signature=test",
+    );
+    expect(container.querySelector("img")?.getAttribute("alt")).toBe("Labeled cell diagram");
+    expect(container.querySelector("audio")?.getAttribute("src")).toBe(
+      "https://media.example.test/cell.webm?signature=test",
+    );
+    expect(container.querySelector("audio")?.getAttribute("aria-label")).toBe(
+      "Spoken cell definition",
+    );
+
+    const fallback = renderTemplate(parseTemplate("{{Audio}}"), {
+      fields,
+      media: {
+        "audio-asset": { kind: "audio", signedUrl: "javascript:alert(1)" },
+      },
+    });
+    const fallbackContainer = document.createElement("div");
+    fallbackContainer.innerHTML = fallback.html;
+    expect(fallbackContainer.querySelector("audio")).toBeNull();
+    expect(fallbackContainer.querySelector("[data-lumen-audio]")?.textContent).toBe(
+      "Spoken cell definition",
+    );
+  });
+
   it("encodes attacker markup in template literals and interpolated field values", () => {
     const corpus = [
       "<script>alert(1)</script>{{Field}}",

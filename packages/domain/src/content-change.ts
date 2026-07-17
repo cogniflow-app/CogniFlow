@@ -1,4 +1,4 @@
-import type { CardAuthoringData } from "./card-types";
+import { customFieldPlainText, type CardAuthoringData } from "./card-types";
 import { generateCardBlueprints } from "./card-generation";
 import { extractRichDocumentText } from "./rich-document";
 import { stableJson } from "./validation";
@@ -50,7 +50,7 @@ function semanticProjection(card: CardAuthoringData): SemanticProjection {
     case "custom":
       return {
         prompt: Object.fromEntries(
-          Object.entries(card.fields).map(([key, document]) => [key, text(document)]),
+          Object.entries(card.fields).map(([key, value]) => [key, customFieldPlainText(value)]),
         ),
         answer: card.templates.map((template) => ({
           semanticKey: template.semanticKey,
@@ -159,7 +159,10 @@ function semanticProjection(card: CardAuthoringData): SemanticProjection {
           aliases: hotspot.aliases,
           promptDirection: hotspot.promptDirection,
         })),
-        metadata: {},
+        metadata: card.hotspots.map((hotspot) => ({
+          semanticKey: hotspot.semanticKey,
+          altText: hotspot.altText,
+        })),
       };
     case "audio_prompt":
       return {

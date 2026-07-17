@@ -34,6 +34,7 @@ export interface FolderSummary {
 
 export type DeckVisibility = "private" | "public" | "unlisted";
 export type DeckStatus = "active" | "archived" | "deleted" | "moderated";
+export type DeckTheme = "contrast" | "forest" | "neutral" | "ocean";
 
 export interface DeckSummary {
   readonly cardCount: number;
@@ -98,10 +99,27 @@ export interface DeckVersionSummary {
   readonly diffFromCurrent: {
     readonly added: number;
     readonly changed: number;
+    readonly changes: readonly DeckVersionNoteChange[];
     readonly removed: number;
   };
   readonly id: string;
   readonly summary: string;
+}
+
+export interface DeckVersionNoteContent {
+  readonly answer: string;
+  readonly cardType: CardTypeCode;
+  readonly prompt: string;
+  readonly source: string;
+  readonly tags: readonly string[];
+}
+
+export interface DeckVersionNoteChange {
+  readonly changedAreas: readonly string[];
+  readonly current: DeckVersionNoteContent | null;
+  readonly kind: "added" | "changed" | "removed";
+  readonly noteId: string;
+  readonly version: DeckVersionNoteContent | null;
 }
 
 export interface DeckDetail extends DeckSummary {
@@ -112,7 +130,7 @@ export interface DeckDetail extends DeckSummary {
   readonly license: "all_rights_reserved" | "cc0" | "cc_by" | "cc_by_sa";
   readonly notes: readonly NoteSummary[];
   readonly supportedCardTypes: readonly CardTypeCode[];
-  readonly theme: string;
+  readonly theme: DeckTheme;
   readonly versions: readonly DeckVersionSummary[];
 }
 
@@ -147,6 +165,7 @@ export interface PublicDeckView {
   readonly publicId: string;
   readonly slug: string;
   readonly supportedCardTypes: readonly CardTypeCode[];
+  readonly theme: DeckTheme;
   readonly title: string;
   readonly updatedAt: string;
   readonly visibility: Exclude<DeckVisibility, "private">;

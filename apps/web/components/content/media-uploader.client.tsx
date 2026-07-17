@@ -3,6 +3,8 @@
 import { Button, FormField, Input } from "@lumen/ui";
 import { useEffect, useRef, useState } from "react";
 
+import { ContentApiRequestError, PendingContentMutations } from "@/lib/content/client-mutations";
+
 export interface UploadedMediaAsset {
   readonly altText: string;
   readonly id: string;
@@ -59,12 +61,36 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
   const requestRef = useRef<XMLHttpRequest | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const mountedRef = useRef(true);
+  const recordingAttemptRef = useRef(0);
+  const recordingPendingRef = useRef(false);
+  const pendingMutations = useRef(new PendingContentMutations());
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      recordingAttemptRef.current += 1;
+      recordingPendingRef.current = false;
+      requestRef.current?.abort();
+      const recorder = recorderRef.current;
+      const stream = streamRef.current;
+      recorderRef.current = null;
+      streamRef.current = null;
+      stream?.getTracks().forEach((track) => track.stop());
+      if (recorder && recorder.state !== "inactive") {
+        try {
+          recorder.stop();
+        } catch {
+          // The stream is already stopped; recorder shutdown is best effort during unmount.
+        }
+      }
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview);
-      requestRef.current?.abort();
-      streamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, [preview]);
 
@@ -98,13 +124,25 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
     setState("preparing");
     setMessage(null);
     const hash = await sha256Hex(file);
+    if (!mountedRef.current) return;
+    const operation = "media-uploader:upload";
+    const command = {
+      altText: altText.trim(),
+      byteSize: file.size,
+      fileName: file.name,
+      hash,
+      kind,
+      mimeType: file.type,
+      transcript: transcript.trim(),
+    } as const;
+    const idempotencyKey = pendingMutations.current.acquire(operation, command);
     const body = new FormData();
     body.set("file", file);
     body.set("kind", kind);
     body.set("sha256", hash);
     body.set("altText", altText.trim());
     body.set("transcript", transcript.trim());
-    body.set("idempotencyKey", crypto.randomUUID());
+    body.set("idempotencyKey", idempotencyKey);
     const request = new XMLHttpRequest();
     requestRef.current = request;
     request.open("POST", "/api/content/media");
@@ -115,6 +153,15 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
     request.addEventListener("load", () => {
       requestRef.current = null;
       if (request.status < 200 || request.status >= 300) {
+        const error = new ContentApiRequestError(
+          typeof request.response === "object" && request.response !== null
+            ? request.response
+            : null,
+          "The upload was rejected. Review the file and try again.",
+          request.status >= 500,
+        );
+        pendingMutations.current.settle(operation, idempotencyKey, error);
+        if (!mountedRef.current) return;
         setState("error");
         setMessage(
           typeof request.response?.message === "string"
@@ -125,10 +172,13 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
       }
       const asset = request.response?.data as UploadedMediaAsset | undefined;
       if (!asset?.id) {
+        if (!mountedRef.current) return;
         setState("error");
         setMessage("The upload completed without a usable media record.");
         return;
       }
+      pendingMutations.current.settle(operation, idempotencyKey);
+      if (!mountedRef.current) return;
       setProgress(100);
       setState("idle");
       setMessage("Media saved and ready to attach.");
@@ -136,11 +186,13 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
     });
     request.addEventListener("error", () => {
       requestRef.current = null;
+      if (!mountedRef.current) return;
       setState("error");
       setMessage("The connection was interrupted. Retry when you are online.");
     });
     request.addEventListener("abort", () => {
       requestRef.current = null;
+      if (!mountedRef.current) return;
       setProgress(0);
       setState("idle");
       setMessage("Upload canceled. The file has not been attached.");
@@ -155,37 +207,66 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
       setMessage("Recording is unavailable in this browser. You can upload an audio file instead.");
       return;
     }
+    if (recordingPendingRef.current || recorderRef.current || streamRef.current) return;
+    const attempt = recordingAttemptRef.current + 1;
+    recordingAttemptRef.current = attempt;
+    recordingPendingRef.current = true;
+    setRecording(true);
+    setMessage("Requesting microphone access…");
+    let acquiredStream: MediaStream | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      acquiredStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mountedRef.current || recordingAttemptRef.current !== attempt) {
+        acquiredStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      const stream = acquiredStream;
       const recorder = new MediaRecorder(stream);
       const chunks: Blob[] = [];
       recorder.addEventListener("dataavailable", (event) => {
         if (event.data.size) chunks.push(event.data);
       });
       recorder.addEventListener("stop", () => {
+        stream.getTracks().forEach((track) => track.stop());
+        if (streamRef.current === stream) streamRef.current = null;
+        if (recorderRef.current !== recorder) return;
+        recorderRef.current = null;
+        if (!mountedRef.current) return;
         const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
         void chooseFile(
           new File([blob], `recording-${new Date().toISOString().replaceAll(":", "-")}.webm`, {
             type: blob.type,
           }),
         );
-        stream.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-        recorderRef.current = null;
+        setRecording(false);
       });
       recorderRef.current = recorder;
       streamRef.current = stream;
+      recordingPendingRef.current = false;
       recorder.start(250);
-      setRecording(true);
       setMessage("Recording locally. Stop and review it before choosing Upload.");
     } catch {
+      acquiredStream?.getTracks().forEach((track) => track.stop());
+      if (!mountedRef.current || recordingAttemptRef.current !== attempt) return;
+      recorderRef.current = null;
+      streamRef.current = null;
+      recordingPendingRef.current = false;
+      setRecording(false);
       setState("error");
       setMessage("Microphone access was not available. No recording was saved.");
     }
   }
 
   function stopRecording() {
-    recorderRef.current?.stop();
+    if (recordingPendingRef.current) {
+      recordingAttemptRef.current += 1;
+      recordingPendingRef.current = false;
+      setRecording(false);
+      setMessage("Microphone request canceled. No recording was saved.");
+      return;
+    }
+    const recorder = recorderRef.current;
+    if (recorder?.state !== "inactive") recorder?.stop();
     setRecording(false);
   }
 

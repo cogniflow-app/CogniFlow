@@ -74,10 +74,35 @@ describe("normalized image and diagram geometry", () => {
         semanticKey: "nucleus",
         shape: { kind: "rectangle", x: 0, y: 0, width: 0.5, height: 0.5 },
         label: "Nucleus",
+        altText: "Large round structure near the center",
         aliases: ["nucleus"],
         promptDirection: "both",
       }),
     ).toMatchObject({ success: false });
+  });
+
+  it("round-trips a diagram hotspot text alternative and migrates label-only payloads", () => {
+    const hotspot = diagramHotspotSchema.parse({
+      semanticKey: "nucleus",
+      shape: { kind: "ellipse", centerX: 0.5, centerY: 0.5, radiusX: 0.2, radiusY: 0.1 },
+      label: "Nucleus",
+      altText: "Large oval region at the center of the cell",
+      aliases: ["cell nucleus"],
+      promptDirection: "both",
+    });
+
+    expect(JSON.parse(JSON.stringify(hotspot))).toMatchObject({
+      altText: "Large oval region at the center of the cell",
+    });
+    expect(
+      diagramHotspotSchema.parse({
+        semanticKey: "legacy-region",
+        shape: { kind: "rectangle", x: 0.1, y: 0.1, width: 0.2, height: 0.2 },
+        label: "Legacy label",
+        aliases: [],
+        promptDirection: "region_to_label",
+      }),
+    ).toMatchObject({ altText: "Legacy label" });
   });
 
   it("accepts any generated rectangle wholly inside the normalized plane", () => {

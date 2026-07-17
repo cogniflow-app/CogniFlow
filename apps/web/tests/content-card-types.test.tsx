@@ -1,8 +1,9 @@
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CARD_SCHEMA_VERSION,
+  type CustomCardData,
   type DrawingReferenceLayer,
   type DrawingStroke,
   type RichDocument,
@@ -79,7 +80,7 @@ vi.mock("../components/content/media-uploader.client", () => ({
       <button
         onClick={() =>
           onUploaded({
-            altText: "Uploaded drawing reference",
+            altText: kind === "image" ? "Uploaded drawing reference" : "",
             id: "0190d9f0-0000-7000-8000-000000000099",
             kind,
             mimeType: kind === "image" ? "image/png" : "audio/mpeg",
@@ -96,8 +97,62 @@ vi.mock("../components/content/media-uploader.client", () => ({
 }));
 
 vi.mock("../components/content/visual-region-editor.client", () => ({
-  VisualRegionEditor: ({ kind }: { kind: string }) => (
-    <section aria-label={`${kind} region editor`}>Accessible region editor</section>
+  VisualRegionEditor: ({
+    kind,
+    onChange,
+    regions,
+  }: {
+    kind: string;
+    onChange: (
+      regions: readonly {
+        aliases: readonly string[];
+        altText: string;
+        groupKey: string;
+        label: string;
+        promptDirection: "region_to_label";
+        semanticKey: string;
+        shape: { kind: "rectangle"; x: number; y: number; width: number; height: number };
+      }[],
+    ) => void;
+    regions: readonly {
+      aliases: readonly string[];
+      altText: string;
+      groupKey: string;
+      label: string;
+      promptDirection: "region_to_label";
+      semanticKey: string;
+      shape: { kind: "rectangle"; x: number; y: number; width: number; height: number };
+    }[];
+  }) => (
+    <section aria-label={`${kind} region editor`}>
+      Accessible region editor
+      <output aria-label={`${kind} mapped text alternative`}>{regions[0]?.altText ?? ""}</output>
+      <button
+        onClick={() =>
+          onChange(
+            regions.length > 0
+              ? regions.map((region) => ({
+                  ...region,
+                  altText: "Edited lower-left circular region",
+                }))
+              : [
+                  {
+                    aliases: ["cell nucleus"],
+                    altText: "Lower-left circular region",
+                    groupKey: "nucleus",
+                    label: "Nucleus",
+                    promptDirection: "region_to_label",
+                    semanticKey: "nucleus",
+                    shape: { kind: "rectangle", x: 0.1, y: 0.4, width: 0.2, height: 0.2 },
+                  },
+                ],
+          )
+        }
+        type="button"
+      >
+        Update region text alternative
+      </button>
+    </section>
   ),
 }));
 
@@ -197,6 +252,10 @@ function drawingNote(drawingLayers: readonly DrawingReferenceLayer[]): NoteSumma
 
 describe("Phase 02 card-type catalog", () => {
   beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
     navigation.push.mockReset();
     navigation.refresh.mockReset();
     navigation.replace.mockReset();
@@ -380,6 +439,146 @@ describe("drawing reference layer authoring", () => {
   });
 });
 
+describe("typed custom fields", () => {
+  it("authors, saves, and reopens bounded list and media helper values", async () => {
+    const fetchMock = vi.fn().mockImplementation((_input: RequestInfo | URL, init?: RequestInit) =>
+      Promise.resolve(
+        init?.method === "POST"
+          ? new Response(
+              JSON.stringify({
+                data: {
+                  ...deckDetail.notes[0],
+                  cardType: "custom",
+                  id: "0190d9f0-0000-7000-8000-000000000098",
+                  version: 1,
+                },
+                status: "created",
+              }),
+              { headers: { "Content-Type": "application/json" }, status: 201 },
+            )
+          : new Response(null, { status: 404 }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const view = render(<NoteEditor deckId={deckDetail.id} initialKind="custom" />);
+
+    await user.type(screen.getByRole("textbox", { name: "Front" }), "Classify these examples");
+    await user.type(screen.getByRole("textbox", { name: "Back" }), "Three categories");
+
+    const name = screen.getByRole("textbox", { name: "New field name" });
+    await user.type(name, "Items");
+    await user.click(screen.getByRole("combobox", { name: "New field type" }));
+    await user.click(screen.getByRole("option", { name: "List" }));
+    await user.click(screen.getByRole("button", { name: "Add field" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Items list items" }), {
+      target: { value: "alpha\nbeta" },
+    });
+
+    await user.type(name, "Illustration");
+    await user.click(screen.getByRole("combobox", { name: "New field type" }));
+    await user.click(screen.getByRole("option", { name: "Media" }));
+    await user.click(screen.getByRole("button", { name: "Attach New custom audio field" }));
+    await user.click(screen.getByRole("button", { name: "Add field" }));
+
+    const frontTemplate = screen.getByRole("textbox", { name: "Front template" });
+    await user.clear(frontTemplate);
+    fireEvent.change(frontTemplate, {
+      target: {
+        value: "{{Front}}{{#each Items}}<span>{{item}}</span>{{/each}}{{media Illustration}}",
+      },
+    });
+    await user.click(screen.getByRole("button", { name: "Save note" }));
+
+    const saveRequest = fetchMock.mock.calls.find(([, options]) => options?.method === "POST");
+    expect(saveRequest).toBeDefined();
+    const payload = JSON.parse(String(saveRequest?.[1]?.body)) as {
+      authoringData: CustomCardData;
+    };
+    expect(payload.authoringData.fields.Items).toEqual(["alpha", "beta"]);
+    expect(payload.authoringData.fields.Illustration).toEqual(
+      expect.objectContaining({
+        assetId: "0190d9f0-0000-7000-8000-000000000099",
+        kind: "media",
+        mediaKind: "audio",
+      }),
+    );
+    view.unmount();
+    render(
+      <NoteEditor
+        deckId={deckDetail.id}
+        note={{
+          ...deckDetail.notes[0]!,
+          authoringData: payload.authoringData,
+          cardType: "custom",
+          preview: "Classify these examples",
+        }}
+      />,
+    );
+    expect(screen.getByRole("textbox", { name: "Items list items" })).toHaveValue("alpha\nbeta");
+    expect(screen.getByLabelText("Illustration media field")).toHaveTextContent(
+      "Custom audio attached",
+    );
+    expect(
+      document.querySelector('[data-lumen-audio="0190d9f0-0000-7000-8000-000000000099"]'),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("diagram region alternative persistence", () => {
+  it("maps a reopened hotspot alternative into the visual editor and back into the save payload", async () => {
+    const sourceNote = deckDetail.notes[0]!;
+    const note: NoteSummary = {
+      ...sourceNote,
+      authoringData: {
+        hotspots: [
+          {
+            aliases: ["cell nucleus"],
+            altText: "Large circular region near the lower-left edge",
+            label: "Nucleus",
+            promptDirection: "region_to_label",
+            semanticKey: "nucleus",
+            shape: { kind: "rectangle", x: 0.1, y: 0.4, width: 0.2, height: 0.2 },
+          },
+        ],
+        imageAlt: "A labeled animal cell",
+        imageAssetId: "0190d9f0-0000-7000-8000-000000000083",
+        kind: "diagram",
+        schemaVersion: CARD_SCHEMA_VERSION,
+      },
+      cardType: "diagram",
+      preview: "A labeled animal cell",
+    };
+    const fetchMock = vi.fn().mockImplementation((_input: RequestInfo | URL, init?: RequestInit) =>
+      Promise.resolve(
+        init?.method === "PATCH"
+          ? new Response(JSON.stringify({ data: { ...note, version: 4 }, status: "updated" }), {
+              headers: { "Content-Type": "application/json" },
+              status: 200,
+            })
+          : new Response(null, { status: 404 }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<NoteEditor deckId={deckDetail.id} note={note} />);
+
+    expect(screen.getByLabelText("diagram mapped text alternative")).toHaveTextContent(
+      "Large circular region near the lower-left edge",
+    );
+    await user.click(screen.getByRole("button", { name: "Update region text alternative" }));
+    await user.click(screen.getByRole("button", { name: "Save note" }));
+
+    const saveRequest = fetchMock.mock.calls.find(([, options]) => options?.method === "PATCH");
+    const payload = JSON.parse(String(saveRequest?.[1]?.body)) as {
+      authoringData: { hotspots: readonly { altText: string }[] };
+    };
+    expect(payload.authoringData.hotspots).toEqual([
+      expect.objectContaining({ altText: "Edited lower-left circular region" }),
+    ]);
+  });
+});
+
 describe("live sibling preview", () => {
   it("turns a valid basic note into a stable semantic sibling without saving", async () => {
     const user = userEvent.setup();
@@ -421,6 +620,37 @@ describe("live sibling preview", () => {
       readonly noteId: string | null;
     };
     expect(payload).toMatchObject({ expectedVersion: null, noteId: null });
+  });
+
+  it("reuses the creation idempotency key when the first note response is lost", async () => {
+    const createdNote = deckDetail.notes[0]!;
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("response lost"))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: createdNote, status: "created" }), {
+          headers: { "Content-Type": "application/json" },
+          status: 201,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<NoteEditor deckId={deckDetail.id} initialKind="basic" />);
+
+    await user.type(screen.getByRole("textbox", { name: "Front / prompt" }), "What is ATP?");
+    await user.type(screen.getByRole("textbox", { name: "Back / answer" }), "Energy carrier");
+    await user.click(screen.getByRole("button", { name: "Save note" }));
+    expect(await screen.findByText("response lost")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Save note" }));
+
+    const keys = fetchMock.mock.calls.map((call) => {
+      const request = call[1] as RequestInit;
+      return (JSON.parse(String(request.body)) as { idempotencyKey: string }).idempotencyKey;
+    });
+    expect(keys[0]).toBe(keys[1]);
+    expect(navigation.replace).toHaveBeenCalledWith(
+      `/app/decks/${deckDetail.id}/edit?note=${createdNote.id}`,
+    );
   });
 
   it("preserves an unsaved draft and presents typed recovery choices on a version conflict", async () => {

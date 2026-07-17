@@ -86,12 +86,24 @@ The additive Phase 02 migrations are:
   library/media reads whose shared device/session authorization takes a row lock;
 - `20260716005000_content_security_audit_hardening.sql` — serialized and authorization-aware
   idempotency replay, non-null expected-version enforcement, atomic-only browser note/media writes,
-  pending-only Storage mutation, embedded-media usage triggers/backfill, and orphan cleanup on note
-  deletion/version restore;
+  the intermediate pending-only Storage policy, embedded-media usage triggers/backfill, and orphan
+  cleanup on note deletion/version restore;
 - `20260716006000_content_note_create_identity.sql` — stable note creation identity derived from
-  the required idempotency key before entering the underlying upsert implementation; and
+  the required idempotency key before entering the underlying upsert implementation;
 - `20260716007000_content_conflict_sqlstate.sql` — typed version-conflict detail retained under
-  user-exception SQLSTATE `P0001` instead of retryable serialization-failure SQLSTATE `40001`.
+  user-exception SQLSTATE `P0001` instead of retryable serialization-failure SQLSTATE `40001`;
+- `20260716008000_content_atomic_authoring_and_media_deletion.sql` — one transaction for a
+  copy-on-write custom note-type definition plus the note/media graph, one transaction for deck
+  settings plus publication state, removal of direct browser Storage mutation, and a private leased
+  queue with service-only claim/complete boundaries for physical Storage deletion;
+- `20260716009000_content_receipt_payload_binding.sql` — canonical command fingerprints on legacy
+  content and media-registration receipts, transaction-local pending receipts, and fail-closed
+  replay for mismatched or pre-binding receipt rows; and
+- `20260716010000_content_version_media_graph.sql` — schema-two immutable deck snapshots with the
+  exact explicit media-reference graph, atomic graph restoration (including deterministic legacy
+  reconstruction), exact same-command version finalization, owner-only media-safe duplication,
+  direct-RPC embedded-media validation, and fail-closed remediation of frozen publications that
+  contain internal media identities.
 
 No earlier migration is edited. Phase 02 introduces no schedule, review, mastery, assignment,
 collaboration, game, XP, currency, or AI-job row.
@@ -117,6 +129,7 @@ collaboration, game, XP, currency, or AI-job row.
 | Future schedule choice       | `content_change_impacts`                                                                                                         | Scheduling-neutral classification and affected generation keys; resolution is pending/preserve/relearn/reset, but Phase 02 never updates a schedule                |
 | Mutation replay              | `private.content_mutation_receipts`                                                                                              | Account + idempotency UUID uniquely identifies one operation/resource/result; no browser schema access                                                             |
 | Public deck projection       | `deck_publications`, `card_publications`, `media_publications`; `published_decks`, `published_cards`, `published_media`          | Frozen current publication only; excludes draft/member/revision/owner UUID data; normal anonymous enumeration is public-only                                       |
+| Physical media cleanup       | `private.content_media_deletion_jobs`                                                                                            | Service-only bounded leases and completion; retry backoff is durable; Storage locators never receive a browser/table grant                                         |
 
 The complete authoring and 17-card-type contract is documented in
 [CONTENT_AUTHORING.md](./CONTENT_AUTHORING.md).
@@ -134,9 +147,18 @@ creation has no note ID yet, the atomic note/media boundary uses its required id
 the note ID, so exact create retries cannot drift to a second identity or inherit stale procedural
 branch state.
 
+Custom field/template definitions participate in the same note command. The transaction reuses an
+existing account-owned definition only when its canonical definition hash matches; an edited
+definition creates a new copy-on-write note type before the note graph is reconciled. Other notes
+that still reference the earlier schema are not rewritten. A definition error or any later
+note/media failure rolls the entire command back.
+
 `decks.current_version` advances for accepted content changes. `note_revisions` captures the prior
 or accepted note state, and `deck_versions` captures a stable deck/content snapshot. Restoring a
-historical version appends a new head rather than updating/deleting the old snapshot.
+historical version appends a new head rather than updating/deleting the old snapshot. The history
+repository compares the immutable snapshot with current validated authoring data and exposes
+side-by-side card type, prompt, answer, source, and tag values; it does not render stored HTML or
+publish private revision payloads.
 
 Domain generation computes a canonical semantic generation key and the database reconciler uses
 that key when preserving, reactivating, creating, or deactivating rows. The uniqueness constraint
@@ -163,16 +185,24 @@ learner context. `private.can_view_deck`, `can_edit_deck`, `can_manage_deck`, `c
 cannot inherit a guardian's creator access.
 
 Authenticated writes use exact-signature `current_*` wrappers for folder, note type, deck,
-atomic note/media reconciliation, publication, and version-restore operations. Each wrapper derives
-`auth.uid()`, requires current content context, authorizes the resource, validates the expected
-version where mutable state exists, consumes an operation-specific idempotency receipt, and writes
-bounded audit metadata. Receipt lookup first takes an account/idempotency-key transaction advisory
-lock; a replay must still pass the current permission for its stored resource. The standalone note
-upsert, media-link, and media-release components have no browser-role execute grant, so fields,
+atomic custom-definition/note/media reconciliation, settings/publication, and version-restore
+operations. Each wrapper derives `auth.uid()`, requires current content context, authorizes the
+resource, validates the expected version where mutable state exists, consumes an operation-specific
+idempotency receipt bound to the complete canonical command, and writes bounded audit metadata.
+Receipt lookup first takes an account/idempotency-key transaction advisory lock; a replay must match
+the original operation and command fingerprint and still pass the current permission for its stored
+resource. The first execution creates a pending receipt in the mutation transaction and completes
+it only with the accepted result; rollback removes both the pending receipt and command effects.
+Legacy receipts without a trustworthy fingerprint fail closed instead of replaying an unverified
+command. The standalone note upsert, media-link, and media-release components have no browser-role
+execute grant, so fields,
 specialized rows, sources, tags, media links, generated siblings, revision, and version bump cannot
-be split across browser transactions. The reusable implementation helpers remain inaccessible to
-browser roles. `admin_finalize_media_asset()` is service-only and accepts only the server-verified
-hash, MIME, magic result, actor, asset, and idempotency context.
+be split across browser transactions. The former composed note/media wrapper is also revoked from
+browser roles because it does not resolve a custom definition. Deck metadata/theme submitted with
+publish or unpublish commits with the frozen-projection transition in one transaction. The reusable
+implementation helpers remain inaccessible to browser roles. `admin_finalize_media_asset()` is
+service-only and accepts only the server-verified hash, MIME, magic result, actor, asset, and
+idempotency context.
 
 `current_get_library_counts()`, `current_get_deck_media()`, and `current_get_media_asset()` are
 declared `VOLATILE` even though they return read projections. Their shared current-context guard
@@ -186,6 +216,8 @@ views over draft tables. The publish transaction verifies manage permission, exp
 active cards, verified media, and image alternative text before replacing the snapshot. It copies
 only public IDs, sanitized content/template data, creator attribution, license/language/theme,
 card-type summaries, safe sources, and referenced media metadata. Unpublish deletes the snapshot.
+The public web and embed renderers visibly apply the bounded frozen theme from this projection, so
+a later draft theme change cannot alter an existing publication until the next publish transaction.
 
 The `published_*` views are `security_invoker` plus `security_barrier` and enumerate only
 `visibility = 'public'`. Anonymous/authenticated exact-resource RPCs can return a requested
@@ -206,19 +238,32 @@ per owner, but the server-derived object path begins with the asset's separate o
 and never contains the owner account UUID. The Route Handler recomputes the digest and validates
 magic bytes before the service-only finalizer can mark an asset ready.
 
-Storage policies authorize insert/update/delete only for the active owner's exact registered object
-path while its asset row remains `pending`. The predicate holds a row-share lock through the
-Storage write so trusted finalization cannot race a browser replacement. A verified `ready` object
-is immutable to browser update/delete credentials. Reads require owner/authorized-deck access or a
-matching verified public publication.
+Storage policies expose only authorized reads. Browser credentials cannot insert, update, or
+delete objects; the validated application route writes the exact hash- and magic-checked buffer
+through its server-only client before trusted finalization. Reads require owner/authorized-deck
+access or a matching verified public publication.
 
 Explicit `media_references`, active deck covers, audio prompts, pronunciation reference audio, and
-drawing reference layers all contribute to `reference_count`. Triggers revive a deleting asset and
-clear `delete_after` when a usage becomes active; retiring the last usage schedules the seven-day
-deadline. The hardening migration retires stale links for already deleted notes and rebuilds counts
-from every active usage source. Note deletion and deck-version restore reconcile both explicit and
-specialized usages. Physical-object cleanup requires an operated worker and is not claimed merely
-because the timestamp exists.
+drawing reference layers all contribute to `reference_count`. Before cleanup is claimed, triggers
+can revive a deleting asset and clear `delete_after`; retiring the last usage schedules the
+seven-day deadline. Once any durable deletion job exists, the old asset identity is permanently
+fenced because an expired worker may still have a Storage request in flight. The hardening
+migration retires stale links for already deleted notes and rebuilds counts from every active usage
+source. Note deletion and deck-version restore reconcile both explicit and specialized usages.
+
+New `pending` reservations receive a 24-hour deadline. A known upload failure is compensated into
+immediate eligibility, while a crashed or abandoned reservation becomes eligible when that bound
+elapses. Physical cleanup is a distinct, durable private job. `admin_claim_due_media_deletions()`
+is service-role-only and leases at most 100 due pending, quarantined, or unreferenced assets for
+30–900 seconds. It locks each asset and rechecks the deadline, zero count, every
+explicit/specialized/cover use, and frozen publication absence before exposing the exact
+bucket/path to the worker. `admin_complete_media_deletion()` accepts only the matching lease token.
+Success tombstones the asset locator and marks the job complete; provider failure requeues it with
+quadratic backoff capped at one day. An expired lease is reclaimable after a crashed worker. A
+later upload of identical bytes creates a fresh asset/public ID and Storage path while preserving
+the completed tombstone and job. The application worker performs this claim/remove/complete
+protocol, but a timestamp or queued job still does not delete bytes until an owner-operated
+scheduler invokes and monitors it.
 
 The existing due-account-deletion transaction now activates a private Phase 02 extension during
 the guarded `pending_deletion` to `deleted` transition. It withdraws owned publications, revokes

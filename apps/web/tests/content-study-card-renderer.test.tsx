@@ -90,6 +90,47 @@ describe("typed study-card renderer", () => {
     expect(container.querySelector(".study-image-region__mask")).toBeNull();
   });
 
+  it("renders a discriminated custom audio field from its resolved signed source", () => {
+    const renderer = rendererFor({
+      fields: {
+        Prompt: rich("Listen and identify the organelle"),
+        Recording: {
+          alt: "Spoken mitochondrion clue",
+          assetId: "custom-audio",
+          kind: "media",
+          mediaKind: "audio",
+        },
+      },
+      kind: "custom",
+      schemaVersion: CARD_SCHEMA_VERSION,
+      templates: [
+        {
+          backTemplate: "{{front}}<p>Mitochondrion</p>",
+          frontTemplate: "{{Prompt}}{{media Recording}}",
+          name: "Audio clue",
+          semanticKey: "audio-clue",
+        },
+      ],
+    });
+    const media: readonly RendererMediaSource[] = [
+      {
+        altText: "Spoken mitochondrion clue",
+        id: "custom-audio",
+        kind: "audio",
+        mimeType: "audio/webm",
+        signedUrl: "https://media.example.test/custom.webm?signature=test",
+      },
+    ];
+
+    render(<StudyCardRenderer media={media} renderer={renderer} revealed={false} />);
+
+    expect(screen.getByLabelText("Spoken mitochondrion clue")).toHaveAttribute(
+      "src",
+      media[0]?.signedUrl,
+    );
+    expect(screen.queryByRole("img", { name: "Spoken mitochondrion clue" })).toBeNull();
+  });
+
   it("implements hide-all/reveal-one without revealing or unmasking sibling groups", () => {
     const renderer = rendererFor({
       imageAlt: "A two-part cell",
@@ -127,6 +168,7 @@ describe("typed study-card renderer", () => {
       hotspots: [
         {
           aliases: ["powerhouse"],
+          altText: "Bean-shaped region in the lower-right of the cell",
           label: "Mitochondrion",
           promptDirection: "both",
           semanticKey: "mitochondrion",
@@ -508,6 +550,68 @@ describe("typed study-card renderer", () => {
 
     await waitFor(() => expect(stopTrack).toHaveBeenCalledOnce());
     expect(mediaRecorder).not.toHaveBeenCalled();
+  });
+
+  it("finishes one pronunciation recorder before allowing a restart and ignores stale stop events", async () => {
+    const firstStopTrack = vi.fn();
+    const secondStopTrack = vi.fn();
+    const getUserMedia = vi
+      .fn()
+      .mockResolvedValueOnce({ getTracks: () => [{ stop: firstStopTrack }] })
+      .mockResolvedValueOnce({ getTracks: () => [{ stop: secondStopTrack }] });
+    vi.stubGlobal(
+      "navigator",
+      Object.assign(Object.create(navigator), { mediaDevices: { getUserMedia } }),
+    );
+    class DeferredMediaRecorder {
+      static readonly created: DeferredMediaRecorder[] = [];
+      mimeType = "audio/webm";
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      state = "inactive";
+      constructor() {
+        DeferredMediaRecorder.created.push(this);
+      }
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        this.state = "inactive";
+      }
+      finish() {
+        this.onstop?.();
+      }
+    }
+    vi.stubGlobal("MediaRecorder", DeferredMediaRecorder);
+    vi.spyOn(URL, "createObjectURL").mockReturnValueOnce("blob:first");
+    const user = userEvent.setup();
+    const renderer = rendererFor({
+      kind: "pronunciation",
+      pronunciationPrompt: {
+        language: "fr",
+        text: "bonjour",
+        ttsAllowed: true,
+      },
+      schemaVersion: CARD_SCHEMA_VERSION,
+      selfReview: true,
+    });
+    render(<StudyCardRenderer renderer={renderer} revealed={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Record locally" }));
+    await screen.findByRole("button", { name: "Stop local recording" });
+    await user.click(screen.getByRole("button", { name: "Stop local recording" }));
+    expect(screen.getByRole("button", { name: "Finishing local recording…" })).toBeDisabled();
+    expect(getUserMedia).toHaveBeenCalledOnce();
+
+    DeferredMediaRecorder.created[0]?.finish();
+    await screen.findByRole("button", { name: "Record locally" });
+    await user.click(screen.getByRole("button", { name: "Record locally" }));
+    await screen.findByRole("button", { name: "Stop local recording" });
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+
+    DeferredMediaRecorder.created[0]?.finish();
+    expect(screen.getByRole("button", { name: "Stop local recording" })).toBeVisible();
+    expect(secondStopTrack).not.toHaveBeenCalled();
   });
 
   it("plays an uploaded audio prompt and speaks its transcript only through local browser TTS", async () => {

@@ -96,7 +96,7 @@ from public.current_create_deck(
 
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from content_deletion_fixture_ids where name = 'deck'),
       '96000000-0000-0000-0000-000000000001',
       'basic', 0,
@@ -123,7 +123,7 @@ select lives_ok(
 
 select lives_ok(
   $$
-    select public.current_upsert_note_with_media(
+    select public.current_upsert_note_definition_with_media(
       (select id from content_deletion_fixture_ids where name = 'deck'),
       '96000000-0000-0000-0000-000000000001',
       'basic', 1,

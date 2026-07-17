@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { CARD_SCHEMA_VERSION, generateCardBlueprints } from "@lumen/domain";
 
 import {
   PublicDeckAttribution,
@@ -15,6 +16,7 @@ describe("public deck preview", () => {
 
     expect(screen.getAllByText("1 of 2")[0]).toBeVisible();
     const card = screen.getByRole("region", { name: "Prompt card preview" });
+    expect(card.closest(".public-preview")).toHaveAttribute("data-deck-theme", "ocean");
     expect(card).toHaveTextContent("What is ATP?");
     expect(screen.getByRole("button", { name: /Previous/i })).toBeDisabled();
     expect(
@@ -34,6 +36,15 @@ describe("public deck preview", () => {
     expect(screen.getByRole("button", { name: /Next/i })).toBeDisabled();
   });
 
+  it.each(["neutral", "ocean", "forest", "contrast"] as const)(
+    "applies the frozen %s deck theme to the rendered preview",
+    (theme) => {
+      const { container } = render(<PublicDeckPreview deck={{ ...publicDeck, theme }} />);
+
+      expect(container.querySelector(".public-preview")).toHaveAttribute("data-deck-theme", theme);
+    },
+  );
+
   it("supports the documented keyboard flip and navigation controls", () => {
     render(<PublicDeckPreview deck={publicDeck} />);
 
@@ -48,6 +59,69 @@ describe("public deck preview", () => {
     expect(screen.getByRole("region", { name: /Prompt card preview/i })).toHaveTextContent(
       "What is ATP?",
     );
+  });
+
+  it("renders published custom audio from the frozen public media projection", () => {
+    const renderer = generateCardBlueprints({
+      fields: {
+        Prompt: {
+          content: [
+            { content: [{ text: "Identify this sound", type: "text" }], type: "paragraph" },
+          ],
+          schemaVersion: 2,
+          type: "doc",
+        },
+        Recording: {
+          alt: "Published spoken clue",
+          assetId: "public-audio-id",
+          kind: "media",
+          mediaKind: "audio",
+        },
+      },
+      kind: "custom",
+      schemaVersion: CARD_SCHEMA_VERSION,
+      templates: [
+        {
+          backTemplate: "{{front}}<p>Answer</p>",
+          frontTemplate: "{{Prompt}}{{media Recording}}",
+          name: "Published audio",
+          semanticKey: "published-audio",
+        },
+      ],
+    })[0]?.renderer;
+    if (!renderer) throw new Error("Expected a custom public renderer fixture.");
+    const signedUrl = "https://media.example.test/public.webm?signature=test";
+
+    render(
+      <PublicDeckPreview
+        deck={{
+          ...publicDeck,
+          cardCount: 1,
+          cards: [
+            {
+              back: "Answer",
+              cardType: "custom",
+              front: "Identify this sound",
+              id: "public-custom-card",
+              media: [
+                {
+                  altText: "Published spoken clue",
+                  id: "public-audio-id",
+                  kind: "audio",
+                  mimeType: "audio/webm",
+                  signedUrl,
+                },
+              ],
+              nonvisualFallback: "Published spoken clue",
+              renderer,
+            },
+          ],
+          supportedCardTypes: ["custom"],
+        }}
+      />,
+    );
+
+    expect(screen.getByLabelText("Published spoken clue")).toHaveAttribute("src", signedUrl);
   });
 
   it("does not hijack keyboard input or double-toggle nested interactive controls", async () => {
