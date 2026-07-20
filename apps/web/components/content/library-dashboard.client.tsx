@@ -1,9 +1,26 @@
 "use client";
 
-import { Badge, Button, Dialog, FormField, Input, LinkButton, Select } from "@lumen/ui";
+import {
+  Badge,
+  Button,
+  Dialog,
+  Dropdown,
+  FolderIcon,
+  FormField,
+  GridIcon,
+  IconButton,
+  Input,
+  LinkButton,
+  ListIcon,
+  MoreIcon,
+  PlusIcon,
+  SearchIcon,
+  SegmentedControl,
+  Select,
+  Tooltip,
+} from "@lumen/ui";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { Route } from "next";
 
 import type {
   ContentMutationResult,
@@ -29,7 +46,7 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
         ? "warning"
         : "neutral";
   return (
-    <a className="deck-tile" href={`/app/decks/${deck.id}`}>
+    <article className="deck-tile">
       <div className="deck-tile__top">
         <div className="deck-tile__cover">
           <span aria-hidden="true" className="deck-tile__mark">
@@ -38,9 +55,33 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
           <Badge tone={accent}>{deck.visibility}</Badge>
         </div>
         <div className="deck-tile__heading">
-          <h3>{deck.title}</h3>
+          <h3>
+            <a href={`/app/decks/${deck.id}`}>{deck.title}</a>
+          </h3>
           <p>{deck.descriptionPlain || "Open to add the first note."}</p>
         </div>
+        <Dropdown
+          label={`Actions for ${deck.title}`}
+          items={[
+            {
+              label: "Open deck",
+              onSelect: () => window.location.assign(`/app/decks/${deck.id}`),
+            },
+            ...(deck.publicSlug
+              ? [
+                  {
+                    label: "Open public player",
+                    onSelect: () => window.location.assign(`/deck/${deck.publicSlug}`),
+                  },
+                ]
+              : []),
+          ]}
+          trigger={
+            <IconButton label={`Actions for ${deck.title}`} size="sm" variant="ghost">
+              <MoreIcon />
+            </IconButton>
+          }
+        />
       </div>
       <div className="deck-tile__meta">
         <span>
@@ -51,32 +92,28 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
         </span>
         {view === "list" && <span>Edited {new Date(deck.updatedAt).toLocaleDateString()}</span>}
       </div>
-    </a>
+    </article>
   );
 }
 
-function EmptyLibrary({
-  onCreateDeck,
-  onCreateFolder,
-}: {
-  readonly onCreateDeck: () => void;
-  readonly onCreateFolder: () => void;
-}) {
+function EmptyLibrary({ onCreateFolder }: { readonly onCreateFolder: () => void }) {
   return (
     <section className="library-empty" aria-labelledby="empty-library-heading">
       <div className="library-empty__content">
         <span aria-hidden="true" className="library-empty__icon">
-          ◫
+          <FolderIcon />
         </span>
         <h2 id="empty-library-heading">Create your first deck</h2>
-        <p>Start with a clear subject, then add notes and generated cards as you go.</p>
-        <p>
-          Each note can generate one or more sibling cards. Pick a card type when you are ready to
-          begin.
-        </p>
+        <p>Start with a subject you want to remember.</p>
         <div className="library-actions justify-center">
-          <Button onClick={onCreateDeck}>Create deck</Button>
-          <Button onClick={onCreateFolder} variant="secondary">
+          <LinkButton
+            className="product-primary-action"
+            href="/app/decks/new"
+            leadingIcon={<PlusIcon />}
+          >
+            New deck
+          </LinkButton>
+          <Button onClick={onCreateFolder} variant="ghost">
             Create folder
           </Button>
         </div>
@@ -116,13 +153,12 @@ export function LibraryDashboard({
   readonly snapshot: LibrarySnapshot;
 }) {
   const router = useRouter();
-  const [decks, setDecks] = useState(snapshot.decks);
+  const decks = snapshot.decks;
   const [folders, setFolders] = useState(snapshot.folders);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<LibraryView>("grid");
   const [filterMode, setFilterMode] = useState<LibraryFilterMode>("recent");
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [deckDialogOpen, setDeckDialogOpen] = useState(false);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [managedFolder, setManagedFolder] = useState<FolderSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -164,37 +200,6 @@ export function LibraryDashboard({
       ? filtered.filter((deck) => deck.status === "active").slice(0, 200)
       : filtered;
   }, [decks, filterMode, query, selectedFolder]);
-
-  async function createDeck(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    const form = new FormData(event.currentTarget);
-    const command = {
-      description: String(form.get("description") ?? ""),
-      folderId:
-        form.get("folderId") === "none" || !form.get("folderId") ? null : form.get("folderId"),
-      title: String(form.get("title") ?? ""),
-      visibility: "private",
-    } as const;
-    try {
-      const result = await performContentMutation<ContentMutationResult<DeckSummary>>({
-        body: command,
-        fallbackMessage: "The deck could not be created.",
-        method: "POST",
-        operation: "library:create-deck",
-        pending: pendingMutations.current,
-        url: "/api/content/decks",
-      });
-      setDecks((current) => [result.data, ...current]);
-      setDeckDialogOpen(false);
-      router.push(`/app/decks/${result.data.id}/edit` as Route);
-    } catch (caught) {
-      mutationError(caught, "The deck could not be created.", "This library");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function createFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -302,55 +307,38 @@ export function LibraryDashboard({
     <div className="library-shell">
       <section className="library-hero" aria-labelledby="library-heading">
         <div className="library-hero__copy">
-          <span className="text-sm font-extrabold tracking-[0.12em] text-[var(--color-brand)] uppercase">
-            Your library
-          </span>
-          <h1 id="library-heading">
-            {hasAnyDecks
-              ? `Welcome back, ${learnerName}.`
-              : `A clear place to build, ${learnerName}.`}
-          </h1>
-          <p>Create a deck, add the first notes, and keep everything tidy from one place.</p>
+          <h1 id="library-heading">Library</h1>
+          <p>Welcome back, {learnerName}.</p>
         </div>
-        {canCreate && (
+        {canCreate && hasAnyDecks && (
           <div className="library-actions">
-            <Button onClick={() => setDeckDialogOpen(true)}>Create deck</Button>
+            <LinkButton
+              className="product-primary-action"
+              href="/app/decks/new"
+              leadingIcon={<PlusIcon />}
+            >
+              New deck
+            </LinkButton>
             <Button onClick={() => setFolderDialogOpen(true)} variant="secondary">
-              Create folder
+              New folder
             </Button>
           </div>
         )}
       </section>
 
-      <section className="library-metrics" aria-label="Library totals">
-        {[
-          ["Decks", snapshot.counts.activeDecks],
-          ["Notes", snapshot.counts.notes],
-          ["Generated cards", snapshot.counts.cards],
-          ["Folders", snapshot.counts.folders],
-          ["Archived", snapshot.counts.archivedDecks],
-        ].map(([label, value]) => (
-          <div className="library-metric" key={label}>
-            <strong>{value}</strong>
-            <span>{label}</span>
-          </div>
-        ))}
-      </section>
-
-      {publishedDeckCount > 0 && (
-        <section className="library-highlight" aria-labelledby="published-decks-heading">
-          <div className="section-heading">
-            <div>
-              <h2 id="published-decks-heading">Published decks</h2>
-              <span className="text-sm text-[var(--color-text-muted)]">
-                {publishedDeckCount} {publishedDeckCount === 1 ? "deck" : "decks"} ready to share
-              </span>
-            </div>
-            <LinkButton href="/app/published" size="sm" variant="secondary">
-              Manage published decks
-            </LinkButton>
-          </div>
-        </section>
+      {hasAnyDecks && (
+        <p className="library-summary" aria-label="Library totals">
+          <span>
+            {snapshot.counts.activeDecks} {snapshot.counts.activeDecks === 1 ? "deck" : "decks"}
+          </span>
+          <span>
+            {snapshot.counts.notes} {snapshot.counts.notes === 1 ? "note" : "notes"}
+          </span>
+          <span>
+            {snapshot.counts.cards} {snapshot.counts.cards === 1 ? "card" : "cards"}
+          </span>
+          {publishedDeckCount > 0 && <a href="/app/published">{publishedDeckCount} published</a>}
+        </p>
       )}
 
       {snapshot.truncated && (
@@ -364,10 +352,7 @@ export function LibraryDashboard({
       )}
 
       {!hasAnyDecks && canCreate ? (
-        <EmptyLibrary
-          onCreateDeck={() => setDeckDialogOpen(true)}
-          onCreateFolder={() => setFolderDialogOpen(true)}
-        />
+        <EmptyLibrary onCreateFolder={() => setFolderDialogOpen(true)} />
       ) : !hasAnyDecks ? (
         <section className="library-empty" aria-labelledby="managed-library-heading">
           <div className="library-empty__content">
@@ -382,7 +367,9 @@ export function LibraryDashboard({
         <>
           <div className="library-toolbar" role="search" aria-label="Filter your library">
             <label className="library-search">
-              <span aria-hidden="true">⌕</span>
+              <span aria-hidden="true">
+                <SearchIcon />
+              </span>
               <span className="visually-hidden">Search decks</span>
               <Input
                 onChange={(event) => setQuery(event.target.value)}
@@ -391,24 +378,18 @@ export function LibraryDashboard({
                 value={query}
               />
             </label>
-            <div className="library-filter-tabs" role="tablist" aria-label="Library filters">
-              {[
+            <SegmentedControl
+              className="library-filter-tabs"
+              label="Library filters"
+              onValueChange={(value) => setFilterMode(value as LibraryFilterMode)}
+              options={[
                 { label: "All", value: "all" },
                 { label: "Recent", value: "recent" },
                 { label: "Published", value: "published" },
                 { label: "Archived", value: "archived" },
-              ].map((item) => (
-                <button
-                  aria-pressed={filterMode === item.value}
-                  className="library-filter-tab"
-                  key={item.value}
-                  onClick={() => setFilterMode(item.value as LibraryFilterMode)}
-                  type="button"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+              ]}
+              value={filterMode}
+            />
             <div className="library-toolbar__actions">
               <Select
                 aria-label="Folder filter"
@@ -420,22 +401,28 @@ export function LibraryDashboard({
                 value={selectedFolder ?? "all"}
               />
               <div className="view-toggle" role="group" aria-label="Deck presentation">
-                <button
-                  aria-label="Grid view"
-                  aria-pressed={view === "grid"}
-                  onClick={() => setView("grid")}
-                  type="button"
-                >
-                  ▦
-                </button>
-                <button
-                  aria-label="List view"
-                  aria-pressed={view === "list"}
-                  onClick={() => setView("list")}
-                  type="button"
-                >
-                  ☷
-                </button>
+                <Tooltip content="Grid view">
+                  <IconButton
+                    label="Grid view"
+                    aria-pressed={view === "grid"}
+                    onClick={() => setView("grid")}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <GridIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip content="List view">
+                  <IconButton
+                    label="List view"
+                    aria-pressed={view === "list"}
+                    onClick={() => setView("list")}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <ListIcon />
+                  </IconButton>
+                </Tooltip>
               </div>
             </div>
           </div>
@@ -469,21 +456,24 @@ export function LibraryDashboard({
                       style={{ paddingInlineStart: folder.parentId ? "1.4rem" : undefined }}
                       type="button"
                     >
-                      <span>{folder.parentId ? `↳ ${folder.name}` : folder.name}</span>
+                      <span className={folder.parentId ? "folder-tree__child" : undefined}>
+                        {folder.name}
+                      </span>
                       <small>{folder.deckCount}</small>
                     </button>
                     {canCreate && (
-                      <button
-                        aria-label={`Manage ${folder.name}`}
+                      <IconButton
+                        label={`Manage ${folder.name}`}
                         className="folder-manage-button"
                         onClick={() => {
                           setError(null);
                           setManagedFolder(folder);
                         }}
-                        type="button"
+                        size="sm"
+                        variant="ghost"
                       >
-                        •••
-                      </button>
+                        <MoreIcon />
+                      </IconButton>
                     )}
                   </li>
                 ))}
@@ -491,7 +481,7 @@ export function LibraryDashboard({
             </aside>
 
             <section className="library-content" aria-labelledby="decks-heading">
-              <div className="section-heading">
+              <div className="library-results-heading">
                 <div>
                   <h2 id="decks-heading">
                     {selectedFolder
@@ -502,11 +492,6 @@ export function LibraryDashboard({
                     {visibleDecks.length} {visibleDecks.length === 1 ? "result" : "results"}
                   </span>
                 </div>
-                {canCreate && (
-                  <LinkButton href="/app/decks/new" size="sm" variant="secondary">
-                    Choose a card type
-                  </LinkButton>
-                )}
               </div>
               {visibleDecks.length > 0 ? (
                 <div className="deck-grid" data-view={view}>
@@ -520,54 +505,12 @@ export function LibraryDashboard({
                   <p className="text-[var(--color-text-muted)]">
                     Clear a filter, search another phrase, or create a deck here.
                   </p>
-                  {canCreate && (
-                    <Button onClick={() => setDeckDialogOpen(true)}>Create deck</Button>
-                  )}
+                  {canCreate && <LinkButton href="/app/decks/new">New deck</LinkButton>}
                 </div>
               )}
             </section>
           </div>
         </>
-      )}
-
-      {canCreate && (
-        <Dialog
-          description="Start private and add content after the deck exists."
-          onOpenChange={(open) => {
-            setDeckDialogOpen(open);
-            if (open) setError(null);
-          }}
-          open={deckDialogOpen}
-          title="Create a deck"
-        >
-          <form className="form-stack" onSubmit={createDeck}>
-            <FormField label="Deck title" required>
-              <Input autoFocus maxLength={120} name="title" required />
-            </FormField>
-            <FormField label="Description" description="Optional. Keep it short.">
-              <Input maxLength={500} name="description" />
-            </FormField>
-            <FormField label="Folder">
-              <Select
-                name="folderId"
-                options={[
-                  { label: "No folder", value: "none" },
-                  ...folders.map((folder) => ({ label: folder.name, value: folder.id })),
-                ]}
-                defaultValue={selectedFolder ?? "none"}
-              />
-            </FormField>
-            <LibraryMutationError error={error} onReload={() => window.location.reload()} />
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button onClick={() => setDeckDialogOpen(false)} variant="ghost">
-                Cancel
-              </Button>
-              <Button loading={submitting} loadingLabel="Creating deck" type="submit">
-                Create and add notes
-              </Button>
-            </div>
-          </form>
-        </Dialog>
       )}
 
       {canCreate && managedFolder && (

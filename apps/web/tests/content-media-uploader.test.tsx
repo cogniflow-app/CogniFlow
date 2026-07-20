@@ -144,7 +144,8 @@ describe("explicit private media upload", () => {
     expect(form.get("kind")).toBe("audio");
     expect(form.get("transcript")).toBe("A spoken ATP prompt");
     expect(String(form.get("sha256"))).toMatch(/^[a-f0-9]{64}$/u);
-    expect(screen.getByText("Media saved and ready to attach.")).toBeVisible();
+    expect(screen.getByText("Audio attached.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Replace audio" })).toBeVisible();
   });
 
   it("reports unavailable browser recording without claiming a recording was saved", async () => {

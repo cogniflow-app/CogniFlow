@@ -104,7 +104,7 @@ describe("managed learner account-setting boundary", () => {
     );
 
     expect(screen.getByText("Young learner")).toBeVisible();
-    expect(screen.getByText("Managed learner context")).toBeVisible();
+    expect(screen.getByText("Managed learner")).toBeVisible();
     expect(screen.getByRole("link", { name: "Library" })).toHaveAttribute("href", "/app");
     expect(screen.getByRole("button", { name: "Guardian exit" })).toBeVisible();
     expect(screen.queryByRole("link", { name: "Profile" })).not.toBeInTheDocument();
@@ -133,9 +133,8 @@ describe("managed learner account-setting boundary", () => {
   it("renders managed-learner facts without guardian account or privacy controls", async () => {
     render(await DashboardPage());
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: "A clear place to build, Young learner." }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
+    expect(screen.getByText("Welcome back, Young learner.")).toBeVisible();
     expect(
       screen.getByRole("heading", {
         level: 2,

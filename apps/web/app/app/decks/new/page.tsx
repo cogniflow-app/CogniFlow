@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { NewDeckWizard } from "@/components/content/new-deck-wizard.client";
 import { requireAccountContext } from "@/lib/server/account-context";
+import { readLibrarySnapshot } from "@/lib/server/content-repository";
 import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
@@ -14,5 +15,6 @@ export default async function NewDeckPage() {
   if (account.activeLearner.kind !== "self" || !account.capabilities.includes("create")) {
     redirect("/app");
   }
-  return <NewDeckWizard />;
+  const library = await readLibrarySnapshot(account.profile.id);
+  return <NewDeckWizard folders={library.folders} />;
 }

@@ -1,7 +1,29 @@
 "use client";
 
 import type { NormalizedShape } from "@lumen/domain";
-import { Button, FormField, Input, Select } from "@lumen/ui";
+import {
+  ArrowDownIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ArrowUpIcon,
+  CircleIcon,
+  CopyIcon,
+  FitIcon,
+  FormField,
+  IconButton,
+  ImageIcon,
+  Input,
+  MoreIcon,
+  PolygonIcon,
+  Popover,
+  RectangleIcon,
+  ResetIcon,
+  Select,
+  Tooltip,
+  TrashIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
+} from "@lumen/ui";
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
 export interface VisualRegion {
@@ -161,11 +183,17 @@ export function VisualRegionEditor({
     readonly width: number;
   } | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const panDrag = useRef<{
+    readonly clientX: number;
+    readonly clientY: number;
+    readonly panX: number;
+    readonly panY: number;
+  } | null>(null);
   const selectedRegion = useMemo(
     () => regions.find((region) => region.semanticKey === selected) ?? null,
     [regions, selected],
   );
-  const imageReady = !imageUrl || naturalImage?.source === imageUrl;
+  const imageReady = Boolean(imageUrl && naturalImage?.source === imageUrl);
   const renderedImageBox = useMemo(
     () =>
       imageUrl && imageReady && naturalImage
@@ -178,7 +206,7 @@ export function VisualRegionEditor({
         : null,
     [imageReady, imageUrl, naturalImage, stageSize.height, stageSize.width],
   );
-  const canRenderRegions = imageReady && (!imageUrl || renderedImageBox !== null);
+  const canRenderRegions = imageReady && renderedImageBox !== null;
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -199,7 +227,7 @@ export function VisualRegionEditor({
       observer?.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, []);
+  }, [imageUrl]);
 
   function mutateRegion(key: string, patch: Partial<VisualRegion>) {
     onChange(
@@ -208,9 +236,63 @@ export function VisualRegionEditor({
   }
 
   function add(shape: NormalizedShape["kind"]) {
+    if (!imageUrl) return;
     const region = createRegion(shape, regions.length);
     onChange([...regions, region]);
     setSelected(region.semanticKey);
+  }
+
+  function deleteSelected() {
+    if (!selectedRegion) return;
+    onChange(regions.filter((region) => region.semanticKey !== selectedRegion.semanticKey));
+    setSelected(null);
+  }
+
+  function duplicateSelected() {
+    if (!selectedRegion || !imageUrl) return;
+    const bounds = shapeBounds(selectedRegion.shape);
+    const copy: VisualRegion = {
+      ...selectedRegion,
+      aliases: [...selectedRegion.aliases],
+      groupKey: `${selectedRegion.groupKey}-copy`,
+      label: `${selectedRegion.label} copy`,
+      semanticKey: crypto.randomUUID(),
+      shape: updateShapeBounds(selectedRegion.shape, {
+        x: Math.min(1 - bounds.width, bounds.x + 0.03),
+        y: Math.min(1 - bounds.height, bounds.y + 0.03),
+      }),
+    };
+    onChange([...regions, copy]);
+    setSelected(copy.semanticKey);
+  }
+
+  function beginPan(event: PointerEvent<HTMLDivElement>) {
+    if (zoom <= 1 || (event.target instanceof Element && event.target.closest(".geometry-mask"))) {
+      return;
+    }
+    event.currentTarget.setPointerCapture(event.pointerId);
+    panDrag.current = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      panX: pan.x,
+      panY: pan.y,
+    };
+  }
+
+  function continuePan(event: PointerEvent<HTMLDivElement>) {
+    if (!panDrag.current) return;
+    setPan({
+      x: panDrag.current.panX + event.clientX - panDrag.current.clientX,
+      y: panDrag.current.panY + event.clientY - panDrag.current.clientY,
+    });
+  }
+
+  function endPan(event: PointerEvent<HTMLDivElement>) {
+    if (!panDrag.current) return;
+    panDrag.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   function moveSelected(event: PointerEvent<HTMLDivElement>) {
@@ -246,36 +328,165 @@ export function VisualRegionEditor({
   return (
     <div className="geometry-author">
       <div className="geometry-toolbar" role="toolbar" aria-label={`${kind} region tools`}>
-        <button onClick={() => add("rectangle")} type="button">
-          ▭ Rectangle
-        </button>
-        <button onClick={() => add("ellipse")} type="button">
-          ◯ Ellipse
-        </button>
-        <button onClick={() => add("polygon")} type="button">
-          △ Polygon
-        </button>
-        <button onClick={() => setZoom((value) => Math.min(2.5, value + 0.25))} type="button">
-          Zoom +
-        </button>
-        <button onClick={() => setZoom((value) => Math.max(0.5, value - 0.25))} type="button">
-          Zoom −
-        </button>
-        <button onClick={() => setPan((value) => ({ ...value, x: value.x - 5 }))} type="button">
-          Pan left
-        </button>
-        <button onClick={() => setPan((value) => ({ ...value, x: value.x + 5 }))} type="button">
-          Pan right
-        </button>
-        <button onClick={() => setPan((value) => ({ ...value, y: value.y - 5 }))} type="button">
-          Pan up
-        </button>
-        <button onClick={() => setPan((value) => ({ ...value, y: value.y + 5 }))} type="button">
-          Pan down
-        </button>
-        <button onClick={() => setPan({ x: 0, y: 0 })} type="button">
-          Reset view
-        </button>
+        <div className="geometry-toolbar__group" role="group" aria-label="Add mask">
+          <span>Add mask</span>
+          <Tooltip content="Rectangle">
+            <IconButton
+              disabled={!imageUrl}
+              label="Add rectangle mask"
+              onClick={() => add("rectangle")}
+              size="sm"
+              variant="ghost"
+            >
+              <RectangleIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content="Ellipse">
+            <IconButton
+              disabled={!imageUrl}
+              label="Add ellipse mask"
+              onClick={() => add("ellipse")}
+              size="sm"
+              variant="ghost"
+            >
+              <CircleIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content="Polygon">
+            <IconButton
+              disabled={!imageUrl}
+              label="Add polygon mask"
+              onClick={() => add("polygon")}
+              size="sm"
+              variant="ghost"
+            >
+              <PolygonIcon />
+            </IconButton>
+          </Tooltip>
+        </div>
+        <div className="geometry-toolbar__group" role="group" aria-label="View">
+          <span>View</span>
+          <Tooltip content="Zoom in">
+            <IconButton
+              disabled={!imageUrl}
+              label="Zoom in"
+              onClick={() => setZoom((value) => Math.min(2.5, value + 0.25))}
+              size="sm"
+              variant="ghost"
+            >
+              <ZoomInIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content="Zoom out">
+            <IconButton
+              disabled={!imageUrl}
+              label="Zoom out"
+              onClick={() => setZoom((value) => Math.max(0.75, value - 0.25))}
+              size="sm"
+              variant="ghost"
+            >
+              <ZoomOutIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content="Fit image">
+            <IconButton
+              disabled={!imageUrl}
+              label="Fit image"
+              onClick={() => {
+                setZoom(1);
+                setPan({ x: 0, y: 0 });
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              <FitIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content="Reset view">
+            <IconButton
+              disabled={!imageUrl}
+              label="Reset view"
+              onClick={() => {
+                setZoom(1);
+                setPan({ x: 0, y: 0 });
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              <ResetIcon />
+            </IconButton>
+          </Tooltip>
+          <Popover
+            align="end"
+            side="bottom"
+            title="Keyboard pan"
+            trigger={
+              <IconButton disabled={!imageUrl} label="Open pan controls" size="sm" variant="ghost">
+                <MoreIcon />
+              </IconButton>
+            }
+          >
+            <div className="geometry-pan-controls" role="group" aria-label="Pan view">
+              <IconButton
+                label="Pan left"
+                onClick={() => setPan((value) => ({ ...value, x: value.x - 16 }))}
+                size="sm"
+                variant="ghost"
+              >
+                <ArrowLeftIcon />
+              </IconButton>
+              <IconButton
+                label="Pan up"
+                onClick={() => setPan((value) => ({ ...value, y: value.y - 16 }))}
+                size="sm"
+                variant="ghost"
+              >
+                <ArrowUpIcon />
+              </IconButton>
+              <IconButton
+                label="Pan down"
+                onClick={() => setPan((value) => ({ ...value, y: value.y + 16 }))}
+                size="sm"
+                variant="ghost"
+              >
+                <ArrowDownIcon />
+              </IconButton>
+              <IconButton
+                label="Pan right"
+                onClick={() => setPan((value) => ({ ...value, x: value.x + 16 }))}
+                size="sm"
+                variant="ghost"
+              >
+                <ArrowRightIcon />
+              </IconButton>
+            </div>
+          </Popover>
+        </div>
+        <div className="geometry-toolbar__group" role="group" aria-label="Selection">
+          <span>Selection</span>
+          <Tooltip content="Duplicate">
+            <IconButton
+              disabled={!imageUrl || !selectedRegion}
+              label="Duplicate selected region"
+              onClick={duplicateSelected}
+              size="sm"
+              variant="ghost"
+            >
+              <CopyIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip content="Delete">
+            <IconButton
+              disabled={!selectedRegion}
+              label="Delete selected region"
+              onClick={deleteSelected}
+              size="sm"
+              variant="ghost"
+            >
+              <TrashIcon />
+            </IconButton>
+          </Tooltip>
+        </div>
       </div>
       {kind === "occlusion" && onModeChange && (
         <FormField label="Reveal behavior">
@@ -289,26 +500,31 @@ export function VisualRegionEditor({
           />
         </FormField>
       )}
-      <div
-        aria-label={`${kind} image region canvas. Select a region below for a keyboard alternative.`}
-        className="geometry-stage"
-        onDoubleClick={moveSelected}
-        ref={stageRef}
-        role="img"
-      >
+      {imageUrl ? (
         <div
-          className="geometry-stage__transform"
-          style={{
-            transform: `translate(${String(pan.x)}px, ${String(pan.y)}px) scale(${String(zoom)})`,
-            transformOrigin: "center",
-          }}
+          aria-label={`${kind} image region canvas. Select a region below for a keyboard alternative.`}
+          className="geometry-stage"
+          data-pannable={zoom > 1}
+          onDoubleClick={moveSelected}
+          onPointerCancel={endPan}
+          onPointerDown={beginPan}
+          onPointerMove={continuePan}
+          onPointerUp={endPan}
+          ref={stageRef}
+          role="img"
         >
           <div
-            className="geometry-image-plane"
-            data-image-ready={canRenderRegions}
-            style={
-              imageUrl
-                ? renderedImageBox
+            className="geometry-stage__transform"
+            style={{
+              transform: `translate(${String(pan.x)}px, ${String(pan.y)}px) scale(${String(zoom)})`,
+              transformOrigin: "center",
+            }}
+          >
+            <div
+              className="geometry-image-plane"
+              data-image-ready={canRenderRegions}
+              style={
+                renderedImageBox
                   ? {
                       height: `${String(renderedImageBox.height)}px`,
                       left: `${String(renderedImageBox.x)}px`,
@@ -316,11 +532,9 @@ export function VisualRegionEditor({
                       width: `${String(renderedImageBox.width)}px`,
                     }
                   : undefined
-                : { inset: 0 }
-            }
-          >
-            {imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- this may be a short-lived signed storage URL.
+              }
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- this may be a short-lived signed storage URL. */}
               <img
                 alt={imageAlt}
                 onLoad={(event) => {
@@ -333,47 +547,49 @@ export function VisualRegionEditor({
                 }}
                 src={imageUrl}
               />
-            ) : (
-              <div className="grid h-full place-items-center p-6 text-center text-sm text-[var(--color-text-muted)]">
-                Upload or select an image to position regions visually. The complete region list
-                remains editable without the image.
-              </div>
-            )}
-            {canRenderRegions &&
-              regions.map((region) => {
-                const bounds = shapeBounds(region.shape);
-                const clipPath =
-                  region.shape.kind === "polygon" ? polygonClipPath(region.shape) : undefined;
-                return (
-                  <button
-                    aria-label={`Select ${region.label}`}
-                    className="geometry-mask"
-                    data-selected={selected === region.semanticKey}
-                    data-shape={region.shape.kind}
-                    key={region.semanticKey}
-                    onClick={() => setSelected(region.semanticKey)}
-                    style={{
-                      clipPath,
-                      height: `${String(bounds.height * 100)}%`,
-                      left: `${String(bounds.x * 100)}%`,
-                      top: `${String(bounds.y * 100)}%`,
-                      width: `${String(bounds.width * 100)}%`,
-                    }}
-                    type="button"
-                  />
-                );
-              })}
+              {canRenderRegions &&
+                regions.map((region) => {
+                  const bounds = shapeBounds(region.shape);
+                  const clipPath =
+                    region.shape.kind === "polygon" ? polygonClipPath(region.shape) : undefined;
+                  return (
+                    <button
+                      aria-label={`Select ${region.label}`}
+                      className="geometry-mask"
+                      data-selected={selected === region.semanticKey}
+                      data-shape={region.shape.kind}
+                      key={region.semanticKey}
+                      onClick={() => setSelected(region.semanticKey)}
+                      style={{
+                        clipPath,
+                        height: `${String(bounds.height * 100)}%`,
+                        left: `${String(bounds.x * 100)}%`,
+                        top: `${String(bounds.y * 100)}%`,
+                        width: `${String(bounds.width * 100)}%`,
+                      }}
+                      type="button"
+                    />
+                  );
+                })}
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="geometry-empty-state">
+          <ImageIcon aria-hidden="true" />
+          <p>Add an image to start drawing {kind === "occlusion" ? "masks" : "regions"}.</p>
+        </div>
+      )}
 
       <section aria-labelledby={`${kind}-regions-heading`}>
         <h3 className="text-base" id={`${kind}-regions-heading`}>
-          Accessible region list
+          Regions
         </h3>
         {regions.length === 0 ? (
           <p className="text-sm text-[var(--color-text-muted)]">
-            Add a rectangle, ellipse, or polygon. Every group generates a stable sibling card.
+            {imageUrl
+              ? "Choose a mask tool to add the first region."
+              : "Regions will appear here after you add an image and a mask."}
           </p>
         ) : (
           <ol className="mask-list">
@@ -469,8 +685,8 @@ export function VisualRegionEditor({
                       ))}
                     </div>
                   </div>
-                  <Button
-                    aria-label={`Delete ${region.label}`}
+                  <IconButton
+                    label={`Delete ${region.label}`}
                     onClick={() => {
                       onChange(
                         regions.filter((candidate) => candidate.semanticKey !== region.semanticKey),
@@ -480,8 +696,8 @@ export function VisualRegionEditor({
                     size="sm"
                     variant="ghost"
                   >
-                    Delete
-                  </Button>
+                    <TrashIcon />
+                  </IconButton>
                 </li>
               );
             })}

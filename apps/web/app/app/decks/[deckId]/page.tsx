@@ -42,9 +42,6 @@ export default async function DeckOverviewPage({
         <div className="section-heading">
           <div>
             <h2>Card-type mix</h2>
-            <p>
-              These totals describe authored content only, without review schedules or progress.
-            </p>
           </div>
           {canEdit && (
             <LinkButton href={`/app/decks/${deck.id}/edit`}>Add an advanced note</LinkButton>

@@ -1,10 +1,8 @@
 import "./globals.css";
-import "./phase-two.css";
 
 import { brandConfig } from "@lumen/config/brand";
 import { readPublicEnvironment } from "@lumen/config/public-env";
 import type { Metadata, Viewport } from "next";
-import localFont from "next/font/local";
 import type { ReactNode } from "react";
 
 import { AppearanceProvider } from "@/components/appearance-provider.client";
@@ -12,24 +10,6 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
 const appUrl = readPublicEnvironment().appUrl;
-
-const manrope = localFont({
-  display: "optional",
-  fallback: ["system-ui", "sans-serif"],
-  preload: false,
-  src: "../node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
-  variable: "--font-manrope",
-  weight: "200 800",
-});
-
-const newsreader = localFont({
-  display: "optional",
-  fallback: ["Georgia", "serif"],
-  preload: false,
-  src: "../node_modules/@fontsource-variable/newsreader/files/newsreader-latin-wght-normal.woff2",
-  variable: "--font-newsreader",
-  weight: "200 800",
-});
 
 export const metadata: Metadata = {
   applicationName: brandConfig.name,
@@ -81,7 +61,7 @@ const appearanceScript = `
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
-      <body className={`${manrope.variable} ${newsreader.variable}`}>
+      <body>
         <script dangerouslySetInnerHTML={{ __html: appearanceScript }} />
         <AppearanceProvider>
           <a className="skip-link" href="#main-content">

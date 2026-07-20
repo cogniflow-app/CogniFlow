@@ -96,18 +96,18 @@ test("Preview supports the complete disposable Phase 02 account and content path
   await expect(
     page.getByRole("heading", { level: 2, name: "Create your first deck" }),
   ).toBeVisible();
-  await expect(page.locator(".library-metric strong")).toHaveText(["0", "0", "0", "0", "0"]);
+  await expect(page.locator(".library-metric")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "New deck" })).toHaveCount(1);
   await signOut(page);
   await signIn(page, email, password);
 
-  const workspaceAppearance = page.locator(".workspace-appearance").last();
-  await workspaceAppearance.locator("> summary").click();
+  await page.getByRole("button", { name: "Appearance" }).last().click();
   const appearanceWrite = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/settings/appearance") &&
       response.request().method() === "PATCH",
   );
-  await workspaceAppearance.getByLabel("Color theme").selectOption("dark");
+  await page.getByLabel("Color theme").last().selectOption("dark");
   expect((await appearanceWrite).ok()).toBe(true);
   await assertTheme(page, "dark");
   await page.goto("/app/settings/profile");
@@ -116,22 +116,23 @@ test("Preview supports the complete disposable Phase 02 account and content path
   await assertTheme(page, "dark");
   await page.goto("/app");
 
-  await page.getByRole("button", { name: "Create deck", exact: true }).first().click();
+  await page.getByRole("link", { name: "New deck" }).click();
+  await expect(page).toHaveURL(/\/app\/decks\/new$/u);
+  await page.getByRole("textbox", { name: "Deck title" }).fill(deckTitle);
+  await page
+    .getByRole("textbox", { name: "Description" })
+    .fill("A disposable hosted acceptance deck.");
+  await page.getByRole("button", { name: "Continue" }).click();
   const createResponse = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/content/decks") && response.request().method() === "POST",
   );
-  const createDialog = page.getByRole("dialog", { name: "Create a deck" });
-  await createDialog.getByRole("textbox", { name: "Deck title" }).fill(deckTitle);
-  await createDialog
-    .getByRole("textbox", { name: "Description" })
-    .fill("A disposable hosted acceptance deck.");
-  await createDialog.getByRole("button", { name: "Create and add notes" }).click();
+  await page.getByRole("button", { name: "Create deck" }).click();
   const created = await createResponse;
   expect(created.status()).toBe(201);
   const createdBody = (await created.json()) as { data: { id: string } };
   const deckId = createdBody.data.id;
-  await expect(page).toHaveURL(new RegExp(`/app/decks/${deckId}/edit$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`/app/decks/${deckId}/edit\\?type=basic$`, "u"));
   await assertTheme(page, "dark");
 
   await page
@@ -185,10 +186,10 @@ test("Preview supports the complete disposable Phase 02 account and content path
   await signOut(page);
   await page.goto(`${baseUrl}/deck/${publishedBody.data.publicSlug}`);
   await expect(page.getByRole("heading", { level: 1, name: deckTitle })).toBeVisible();
-  const card = page.getByRole("region", { name: "Prompt card preview" });
+  const card = page.getByRole("group", { name: /Question, card 1 of 1/i });
   await expect(card).toContainText("What molecule carries cellular energy?");
-  await page.getByRole("button", { name: "Reveal answer" }).click();
-  await expect(page.getByRole("region", { name: "Answer card preview" })).toContainText("ATP");
+  await card.click();
+  await expect(page.getByRole("group", { name: /Answer, card 1 of 1/i })).toContainText("ATP");
 
   await signIn(page, email, password, `/app/decks/${deckId}/settings`);
   const unpublishResponse = page.waitForResponse(

@@ -230,13 +230,17 @@ describe("deck authoring workspace", () => {
     expect(navigation.refresh).toHaveBeenCalledOnce();
   });
 
-  it("filters notes, exposes generated siblings, and provides keyboard-addressable bulk selection", async () => {
+  it("filters notes, exposes generated cards, and provides keyboard-addressable bulk selection", async () => {
     const user = userEvent.setup();
     render(<NoteCardBrowser deck={deckDetail} />);
 
-    expect(screen.getByRole("heading", { name: "Notes and generated siblings" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Notes and generated cards" })).toBeVisible();
     expect(screen.getByRole("heading", { level: 3, name: "What is ATP?" })).toBeVisible();
-    expect(screen.getByLabelText("1 generated siblings")).toHaveTextContent("What is ATP?");
+    expect(screen.getByLabelText("1 generated cards")).toHaveTextContent("What is ATP?");
+    expect(screen.getByLabelText("1 generated cards")).toHaveTextContent(
+      "The cell's usable energy carrier",
+    );
+    expect(screen.getByLabelText("1 generated cards")).toHaveTextContent("Source: What is ATP?");
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
       "href",
       `/app/decks/${deckDetail.id}/edit?note=${deckDetail.notes[0]!.id}`,
@@ -309,7 +313,7 @@ describe("deck authoring workspace", () => {
     const user = userEvent.setup();
     render(<DeckSettingsEditor deck={deckDetail} />);
 
-    expect(screen.getByText(/only a frozen published projection is public/i)).toBeVisible();
+    expect(screen.getByText(/choose how this deck looks/i)).toBeVisible();
     expect(screen.getByRole("link", { name: "Open public preview" })).toHaveAttribute(
       "href",
       "/deck/cell-energy",
@@ -409,7 +413,7 @@ describe("deck authoring workspace", () => {
       theme: deckDetail.theme,
       visibility: deckDetail.visibility,
     });
-    expect(await screen.findByText("Published projection refreshed.")).toBeVisible();
+    expect(await screen.findByText("Published deck updated.")).toBeVisible();
   });
 
   it("replaces stale settings with the refreshed server snapshot after a conflict", async () => {

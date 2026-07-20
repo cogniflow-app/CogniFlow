@@ -216,33 +216,38 @@ test("the dark design-system gallery has no serious or critical axe violations",
   await expectNoSeriousOrCriticalViolations(page);
 });
 
-test("the authenticated library, creation dialog, and card editor are accessible by keyboard", async ({
+test("the authenticated library, deck creation, and card editor are accessible by keyboard", async ({
   page,
 }) => {
   test.setTimeout(90_000);
   await createA11yAuthor(page);
 
-  await expect(
-    page.getByRole("heading", {
-      level: 1,
-      name: "A clear place to build, Accessibility author.",
-    }),
-  ).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Welcome, Accessibility author/i })).toHaveCount(
-    0,
-  );
+  await expect(page.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
+  await expect(page.getByText("Welcome back, Accessibility author.")).toBeVisible();
   await expectNoDocumentOverflow(page);
   await expectNoSeriousOrCriticalViolations(page);
 
-  await page.getByRole("button", { name: "Create deck" }).first().click();
-  const createDialog = page.getByRole("dialog", { name: "Create a deck" });
-  await expect(createDialog).toBeVisible();
-  await expect(createDialog.getByRole("textbox", { name: "Deck title" })).toBeFocused();
-  await expectNoSeriousOrCriticalViolations(page);
+  await page.setViewportSize({ height: 844, width: 390 });
+  const workspaceTrigger = page.getByRole("button", { name: "Open workspace navigation" });
+  await workspaceTrigger.click();
+  const workspaceDrawer = page.getByRole("dialog", { name: "Workspace" });
+  await expect(workspaceDrawer).toBeVisible();
+  await page.keyboard.press("Shift+Tab");
+  expect(
+    await workspaceDrawer.evaluate((drawer) => drawer.contains(document.activeElement)),
+    "Keyboard focus should remain trapped in the workspace drawer",
+  ).toBe(true);
   await page.keyboard.press("Escape");
-  await expect(createDialog).toBeHidden();
+  await expect(workspaceDrawer).toBeHidden();
+  await expect(workspaceTrigger).toBeFocused();
+  await page.setViewportSize({ height: 900, width: 1440 });
 
-  await page.goto("/app/decks/new");
+  await page.getByRole("link", { name: "New deck" }).click();
+  await expect(page).toHaveURL(/\/app\/decks\/new$/u);
+  await expect(page.getByRole("heading", { level: 1, name: "Create a deck" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Deck title" })).toBeFocused();
+  await page.getByRole("textbox", { name: "Deck title" }).fill("Accessible authoring deck");
+  await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator(".card-type-option")).toHaveCount(17);
   const typedAnswer = page.locator('[aria-describedby="card-type-typed_answer-detail"]');
   await expect(typedAnswer).toBeVisible();
@@ -253,12 +258,11 @@ test("the authenticated library, creation dialog, and card editor are accessible
   await expectNoDocumentOverflow(page);
   await expectNoSeriousOrCriticalViolations(page);
 
-  await page.getByRole("textbox", { name: "Deck title" }).fill("Accessible authoring deck");
   const createResponse = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/content/decks") && response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Create deck and continue" }).click();
+  await page.getByRole("button", { name: "Create deck" }).click();
   expect((await createResponse).status()).toBe(201);
   await expect(page).toHaveURL(/\/app\/decks\/[^/]+\/edit\?type=typed_answer$/u);
 
@@ -270,7 +274,7 @@ test("the authenticated library, creation dialog, and card editor are accessible
   await page
     .getByRole("textbox", { name: "Accepted typed answers" })
     .fill("adenosine triphosphate");
-  await expect(page.getByText("Sibling 1")).toBeVisible();
+  await expect(page.getByText("Card 1")).toBeVisible();
   await expectNoDocumentOverflow(page);
   await expectNoSeriousOrCriticalViolations(page);
 

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { PageShell } from "@lumen/ui";
+import { brandConfig } from "@lumen/config/brand";
+import { LinkButton, PageShell } from "@lumen/ui";
 
+import { AppearanceControls } from "@/components/appearance-controls.client";
 import {
   PublicDeckAttribution,
   PublicDeckPreview,
@@ -36,36 +38,49 @@ export default async function PublicDeckPage({
   const deck = await readPublicDeck(slug);
   if (!deck) notFound();
   return (
-    <main id="main-content">
-      <PageShell width="wide" className="public-deck-shell">
-        <header className="public-deck-hero">
-          <div>
-            <span>Published deck</span>
-            <h1>{deck.title}</h1>
-            <p>{deck.description || "A focused collection of published recall cards."}</p>
-          </div>
-          {deck.coverMedia && (
-            // eslint-disable-next-line @next/next/no-img-element -- short-lived signed publication URL.
-            <img
-              alt={deck.coverMedia.altText}
-              className="public-deck-cover"
-              src={deck.coverMedia.signedUrl}
-            />
-          )}
-          <dl>
+    <div className="public-player-page">
+      <header className="public-player-header">
+        <a className="public-player-brand" href="/">
+          <span aria-hidden="true">{brandConfig.name.slice(0, 1)}</span>
+          <strong>{brandConfig.name}</strong>
+        </a>
+        <div className="public-player-header__actions">
+          <LinkButton href="/app" size="sm" variant="ghost">
+            Workspace
+          </LinkButton>
+          <AppearanceControls className="public-player-appearance" />
+        </div>
+      </header>
+      <main id="main-content">
+        <PageShell width="wide" className="public-deck-shell">
+          <header className="public-deck-hero">
             <div>
-              <dt>Cards</dt>
-              <dd>{deck.cardCount}</dd>
+              <h1>{deck.title}</h1>
+              {deck.description && <p>{deck.description}</p>}
+              <div className="public-deck-meta" aria-label="Deck summary">
+                <span>
+                  {deck.cardCount} {deck.cardCount === 1 ? "card" : "cards"}
+                </span>
+                <span>
+                  {deck.supportedCardTypes.length}{" "}
+                  {deck.supportedCardTypes.length === 1 ? "format" : "formats"}
+                </span>
+                <span>{deck.visibility}</span>
+              </div>
             </div>
-            <div>
-              <dt>Formats</dt>
-              <dd>{deck.supportedCardTypes.length}</dd>
-            </div>
-          </dl>
-        </header>
-        <PublicDeckPreview deck={deck} />
-        <PublicDeckAttribution deck={deck} />
-      </PageShell>
-    </main>
+            {deck.coverMedia && (
+              // eslint-disable-next-line @next/next/no-img-element -- short-lived signed publication URL.
+              <img
+                alt={deck.coverMedia.altText}
+                className="public-deck-cover"
+                src={deck.coverMedia.signedUrl}
+              />
+            )}
+          </header>
+          <PublicDeckPreview deck={deck} />
+          <PublicDeckAttribution deck={deck} />
+        </PageShell>
+      </main>
+    </div>
   );
 }

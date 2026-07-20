@@ -10,91 +10,98 @@ import {
 import { publicDeck } from "./fixtures/content";
 
 describe("public deck preview", () => {
-  it("flips and traverses a frozen public projection without implying study progress", async () => {
+  it("uses separate front and back faces and rotates only the shared inner card", () => {
+    const { container } = render(<PublicDeckPreview deck={publicDeck} />);
+
+    const inner = container.querySelector(".flashcard-inner");
+    const front = container.querySelector(".flashcard-face.flashcard-front");
+    const back = container.querySelector(".flashcard-face.flashcard-back");
+    expect(inner).toBeInTheDocument();
+    expect(inner).toHaveAttribute("data-flipped", "false");
+    expect(front?.parentElement).toBe(inner);
+    expect(back?.parentElement).toBe(inner);
+    expect(front).toHaveAttribute("data-face", "front");
+    expect(back).toHaveAttribute("data-face", "back");
+    expect(front).toHaveTextContent("What is ATP?");
+    expect(back).toHaveTextContent("The cell's usable energy carrier");
+    expect(front).not.toHaveAttribute("style");
+    expect(back).not.toHaveAttribute("style");
+  });
+
+  it("flips by click and resets to the front when navigating", async () => {
     const user = userEvent.setup();
-    render(<PublicDeckPreview deck={publicDeck} />);
+    const { container } = render(<PublicDeckPreview deck={publicDeck} />);
+    const scene = screen.getByRole("group", { name: /Question, card 1 of 2/i });
 
-    expect(screen.getAllByText("1 of 2")[0]).toBeVisible();
-    const card = screen.getByRole("region", { name: "Prompt card preview" });
-    expect(card.closest(".public-preview")).toHaveAttribute("data-deck-theme", "ocean");
-    expect(card).toHaveTextContent("What is ATP?");
-    expect(screen.getByRole("button", { name: /Previous/i })).toBeDisabled();
-    expect(
-      screen.getByText(/does not create learner progress, history, scheduling state/i),
-    ).toBeVisible();
+    expect(scene).toHaveTextContent("What is ATP?");
+    expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
+    await user.click(scene);
+    expect(screen.getByRole("group", { name: /Answer, card 1 of 2/i })).toBeVisible();
+    expect(container.querySelector(".flashcard-inner")).toHaveAttribute("data-flipped", "true");
 
-    await user.click(screen.getAllByRole("button", { name: "Reveal answer" })[0]!);
-    expect(screen.getByRole("region", { name: "Answer card preview" })).toHaveTextContent(
-      "The cell's usable energy carrier",
-    );
-
-    await user.click(screen.getByRole("button", { name: /Next/i }));
-    expect(screen.getAllByText("2 of 2")[0]).toBeVisible();
-    expect(screen.getByRole("region", { name: /Prompt card preview/i })).toHaveTextContent(
-      "Which organelle produces most ATP?",
-    );
-    expect(screen.getByRole("button", { name: /Next/i })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("group", { name: /Question, card 2 of 2/i })).toBeVisible();
+    expect(container.querySelector(".flashcard-inner")).toHaveAttribute("data-flipped", "false");
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
   });
 
   it.each(["neutral", "ocean", "forest", "contrast"] as const)(
     "applies the frozen %s deck theme to the rendered preview",
     (theme) => {
       const { container } = render(<PublicDeckPreview deck={{ ...publicDeck, theme }} />);
-
       expect(container.querySelector(".public-preview")).toHaveAttribute("data-deck-theme", theme);
     },
   );
 
-  it("supports the documented keyboard flip and navigation controls", () => {
+  it("supports Space, Enter, and arrow-key navigation", () => {
     render(<PublicDeckPreview deck={publicDeck} />);
+    const scene = screen.getByRole("group", { name: /Question, card 1 of 2/i });
+    scene.focus();
 
-    act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" })));
-    expect(screen.getAllByText("2 of 2")[0]).toBeVisible();
     act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: " " })));
-    expect(screen.getByRole("region", { name: /Answer card preview/i })).toHaveTextContent(
-      "Mitochondrion",
-    );
+    expect(screen.getByRole("group", { name: /Answer, card 1 of 2/i })).toBeVisible();
+    act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" })));
+    expect(screen.getByRole("group", { name: /Question, card 1 of 2/i })).toBeVisible();
+    act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" })));
+    expect(screen.getByRole("group", { name: /Question, card 2 of 2/i })).toBeVisible();
     act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" })));
-    expect(screen.getAllByText("1 of 2")[0]).toBeVisible();
-    expect(screen.getByRole("region", { name: /Prompt card preview/i })).toHaveTextContent(
-      "What is ATP?",
-    );
+    expect(screen.getByRole("group", { name: /Question, card 1 of 2/i })).toBeVisible();
   });
 
-  it("flips on click and supports touch swipe navigation", async () => {
+  it("supports touch swipe navigation without flipping the destination", () => {
+    render(<PublicDeckPreview deck={publicDeck} />);
+    const scene = screen.getByRole("group", { name: /Question, card 1 of 2/i });
+    fireEvent.touchStart(scene, { changedTouches: [{ clientX: 120 }] });
+    fireEvent.touchEnd(scene, { changedTouches: [{ clientX: 10 }] });
+    expect(screen.getByRole("group", { name: /Question, card 2 of 2/i })).toBeVisible();
+  });
+
+  it("uses a non-rotating reduced-motion state and removes visible duplicate flip copy", async () => {
     const user = userEvent.setup();
-    render(<PublicDeckPreview deck={publicDeck} />);
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        addEventListener: vi.fn(),
+        matches: query.includes("prefers-reduced-motion"),
+        media: query,
+        removeEventListener: vi.fn(),
+      })),
+    });
+    const { container } = render(<PublicDeckPreview deck={publicDeck} />);
 
-    await user.click(screen.getByRole("button", { name: /Prompt card preview/i }));
-    expect(screen.getByRole("region", { name: /Answer card preview/i })).toHaveTextContent(
-      "The cell's usable energy carrier",
+    expect(container.querySelector(".public-preview")).toHaveAttribute(
+      "data-reduced-motion",
+      "true",
     );
-
-    fireEvent.touchStart(screen.getByRole("button", { name: /Answer card preview/i }), {
-      changedTouches: [{ clientX: 120 }],
-    });
-    fireEvent.touchEnd(screen.getByRole("button", { name: /Answer card preview/i }), {
-      changedTouches: [{ clientX: 10 }],
-    });
-
-    expect(screen.getAllByText("2 of 2")[0]).toBeVisible();
-  });
-
-  it("uses reduced-motion-aware flip behavior and hides the old swipe hint", () => {
-    const matchMedia = vi.fn().mockImplementation((query: string) => ({
-      addEventListener: vi.fn(),
-      matches: query.includes("prefers-reduced-motion"),
-      media: query,
-      removeEventListener: vi.fn(),
-    }));
-    Object.defineProperty(window, "matchMedia", { configurable: true, value: matchMedia });
-
-    render(<PublicDeckPreview deck={publicDeck} />);
-
-    expect(
-      screen.getByRole("region", { name: /Prompt card preview/i }).closest(".public-preview"),
-    ).toHaveAttribute("data-reduced-motion", "true");
-    expect(screen.queryByText(/Tap to flip/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Flip card" }));
+    expect(container.querySelector(".flashcard-inner")).toHaveAttribute("data-flipped", "true");
+    expect(screen.queryByText("Tap to flip")).not.toBeInTheDocument();
+    expect(screen.queryByText("Reveal answer")).not.toBeInTheDocument();
+    expect(screen.queryByText("Show prompt")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Flip card" })).toHaveLength(1);
+    expect(screen.getByText(/does not create study progress or history/i)).toHaveClass(
+      "visually-hidden",
+    );
   });
 
   it("renders published custom audio from the frozen public media projection", () => {
@@ -157,39 +164,28 @@ describe("public deck preview", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Published spoken clue")).toHaveAttribute("src", signedUrl);
+    expect(screen.getAllByLabelText("Published spoken clue")).toHaveLength(2);
+    expect(screen.getAllByLabelText("Published spoken clue")[0]).toHaveAttribute("src", signedUrl);
   });
 
-  it("does not hijack keyboard input or double-toggle nested interactive controls", async () => {
+  it("does not hijack nested inputs or flip from nested interactions", async () => {
     const user = userEvent.setup();
     render(<PublicDeckPreview deck={publicDeck} />);
-
-    await user.click(screen.getByRole("button", { name: /Next/i }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
     const answer = screen.getByRole("textbox", { name: "Typed answer preview" });
-    answer.focus();
+    await user.click(answer);
     fireEvent.keyDown(answer, { key: " " });
     fireEvent.keyDown(answer, { key: "Enter" });
-    expect(screen.getByRole("region", { name: "Prompt card preview" })).toBeVisible();
-
-    await user.click(screen.getByRole("button", { name: "Reveal answer" }));
-    expect(screen.getByRole("region", { name: "Answer card preview" })).toBeVisible();
+    expect(screen.getByRole("group", { name: /Question, card 2 of 2/i })).toBeVisible();
   });
 
-  it("shows creator attribution, license, public card types, and safe return-aware auth links", () => {
+  it("shows compact creator, license, date, and visibility attribution", () => {
     render(<PublicDeckAttribution deck={publicDeck} />);
-
-    expect(screen.getByRole("heading", { level: 2, name: "Ari Learner" })).toBeVisible();
-    expect(screen.getByText("@ari_learns")).toBeVisible();
-    expect(screen.getByText("CC BY")).toBeVisible();
-    expect(screen.getByText("basic, typed answer")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Create your own deck" })).toHaveAttribute(
-      "href",
-      "/auth/sign-up?returnTo=%2Fdeck%2Fcell-energy",
-    );
-    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
-      "href",
-      "/auth/sign-in?returnTo=%2Fdeck%2Fcell-energy",
-    );
+    const details = screen.getByRole("contentinfo", { name: "Deck details" });
+    expect(details).toHaveTextContent("Ari Learner");
+    expect(details).toHaveTextContent("cc by");
+    expect(details).toHaveTextContent("Updated");
+    expect(details).toHaveTextContent("public");
     expect(screen.queryByText(publicDeck.publicId)).not.toBeInTheDocument();
   });
 
@@ -199,10 +195,9 @@ describe("public deck preview", () => {
         deck={{ ...publicDeck, cardCount: 0, cards: [], supportedCardTypes: [] }}
       />,
     );
-
-    expect(screen.getByText("No cards")).toBeVisible();
     expect(screen.getByText("This published deck has no cards.")).toBeVisible();
-    expect(screen.getByRole("button", { name: /Previous/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Next/i })).toBeDisabled();
+    expect(screen.getByText("0 / 0")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
   });
 });

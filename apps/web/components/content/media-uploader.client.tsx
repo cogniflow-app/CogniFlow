@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, FormField, Input } from "@lumen/ui";
+import { Button, FileIcon, FormField, Input, TrashIcon, UploadIcon } from "@lumen/ui";
 import { useEffect, useRef, useState } from "react";
 
 import { ContentApiRequestError, PendingContentMutations } from "@/lib/content/client-mutations";
@@ -58,6 +58,9 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
   const [state, setState] = useState<"error" | "idle" | "preparing" | "uploading">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  const [attached, setAttached] = useState<UploadedMediaAsset | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const requestRef = useRef<XMLHttpRequest | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -104,6 +107,7 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
       setFile(processed);
       setPreview(URL.createObjectURL(processed));
       setProgress(0);
+      setAttached(null);
       setState("idle");
     } catch {
       setState("error");
@@ -181,7 +185,8 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
       if (!mountedRef.current) return;
       setProgress(100);
       setState("idle");
-      setMessage("Media saved and ready to attach.");
+      setAttached(asset);
+      setMessage(`${kind === "image" ? "Image" : "Audio"} attached.`);
       onUploaded(asset);
     });
     request.addEventListener("error", () => {
@@ -274,22 +279,69 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
     kind === "image"
       ? "image/png,image/jpeg,image/webp"
       : "audio/mpeg,audio/mp4,audio/ogg,audio/webm,audio/wav";
+
+  function clearSelection() {
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(null);
+    setPreview(null);
+    setProgress(0);
+    setAttached(null);
+    setMessage(null);
+    setState("idle");
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
   return (
-    <section className="grid gap-4" aria-label={label}>
+    <section className="media-uploader" aria-label={label}>
       <FormField
         label={label}
-        description={
-          kind === "image"
-            ? "Images are resized and compressed locally, then verified again before private storage. SVG and uploaded video are not accepted."
-            : "Audio stays local until you explicitly upload it. Include a transcript for an accessible fallback."
-        }
+        description={kind === "image" ? "PNG, JPEG, or WebP" : "MP3, MP4, OGG, WebM, or WAV"}
       >
-        <Input
-          accept={accept}
-          disabled={state === "uploading"}
-          onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)}
-          type="file"
-        />
+        <div
+          className="media-dropzone"
+          data-dragging={dragging}
+          data-has-file={Boolean(file)}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            setDragging(false);
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragging(false);
+            void chooseFile(event.dataTransfer.files[0] ?? null);
+          }}
+        >
+          {file ? <FileIcon aria-hidden="true" /> : <UploadIcon aria-hidden="true" />}
+          <div>
+            <strong>{file?.name ?? `Drop ${kind === "image" ? "an image" : "audio"} here`}</strong>
+            <span>
+              {file
+                ? `${(file.size / 1_048_576).toFixed(1)} MB`
+                : "or choose a file from your device"}
+            </span>
+          </div>
+          <Button
+            disabled={state === "uploading"}
+            onClick={() => inputRef.current?.click()}
+            size="sm"
+            variant="secondary"
+          >
+            {file ? `Replace ${kind}` : `Choose ${kind}`}
+          </Button>
+          <Input
+            ref={inputRef}
+            accept={accept}
+            className="visually-hidden"
+            disabled={state === "uploading"}
+            onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)}
+            type="file"
+          />
+        </div>
       </FormField>
       {kind === "audio" && (
         <div className="flex flex-wrap gap-2">
@@ -307,13 +359,13 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
       {preview && kind === "image" && (
         // eslint-disable-next-line @next/next/no-img-element -- local blob preview is not an optimizable network image.
         <img
-          className="max-h-72 w-full rounded-[var(--radius-lg)] object-contain"
+          className="media-uploader__preview"
           src={preview}
           alt={altText || "Selected image preview"}
         />
       )}
       {preview && kind === "audio" && (
-        <audio className="w-full" controls preload="metadata" src={preview}>
+        <audio className="media-uploader__audio" controls preload="metadata" src={preview}>
           Your browser cannot play this preview. Use the transcript below.
         </audio>
       )}
@@ -337,8 +389,8 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
         </FormField>
       )}
       {state === "uploading" && (
-        <div>
-          <div className="mb-1 flex justify-between text-sm text-[var(--color-text-muted)]">
+        <div className="media-upload-progress">
+          <div>
             <span>Uploading</span>
             <span>{progress}%</span>
           </div>
@@ -356,7 +408,11 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button disabled={!file} loading={state === "preparing"} onClick={() => void upload()}>
+        <Button
+          disabled={!file || Boolean(attached)}
+          loading={state === "preparing"}
+          onClick={() => void upload()}
+        >
           Upload and attach
         </Button>
         {state === "uploading" && (
@@ -367,6 +423,11 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
         {state === "error" && file && (
           <Button onClick={() => void upload()} variant="secondary">
             Retry
+          </Button>
+        )}
+        {file && state !== "uploading" && !attached && (
+          <Button leadingIcon={<TrashIcon />} onClick={clearSelection} variant="ghost">
+            Remove
           </Button>
         )}
       </div>
