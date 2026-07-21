@@ -208,7 +208,8 @@ test("the workspace Appearance popover is pointer-accessible above the mobile dr
   await page.getByRole("button", { name: "Open workspace navigation" }).click();
   const workspaceDrawer = page.getByRole("dialog", { name: "Workspace" });
   await expect(workspaceDrawer).toBeVisible();
-  await workspaceDrawer.getByRole("button", { name: "Appearance" }).click();
+  const appearanceTrigger = workspaceDrawer.getByRole("button", { name: "Appearance" });
+  await appearanceTrigger.click();
 
   const appearancePopover = page.locator(".workspace-appearance__popover");
   const colorTheme = appearancePopover.getByLabel("Color theme");
@@ -241,6 +242,7 @@ test("the workspace Appearance popover is pointer-accessible above the mobile dr
   await page.keyboard.press("Escape");
   await expect(appearancePopover).toBeHidden();
   await expect(workspaceDrawer).toBeVisible();
+  await expect(appearanceTrigger).toBeFocused();
 });
 
 test("the dark design-system gallery has no serious or critical axe violations", async ({

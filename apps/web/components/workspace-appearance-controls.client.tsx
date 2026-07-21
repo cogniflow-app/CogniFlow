@@ -1,15 +1,27 @@
 "use client";
 
 import { Button, PaletteIcon, Popover } from "@lumen/ui";
+import { useState, type KeyboardEvent } from "react";
 
 import { AppearanceMenu } from "./appearance-controls.client";
 
 export function WorkspaceAppearanceControls() {
+  const [open, setOpen] = useState(false);
+
+  function closeBeforeDrawer(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    setOpen(false);
+  }
+
   return (
     <div className="workspace-appearance">
       <Popover
         align="start"
         className="workspace-appearance__popover"
+        onOpenChange={setOpen}
+        open={open}
         side="top"
         title="Appearance"
         trigger={
@@ -19,7 +31,9 @@ export function WorkspaceAppearanceControls() {
           </Button>
         }
       >
-        <AppearanceMenu persistToAccount />
+        <div onKeyDownCapture={closeBeforeDrawer}>
+          <AppearanceMenu persistToAccount />
+        </div>
       </Popover>
     </div>
   );

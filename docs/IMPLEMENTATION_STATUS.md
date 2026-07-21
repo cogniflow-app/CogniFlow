@@ -1,8 +1,8 @@
 # Implementation status
 
 **Current phase:** Phase 02 — content model, editor, media, and card types  
-**Status:** Usability and authoring redesign complete and aggregate-verified locally; the branch
-Preview is pending  
+**Status:** Usability and authoring redesign complete and aggregate-verified locally; one draft
+pull request is open and the final branch Preview is pending  
 **Evidence date:** 2026-07-21 UTC  
 **Next phase:** Phase 03 has not started
 
@@ -12,7 +12,7 @@ This record describes implemented repository behavior and verified local and hos
 
 Local branch `codex/phase-02-usability-and-authoring-redesign` contains the acceptance-hardened,
 presentation- and interaction-only redesign of the existing Phase 02 surfaces. It began at clean
-`origin/main` and will be published as one draft pull request after the final aggregate gate. The
+`origin/main` and is published as one draft pull request after the final aggregate gate. The
 changes add no content API or database contract, authentication behavior, appearance persistence
 contract, environment variable, RLS policy, hosted database operation, or migration. Phase 03
 remains unstarted.
@@ -55,8 +55,9 @@ The post-merge acceptance audit additionally closed concrete edge cases found by
 interaction inspection:
 
 - Appearance now wins pointer hit testing above the focus-trapped mobile workspace drawer; the
-  Library rail, cards, primary action, media actions, editor top bar, and long centralized brand
-  names remain contained at 320×568 and 200% text.
+  first Escape explicitly closes that inner popover, preserves the drawer, and restores its trigger
+  focus. The Library rail, cards, primary action, media actions, editor top bar, and long centralized
+  brand names remain contained at 320×568 and 200% text.
 - All card types now receive friendly, control-associated validation. Diagram group renames persist
   without losing focus, unsafe custom-card CSS marks the scoped-CSS field, visual-region errors map
   to the exact region controls, and raw paths/codes never render.
@@ -93,15 +94,15 @@ light/dark themes, serious mode, reduced motion, keyboard-only interaction, and 
 | `pnpm secret:scan`                    | Exit 0; no credential finding                                                           |
 | `pnpm lint` / `pnpm typecheck`        | Exit 0; lint/dependency boundaries and 8/8 strict TypeScript projects pass              |
 | `pnpm test`                           | Exit 0; 76 files / 617 tests pass                                                       |
-| Coverage                              | 80.52% statements, 69.94% branches, 81.77% functions, and 84.20% lines                  |
+| Coverage                              | 80.52% statements, 70.00% branches, 81.77% functions, and 84.20% lines                  |
 | `pnpm db:reset` / `pnpm test:db`      | Exit 0; unchanged 33-migration chain resets and 19 files / 795 assertions pass          |
 | `pnpm db:types:check`                 | Exit 0; generated database types remain current                                         |
 | verification-wrapped production build | Exit 0; optimized Next build generates 60 route/static entries                          |
 | verification-wrapped portable build   | Exit 0; OpenNext emits the portable worker                                              |
 | `pnpm test:e2e`                       | Exit 0; 25 pass and 17 intentional cross-project skips                                  |
 | `pnpm test:a11y`                      | Exit 0; 28/28 axe, theme, motion, focus, drawer, and authenticated keyboard checks pass |
-| `pnpm test:lighthouse`                | Exit 0; scores 99/100/96/100; FCP 0.757 s, LCP 2.173 s, TBT 16 ms, and CLS 0            |
-| `pnpm test:load`                      | Exit 0; 15/15 checks, 3/3 requests, 0% failures, and request-duration p95 6.82 ms       |
+| `pnpm test:lighthouse`                | Exit 0; scores 99/100/96/100; FCP 0.759 s, LCP 2.179 s, TBT 20 ms, and CLS 0            |
+| `pnpm test:load`                      | Exit 0; 15/15 checks, 3/3 requests, 0% failures, and request-duration p95 9.89 ms       |
 | `pnpm verify`                         | Exit 0; complete aggregate gate passed on the documented redesign tree                  |
 
 No new setup step or environment variable is required. The later-owner constraints below are
