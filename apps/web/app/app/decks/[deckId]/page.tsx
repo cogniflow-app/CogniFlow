@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Badge } from "@lumen/ui";
-
 import { BulkQuickEditor } from "@/components/content/deck-workspace.client";
 import { requireAccountContext } from "@/lib/server/account-context";
 import { readDeckDetail } from "@/lib/server/content-repository";
@@ -20,42 +18,24 @@ export default async function DeckOverviewPage({
   const canEdit = deck.status === "active" && ["owner", "manager", "editor"].includes(deck.role);
   return (
     <div className="grid gap-5">
-      <section className="deck-stat-grid" aria-label="Deck totals">
-        <div>
-          <strong>{deck.noteCount}</strong>
-          <span>Card entries</span>
+      <dl className="deck-stat-grid" aria-label="Deck totals">
+        <div className="deck-stat">
+          <dt>Card entries</dt>
+          <dd>{deck.noteCount}</dd>
         </div>
-        <div>
-          <strong>{deck.cardCount}</strong>
-          <span>Study cards</span>
+        <div className="deck-stat">
+          <dt>Study cards</dt>
+          <dd>{deck.cardCount}</dd>
         </div>
-        <div>
-          <strong>{deck.supportedCardTypes.length}</strong>
-          <span>Card types</span>
+        <div className="deck-stat">
+          <dt>Card types</dt>
+          <dd>{deck.supportedCardTypes.length}</dd>
         </div>
-        <div>
-          <strong>{deck.versions.length}</strong>
-          <span>Content versions</span>
+        <div className="deck-stat">
+          <dt>Content versions</dt>
+          <dd>{deck.versions.length}</dd>
         </div>
-      </section>
-      <section className="deck-panel">
-        <div className="section-heading">
-          <div>
-            <h2>Card-type mix</h2>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {deck.supportedCardTypes.length ? (
-            deck.supportedCardTypes.map((type) => (
-              <Badge key={type} tone="info">
-                {type.replaceAll("_", " ")}
-              </Badge>
-            ))
-          ) : (
-            <p>No cards yet.</p>
-          )}
-        </div>
-      </section>
+      </dl>
       {canEdit && <BulkQuickEditor deckId={deck.id} />}
     </div>
   );
