@@ -46,7 +46,7 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
         ? "warning"
         : "neutral";
   return (
-    <article className="deck-tile">
+    <article className="deck-tile" data-deck-theme={deck.theme ?? "neutral"}>
       <div className="deck-tile__top">
         <div className="deck-tile__cover">
           <span aria-hidden="true" className="deck-tile__mark">
@@ -180,7 +180,8 @@ export function LibraryDashboard({
 
   const visibleDecks = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
-    const filtered = decks.filter((deck) => {
+    const sourceDecks = filterMode === "recent" ? snapshot.recentlyEdited : decks;
+    return sourceDecks.filter((deck) => {
       const matchesQuery =
         !normalized ||
         deck.title.toLocaleLowerCase().includes(normalized) ||
@@ -196,10 +197,7 @@ export function LibraryDashboard({
               : true;
       return matchesQuery && matchesFolder && matchesFilter;
     });
-    return filterMode === "recent"
-      ? filtered.filter((deck) => deck.status === "active").slice(0, 200)
-      : filtered;
-  }, [decks, filterMode, query, selectedFolder]);
+  }, [decks, filterMode, query, selectedFolder, snapshot.recentlyEdited]);
 
   async function createFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -391,15 +389,17 @@ export function LibraryDashboard({
               value={filterMode}
             />
             <div className="library-toolbar__actions">
-              <Select
-                aria-label="Folder filter"
-                onValueChange={(value) => setSelectedFolder(value === "all" ? null : value)}
-                options={[
-                  { label: "Every folder", value: "all" },
-                  ...folders.map((folder) => ({ label: folder.name, value: folder.id })),
-                ]}
-                value={selectedFolder ?? "all"}
-              />
+              <div className="library-folder-filter">
+                <Select
+                  aria-label="Folder filter"
+                  onValueChange={(value) => setSelectedFolder(value === "all" ? null : value)}
+                  options={[
+                    { label: "Every folder", value: "all" },
+                    ...folders.map((folder) => ({ label: folder.name, value: folder.id })),
+                  ]}
+                  value={selectedFolder ?? "all"}
+                />
+              </div>
               <div className="view-toggle" role="group" aria-label="Deck presentation">
                 <Tooltip content="Grid view">
                   <IconButton
@@ -431,11 +431,6 @@ export function LibraryDashboard({
             <aside className="folder-panel" aria-labelledby="folders-heading">
               <div className="folder-panel__header">
                 <h2 id="folders-heading">Folders</h2>
-                {canCreate && (
-                  <Button onClick={() => setFolderDialogOpen(true)} size="sm" variant="ghost">
-                    Add
-                  </Button>
-                )}
               </div>
               <ul className="folder-tree">
                 <li>
@@ -503,9 +498,8 @@ export function LibraryDashboard({
                 <div className="deck-panel mt-4 text-center">
                   <h3 className="m-0">No decks match this view</h3>
                   <p className="text-[var(--color-text-muted)]">
-                    Clear a filter, search another phrase, or create a deck here.
+                    Clear a filter or search another phrase.
                   </p>
-                  {canCreate && <LinkButton href="/app/decks/new">New deck</LinkButton>}
                 </div>
               )}
             </section>

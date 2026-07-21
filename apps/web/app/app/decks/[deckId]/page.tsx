@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Badge, LinkButton } from "@lumen/ui";
+import { Badge } from "@lumen/ui";
 
 import { BulkQuickEditor } from "@/components/content/deck-workspace.client";
 import { requireAccountContext } from "@/lib/server/account-context";
@@ -43,9 +43,6 @@ export default async function DeckOverviewPage({
           <div>
             <h2>Card-type mix</h2>
           </div>
-          {canEdit && (
-            <LinkButton href={`/app/decks/${deck.id}/edit`}>Add an advanced note</LinkButton>
-          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {deck.supportedCardTypes.length ? (

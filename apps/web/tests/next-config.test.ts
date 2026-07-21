@@ -121,6 +121,27 @@ describe("Next environment validation", () => {
     });
   });
 
+  it("allows local signed media only in development image and media directives", async () => {
+    const development = createNextConfigForEnvironment(PHASE_DEVELOPMENT_SERVER, {});
+    const production = createNextConfigForEnvironment(
+      PHASE_PRODUCTION_BUILD,
+      createProductionEnvironmentFixture(),
+    );
+    const developmentPolicy = (await development.headers?.())
+      ?.flatMap(({ headers }) => headers)
+      .find(({ key }) => key === "Content-Security-Policy")?.value;
+    const productionPolicy = (await production.headers?.())
+      ?.flatMap(({ headers }) => headers)
+      .find(({ key }) => key === "Content-Security-Policy")?.value;
+    const directive = (policy: string | undefined, name: string) =>
+      policy?.split("; ").find((value) => value.startsWith(`${name} `));
+
+    expect(directive(developmentPolicy, "img-src")).toContain("http://127.0.0.1:*");
+    expect(directive(developmentPolicy, "media-src")).toContain("http://127.0.0.1:*");
+    expect(directive(productionPolicy, "img-src")).not.toContain("http://127.0.0.1:*");
+    expect(directive(productionPolicy, "media-src")).not.toContain("http://127.0.0.1:*");
+  });
+
   it("allows only the dedicated public deck route to be framed", async () => {
     const config = createNextConfigForEnvironment(
       PHASE_PRODUCTION_BUILD,

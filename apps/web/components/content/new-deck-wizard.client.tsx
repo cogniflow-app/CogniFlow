@@ -3,7 +3,7 @@
 import { Button, CheckIcon, FormField, Input, Select, Textarea } from "@lumen/ui";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { CARD_TYPE_BY_CODE } from "@/lib/content/card-types";
 import { PendingContentMutations, performContentMutation } from "@/lib/content/client-mutations";
@@ -42,6 +42,11 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pendingMutations = useRef(new PendingContentMutations());
+  const stepTwoHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (step === 2) stepTwoHeadingRef.current?.focus();
+  }, [step]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -104,6 +109,9 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
       </header>
 
       <form className="deck-creation-form" onSubmit={submit}>
+        <p aria-atomic="true" aria-live="polite" className="visually-hidden">
+          Step {step} of 2: {step === 1 ? "Deck details" : "Choose your first card type"}
+        </p>
         {step === 1 ? (
           <section aria-labelledby="deck-details-heading">
             <h2 id="deck-details-heading">Deck details</h2>
@@ -141,7 +149,9 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
           <section aria-labelledby="card-type-heading">
             <div className="deck-creation-section-heading">
               <div>
-                <h2 id="card-type-heading">Choose your first card type</h2>
+                <h2 id="card-type-heading" ref={stepTwoHeadingRef} tabIndex={-1}>
+                  Choose your first card type
+                </h2>
                 <p>Basic is a great default. You can mix formats later.</p>
               </div>
               <span className="selected-card-type">

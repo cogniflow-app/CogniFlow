@@ -9,6 +9,7 @@ import {
   PublicDeckPreview,
 } from "@/components/content/public-deck-preview.client";
 import { readPublicDeck } from "@/lib/server/content-repository";
+import { readOwnedPublicDeckId, readPublicViewerContext } from "@/lib/server/public-viewer";
 
 export async function generateMetadata({
   params,
@@ -37,18 +38,33 @@ export default async function PublicDeckPage({
   const { slug } = await params;
   const deck = await readPublicDeck(slug);
   if (!deck) notFound();
+  const viewer = await readPublicViewerContext(`/deck/${slug}`);
+  const ownedDeckId = viewer.authenticated ? await readOwnedPublicDeckId(deck.publicId) : null;
   return (
     <div className="public-player-page">
       <header className="public-player-header">
-        <a className="public-player-brand" href="/">
+        <a aria-label={`${brandConfig.name} home`} className="public-player-brand" href="/">
           <span aria-hidden="true">{brandConfig.name.slice(0, 1)}</span>
           <strong>{brandConfig.name}</strong>
         </a>
         <div className="public-player-header__actions">
-          <LinkButton href="/app" size="sm" variant="ghost">
-            Workspace
+          {ownedDeckId && (
+            <LinkButton href={`/app/decks/${ownedDeckId}/settings`} size="sm" variant="ghost">
+              Manage deck
+            </LinkButton>
+          )}
+          <LinkButton
+            aria-label={viewer.authenticated ? "Open your workspace" : "Sign in to your account"}
+            href={viewer.authenticated ? viewer.accountHref : viewer.signInHref}
+            size="sm"
+            variant="ghost"
+          >
+            {viewer.authenticated ? "Workspace" : "Sign in"}
           </LinkButton>
-          <AppearanceControls className="public-player-appearance" />
+          <AppearanceControls
+            className="public-player-appearance"
+            persistToAccount={viewer.authenticated}
+          />
         </div>
       </header>
       <main id="main-content">

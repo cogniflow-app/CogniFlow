@@ -198,6 +198,14 @@ describe("deck authoring workspace", () => {
     const user = userEvent.setup();
     render(<BulkQuickEditor deckId={activeDeck.id} />);
 
+    expect(screen.getByRole("table", { name: "Quick note rows" })).toHaveAttribute(
+      "aria-rowcount",
+      "4",
+    );
+    expect(screen.getAllByRole("row")).toHaveLength(4);
+    expect(screen.getAllByRole("columnheader")).toHaveLength(4);
+    expect(screen.getAllByRole("cell")).toHaveLength(12);
+
     await user.click(screen.getByRole("button", { name: "Save complete rows" }));
     expect(screen.getByText("Enter a front and back for at least one row.")).toBeVisible();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -245,6 +253,7 @@ describe("deck authoring workspace", () => {
       "href",
       `/app/decks/${deckDetail.id}/edit?note=${deckDetail.notes[0]!.id}`,
     );
+    expect(screen.queryByRole("link", { name: "Add note" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("checkbox", { name: "Select What is ATP?" }));
     expect(screen.getByRole("region", { name: "Bulk note actions" })).toHaveTextContent(

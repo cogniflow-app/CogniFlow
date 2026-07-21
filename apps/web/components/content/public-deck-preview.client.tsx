@@ -1,7 +1,15 @@
 "use client";
 
 import { ArrowLeftIcon, ArrowRightIcon, Badge, Button } from "@lumen/ui";
-import { useCallback, useEffect, useRef, useState, type MouseEvent, type TouchEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type TouchEvent,
+} from "react";
 
 import type { PublicDeckView } from "@/lib/content/view-models";
 
@@ -12,7 +20,7 @@ function isNestedInteractiveTarget(target: EventTarget | null): boolean {
     target instanceof Element &&
     Boolean(
       target.closest(
-        'a,button,input,select,textarea,audio,video,canvas,summary,[contenteditable="true"],[role="button"],[role="slider"],[role="radio"],[role="checkbox"]',
+        'a,button,input,label,select,textarea,audio,video,canvas,summary,[contenteditable="true"],[role="button"],[role="slider"],[role="radio"],[role="checkbox"]',
       ),
     )
   );
@@ -22,7 +30,7 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
   const [index, setIndex] = useState(0);
   const [back, setBack] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const touchStart = useRef<number | null>(null);
+  const touchStart = useRef<{ readonly x: number; readonly y: number } | null>(null);
   const didSwipe = useRef(false);
   const card = deck.cards[index];
 
@@ -51,38 +59,26 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
     };
   }, []);
 
-  useEffect(() => {
-    function keydown(event: KeyboardEvent) {
-      if (isNestedInteractiveTarget(event.target)) return;
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        move(-1);
-      }
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        move(1);
-      }
-      if (event.key === " " || event.key === "Enter") {
-        event.preventDefault();
-        flip();
-      }
-    }
-    window.addEventListener("keydown", keydown);
-    return () => window.removeEventListener("keydown", keydown);
-  }, [flip, move]);
-
   function beginTouch(event: TouchEvent) {
-    touchStart.current = event.changedTouches[0]?.clientX ?? null;
     didSwipe.current = false;
+    if (isNestedInteractiveTarget(event.target)) {
+      touchStart.current = null;
+      return;
+    }
+    const touch = event.changedTouches[0];
+    touchStart.current = touch ? { x: touch.clientX, y: touch.clientY ?? 0 } : null;
   }
 
   function finishTouch(event: TouchEvent) {
     const start = touchStart.current;
-    const end = event.changedTouches[0]?.clientX;
+    const end = event.changedTouches[0];
     touchStart.current = null;
-    if (start === null || end === undefined || Math.abs(end - start) < 48) return;
+    if (!start || !end || isNestedInteractiveTarget(event.target)) return;
+    const deltaX = end.clientX - start.x;
+    const deltaY = (end.clientY ?? 0) - start.y;
+    if (Math.abs(deltaX) < 48 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
     didSwipe.current = true;
-    move(end < start ? 1 : -1);
+    move(deltaX < 0 ? 1 : -1);
   }
 
   function handleCardClick(event: MouseEvent<HTMLDivElement>) {
@@ -92,6 +88,22 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
     }
     if (isNestedInteractiveTarget(event.target)) return;
     flip();
+  }
+
+  function handleCardKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (isNestedInteractiveTarget(event.target)) return;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      move(-1);
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      move(1);
+    }
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      flip();
+    }
   }
 
   return (
@@ -113,6 +125,7 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
           aria-label={`${back ? "Answer" : "Question"}, card ${String(index + 1)} of ${String(deck.cards.length)}`}
           className="flashcard-scene"
           onClick={handleCardClick}
+          onKeyDown={handleCardKeyDown}
           onTouchEnd={finishTouch}
           onTouchStart={beginTouch}
           role="group"

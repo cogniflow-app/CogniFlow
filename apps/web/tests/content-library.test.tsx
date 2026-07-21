@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -67,6 +67,10 @@ describe("content library dashboard", () => {
       "href",
       `/app/decks/${populatedLibrarySnapshot.decks[0]!.id}`,
     );
+    expect(screen.getByRole("link", { name: /Cell biology/i }).closest("article")).toHaveAttribute(
+      "data-deck-theme",
+      "forest",
+    );
     expect(screen.queryByRole("link", { name: /Spanish verbs/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Grid view" })).toHaveAttribute(
       "aria-pressed",
@@ -77,6 +81,7 @@ describe("content library dashboard", () => {
     expect(
       screen.getByRole("heading", { level: 3, name: "No decks match this view" }),
     ).toBeVisible();
+    expect(screen.getAllByRole("link", { name: "New deck" })).toHaveLength(1);
 
     await user.clear(screen.getByRole("searchbox", { name: "Search decks" }));
     const allFilter = screen.getByRole("radio", { name: "All" });
@@ -100,6 +105,8 @@ describe("content library dashboard", () => {
       "href",
       "/app/decks/new",
     );
+    expect(screen.getAllByRole("button", { name: "New folder" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
   });
 
   it("reuses a folder creation key when the first response is lost", async () => {
@@ -152,15 +159,20 @@ describe("content library dashboard", () => {
     expect(screen.queryByRole("button", { name: /folder/i })).not.toBeInTheDocument();
   });
 
-  it("renders only the bounded recent slice while reporting exact 250-plus totals", () => {
+  it("uses the repository-provided recent collection while retaining the bounded all-decks view", async () => {
     const snapshot = largeLibrarySnapshot(260);
+    const user = userEvent.setup();
     render(<LibraryDashboard canCreate learnerName="Ari" snapshot={snapshot} />);
 
     expect(screen.getByRole("status")).toHaveTextContent(
       "Showing most recently edited 200 of 260 decks.",
     );
-    expect(screen.getAllByRole("link", { name: /Deck \d{3}/i })).toHaveLength(200);
+    expect(screen.getAllByRole("link", { name: /Deck \d{3}/i })).toHaveLength(6);
     expect(screen.getByLabelText("Library totals")).toHaveTextContent("260 decks");
+    expect(screen.queryByRole("link", { name: /Deck 007/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "All" }));
+    expect(screen.getAllByRole("link", { name: /Deck \d{3}/i })).toHaveLength(200);
     expect(screen.queryByRole("link", { name: /Deck 201/i })).not.toBeInTheDocument();
   });
 
@@ -205,6 +217,7 @@ describe("published decks dashboard", () => {
     ...activeDeck,
     publicId: "0190d9f0-0000-7000-8000-000000000099",
     publicSlug: "cell-biology",
+    theme: "ocean" as const,
     visibility: "public" as const,
   };
 
@@ -226,6 +239,9 @@ describe("published decks dashboard", () => {
       "href",
       `/app/decks/${publicDeck.id}/settings`,
     );
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Cell biology" }).closest("article"),
+    ).toHaveAttribute("data-deck-theme", "ocean");
 
     await user.click(screen.getAllByRole("button", { name: "Copy link" })[0]!);
     expect(writeText).toHaveBeenCalledWith("http://localhost:3000/deck/cell-biology");
@@ -240,5 +256,40 @@ describe("published decks dashboard", () => {
     await user.click(screen.getByRole("button", { name: "Unpublish" }));
     expect(screen.getByRole("dialog", { name: "Unpublish Spanish verbs?" })).toBeVisible();
     expect(screen.getByText(/public link will stop working/i)).toBeVisible();
+  });
+
+  it("clears copy confirmation after its display interval and cancels the timer on unmount", async () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    try {
+      const { unmount } = render(<PublishedDecksDashboard initialDecks={[publicDeck]} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+        await Promise.resolve();
+      });
+      expect(screen.getByRole("button", { name: "Copied" })).toBeVisible();
+      expect(screen.getByText("Link copied for Cell biology.")).toBeVisible();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_800);
+      });
+      expect(screen.getByRole("button", { name: "Copy link" })).toBeVisible();
+      expect(screen.queryByText("Link copied for Cell biology.")).not.toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+        await Promise.resolve();
+      });
+      expect(vi.getTimerCount()).toBe(1);
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

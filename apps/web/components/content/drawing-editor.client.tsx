@@ -9,6 +9,7 @@ interface DrawingEditorProps {
   readonly onTypedFallbackChange: (value: string) => void;
   readonly strokes: readonly DrawingStroke[];
   readonly typedFallback: string;
+  readonly typedFallbackError?: string | undefined;
 }
 
 function drawStrokes(canvas: HTMLCanvasElement, strokes: readonly DrawingStroke[]): void {
@@ -45,6 +46,7 @@ export function DrawingEditor({
   onTypedFallbackChange,
   strokes,
   typedFallback,
+  typedFallbackError,
 }: DrawingEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const activeRef = useRef<DrawingStroke | null>(null);
@@ -178,6 +180,7 @@ export function DrawingEditor({
       <FormField
         label="Typed or nonvisual alternative"
         description="Describe the intended drawing so the card can be completed without pointer input. Drawing correctness remains self-reviewed."
+        error={typedFallbackError}
         required
       >
         <Input

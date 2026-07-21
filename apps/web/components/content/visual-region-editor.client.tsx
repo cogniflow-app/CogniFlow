@@ -24,7 +24,7 @@ import {
   ZoomInIcon,
   ZoomOutIcon,
 } from "@lumen/ui";
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 
 export interface VisualRegion {
   readonly aliases: readonly string[];
@@ -36,6 +36,15 @@ export interface VisualRegion {
   readonly shape: NormalizedShape;
 }
 
+export interface VisualRegionFieldErrors {
+  readonly aliases: string | undefined;
+  readonly altText: string | undefined;
+  readonly groupKey: string | undefined;
+  readonly label: string | undefined;
+  readonly promptDirection: string | undefined;
+  readonly shape: string | undefined;
+}
+
 interface VisualRegionEditorProps {
   readonly imageAlt: string;
   readonly imageUrl: string | null;
@@ -43,6 +52,7 @@ interface VisualRegionEditorProps {
   readonly mode?: "hide_all_reveal_one" | "hide_one_reveal_others";
   readonly onChange: (regions: readonly VisualRegion[]) => void;
   readonly onModeChange?: (mode: "hide_all_reveal_one" | "hide_one_reveal_others") => void;
+  readonly regionErrors?: readonly VisualRegionFieldErrors[] | undefined;
   readonly regions: readonly VisualRegion[];
 }
 
@@ -171,6 +181,7 @@ export function VisualRegionEditor({
   mode = "hide_one_reveal_others",
   onChange,
   onModeChange,
+  regionErrors = [],
   regions,
 }: VisualRegionEditorProps) {
   const [selected, setSelected] = useState<string | null>(regions[0]?.semanticKey ?? null);
@@ -323,6 +334,14 @@ export function VisualRegionEditor({
     mutateRegion(selectedRegion.semanticKey, {
       shape: updateShapeBounds(selectedRegion.shape, { x, y }),
     });
+  }
+
+  function zoomWithWheel(event: WheelEvent<HTMLDivElement>) {
+    if (!canRenderRegions || event.deltaY === 0) return;
+    event.preventDefault();
+    setZoom((value) =>
+      Math.min(2.5, Math.max(0.75, Number((value + (event.deltaY < 0 ? 0.1 : -0.1)).toFixed(2)))),
+    );
   }
 
   return (
@@ -510,8 +529,9 @@ export function VisualRegionEditor({
           onPointerDown={beginPan}
           onPointerMove={continuePan}
           onPointerUp={endPan}
+          onWheel={zoomWithWheel}
           ref={stageRef}
-          role="img"
+          role="group"
         >
           <div
             className="geometry-stage__transform"
@@ -555,6 +575,7 @@ export function VisualRegionEditor({
                   return (
                     <button
                       aria-label={`Select ${region.label}`}
+                      aria-pressed={selected === region.semanticKey}
                       className="geometry-mask"
                       data-selected={selected === region.semanticKey}
                       data-shape={region.shape.kind}
@@ -595,10 +616,12 @@ export function VisualRegionEditor({
           <ol className="mask-list">
             {regions.map((region, index) => {
               const bounds = shapeBounds(region.shape);
+              const fieldErrors = regionErrors[index];
               return (
                 <li key={region.semanticKey} data-selected={selected === region.semanticKey}>
                   <button
                     aria-label={`Select region ${String(index + 1)}`}
+                    aria-pressed={selected === region.semanticKey}
                     className="min-h-11 rounded-[var(--radius-md)] border border-[var(--color-border)] px-3"
                     onClick={() => setSelected(region.semanticKey)}
                     type="button"
@@ -606,84 +629,115 @@ export function VisualRegionEditor({
                     {String(index + 1)}
                   </button>
                   <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-                    <Input
-                      aria-label={`Region ${String(index + 1)} label`}
-                      maxLength={500}
-                      onChange={(event) =>
-                        mutateRegion(region.semanticKey, { label: event.target.value })
-                      }
-                      value={region.label}
-                    />
-                    <Input
-                      aria-label={`Region ${String(index + 1)} text alternative`}
-                      maxLength={1_000}
-                      onChange={(event) =>
-                        mutateRegion(region.semanticKey, { altText: event.target.value })
-                      }
-                      placeholder="Describe its location"
-                      value={region.altText}
-                    />
-                    <Input
-                      aria-label={`Region ${String(index + 1)} group`}
-                      maxLength={128}
-                      onChange={(event) =>
-                        mutateRegion(region.semanticKey, { groupKey: event.target.value })
-                      }
-                      value={region.groupKey}
-                    />
+                    <FormField
+                      error={fieldErrors?.label}
+                      label={`Region ${String(index + 1)} label`}
+                      required
+                    >
+                      <Input
+                        maxLength={500}
+                        onChange={(event) =>
+                          mutateRegion(region.semanticKey, { label: event.target.value })
+                        }
+                        value={region.label}
+                      />
+                    </FormField>
+                    <FormField
+                      error={fieldErrors?.altText}
+                      label={`Region ${String(index + 1)} text alternative`}
+                      required
+                    >
+                      <Input
+                        maxLength={1_000}
+                        onChange={(event) =>
+                          mutateRegion(region.semanticKey, { altText: event.target.value })
+                        }
+                        placeholder="Describe its location"
+                        value={region.altText}
+                      />
+                    </FormField>
+                    <FormField
+                      error={fieldErrors?.groupKey}
+                      label={`Region ${String(index + 1)} group`}
+                      required
+                    >
+                      <Input
+                        maxLength={128}
+                        onChange={(event) =>
+                          mutateRegion(region.semanticKey, { groupKey: event.target.value })
+                        }
+                        value={region.groupKey}
+                      />
+                    </FormField>
                     {kind === "diagram" && (
                       <>
-                        <Input
-                          aria-label={`Region ${String(index + 1)} accepted aliases`}
-                          onChange={(event) =>
-                            mutateRegion(region.semanticKey, {
-                              aliases: event.target.value
-                                .split(",")
-                                .map((value) => value.trim())
-                                .filter(Boolean),
-                            })
-                          }
-                          placeholder="Aliases, comma separated"
-                          value={region.aliases.join(", ")}
-                        />
-                        <Select
-                          aria-label={`Region ${String(index + 1)} prompt direction`}
-                          onValueChange={(promptDirection) =>
-                            mutateRegion(region.semanticKey, {
-                              promptDirection: promptDirection as VisualRegion["promptDirection"],
-                            })
-                          }
-                          options={[
-                            { label: "Region → label", value: "region_to_label" },
-                            { label: "Label → region", value: "label_to_region" },
-                            { label: "Both directions", value: "both" },
-                          ]}
-                          value={region.promptDirection}
-                        />
-                      </>
-                    )}
-                    <div className="grid grid-cols-4 gap-1 sm:col-span-2">
-                      {(["x", "y", "width", "height"] as const).map((field) => (
-                        <label className="text-xs text-[var(--color-text-muted)]" key={field}>
-                          {field}
+                        <FormField
+                          error={fieldErrors?.aliases}
+                          label={`Region ${String(index + 1)} accepted aliases`}
+                        >
                           <Input
-                            aria-label={`Region ${String(index + 1)} ${field}`}
-                            max={1}
-                            min={0}
                             onChange={(event) =>
                               mutateRegion(region.semanticKey, {
-                                shape: updateShapeBounds(region.shape, {
-                                  [field]: Number(event.target.value),
-                                }),
+                                aliases: event.target.value
+                                  .split(",")
+                                  .map((value) => value.trim())
+                                  .filter(Boolean),
                               })
                             }
-                            step={0.01}
-                            type="number"
-                            value={Number(bounds[field].toFixed(3))}
+                            placeholder="Aliases, comma separated"
+                            value={region.aliases.join(", ")}
                           />
-                        </label>
-                      ))}
-                    </div>
+                        </FormField>
+                        <FormField
+                          error={fieldErrors?.promptDirection}
+                          label={`Region ${String(index + 1)} prompt direction`}
+                        >
+                          <Select
+                            onValueChange={(promptDirection) =>
+                              mutateRegion(region.semanticKey, {
+                                promptDirection: promptDirection as VisualRegion["promptDirection"],
+                              })
+                            }
+                            options={[
+                              { label: "Region → label", value: "region_to_label" },
+                              { label: "Label → region", value: "label_to_region" },
+                              { label: "Both directions", value: "both" },
+                            ]}
+                            value={region.promptDirection}
+                          />
+                        </FormField>
+                      </>
+                    )}
+                    <FormField
+                      className="sm:col-span-2"
+                      error={fieldErrors?.shape}
+                      group
+                      label={`Region ${String(index + 1)} position and size`}
+                    >
+                      <div className="grid grid-cols-4 gap-1">
+                        {(["x", "y", "width", "height"] as const).map((field) => (
+                          <label className="text-xs text-[var(--color-text-muted)]" key={field}>
+                            {field}
+                            <Input
+                              aria-label={`Region ${String(index + 1)} ${field}`}
+                              id={`region-${region.semanticKey}-${field}`}
+                              max={1}
+                              min={0}
+                              onChange={(event) =>
+                                mutateRegion(region.semanticKey, {
+                                  shape: updateShapeBounds(region.shape, {
+                                    [field]: Number(event.target.value),
+                                  }),
+                                })
+                              }
+                              step={0.01}
+                              type="number"
+                              value={Number(bounds[field].toFixed(3))}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </FormField>
                   </div>
                   <IconButton
                     label={`Delete ${region.label}`}

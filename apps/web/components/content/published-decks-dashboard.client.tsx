@@ -11,7 +11,7 @@ import {
   SearchIcon,
   SegmentedControl,
 } from "@lumen/ui";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PendingContentMutations, performContentMutation } from "@/lib/content/client-mutations";
 import type { ContentMutationResult, DeckSummary } from "@/lib/content/view-models";
@@ -31,6 +31,18 @@ export function PublishedDecksDashboard({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const pendingMutations = useRef(new PendingContentMutations());
+  const copyAttempt = useRef(0);
+  const copyConfirmationTimer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      copyAttempt.current += 1;
+      if (copyConfirmationTimer.current !== null) {
+        window.clearTimeout(copyConfirmationTimer.current);
+      }
+    },
+    [],
+  );
 
   const visibleDecks = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -46,13 +58,28 @@ export function PublishedDecksDashboard({
 
   async function copyLink(deck: DeckSummary) {
     if (!deck.publicSlug) return;
+    const attempt = copyAttempt.current + 1;
+    copyAttempt.current = attempt;
+    if (copyConfirmationTimer.current !== null) {
+      window.clearTimeout(copyConfirmationTimer.current);
+      copyConfirmationTimer.current = null;
+    }
+    setCopiedId(null);
+    setMessage(null);
     const url = new URL(`/deck/${deck.publicSlug}`, window.location.origin).toString();
     try {
       await navigator.clipboard.writeText(url);
+      if (copyAttempt.current !== attempt) return;
+      const confirmation = `Link copied for ${deck.title}.`;
       setCopiedId(deck.id);
-      setMessage(`Link copied for ${deck.title}.`);
-      window.setTimeout(() => setCopiedId((id) => (id === deck.id ? null : id)), 1_800);
+      setMessage(confirmation);
+      copyConfirmationTimer.current = window.setTimeout(() => {
+        setCopiedId((id) => (id === deck.id ? null : id));
+        setMessage((current) => (current === confirmation ? null : current));
+        copyConfirmationTimer.current = null;
+      }, 1_800);
     } catch {
+      if (copyAttempt.current !== attempt) return;
       setMessage("The link could not be copied. Open the player and copy it from your browser.");
     }
   }
@@ -138,6 +165,7 @@ export function PublishedDecksDashboard({
               {visibleDecks.map((deck) => (
                 <article
                   className="deck-tile published-deck-card"
+                  data-deck-theme={deck.theme ?? "neutral"}
                   data-visibility={deck.visibility}
                   key={deck.id}
                 >

@@ -330,36 +330,56 @@ export function BulkQuickEditor({ deckId }: { readonly deckId: string }) {
           Rich editor
         </LinkButton>
       </div>
-      <div className="quick-grid" role="table" aria-label="Quick note rows">
-        <div className="quick-grid__header" role="row">
-          <span role="columnheader">Front</span>
-          <span role="columnheader">Back</span>
-          <span role="columnheader">Tags</span>
-          <span role="columnheader">Order</span>
+      <div
+        aria-colcount={4}
+        aria-label="Quick note rows"
+        aria-rowcount={rows.length + 1}
+        className="quick-grid"
+        role="table"
+      >
+        <div aria-rowindex={1} className="quick-grid__header" role="row">
+          <span aria-colindex={1} role="columnheader">
+            Front
+          </span>
+          <span aria-colindex={2} role="columnheader">
+            Back
+          </span>
+          <span aria-colindex={3} role="columnheader">
+            Tags
+          </span>
+          <span aria-colindex={4} role="columnheader">
+            Order
+          </span>
         </div>
         {rows.map((row, index) => (
-          <div className="quick-grid__row" key={row.id} role="row">
-            <Textarea
-              aria-label={`Row ${String(index + 1)} front`}
-              onChange={(event) => patchRow(row.id, { front: event.target.value })}
-              placeholder="Prompt"
-              rows={2}
-              value={row.front}
-            />
-            <Textarea
-              aria-label={`Row ${String(index + 1)} back`}
-              onChange={(event) => patchRow(row.id, { back: event.target.value })}
-              placeholder="Answer"
-              rows={2}
-              value={row.back}
-            />
-            <Input
-              aria-label={`Row ${String(index + 1)} tags`}
-              onChange={(event) => patchRow(row.id, { tags: event.target.value })}
-              placeholder="tag, tag"
-              value={row.tags}
-            />
-            <div className="quick-grid__controls">
+          <div aria-rowindex={index + 2} className="quick-grid__row" key={row.id} role="row">
+            <div aria-colindex={1} className="quick-grid__cell" role="cell">
+              <Textarea
+                aria-label={`Row ${String(index + 1)} front`}
+                onChange={(event) => patchRow(row.id, { front: event.target.value })}
+                placeholder="Prompt"
+                rows={2}
+                value={row.front}
+              />
+            </div>
+            <div aria-colindex={2} className="quick-grid__cell" role="cell">
+              <Textarea
+                aria-label={`Row ${String(index + 1)} back`}
+                onChange={(event) => patchRow(row.id, { back: event.target.value })}
+                placeholder="Answer"
+                rows={2}
+                value={row.back}
+              />
+            </div>
+            <div aria-colindex={3} className="quick-grid__cell" role="cell">
+              <Input
+                aria-label={`Row ${String(index + 1)} tags`}
+                onChange={(event) => patchRow(row.id, { tags: event.target.value })}
+                placeholder="tag, tag"
+                value={row.tags}
+              />
+            </div>
+            <div aria-colindex={4} className="quick-grid__controls" role="cell">
               <Tooltip content="Move up">
                 <IconButton
                   label={`Move row ${String(index + 1)} up`}
@@ -547,11 +567,6 @@ export function NoteCardBrowser({
             {deck.cardCount === 1 ? "card" : "cards"}
           </p>
         </div>
-        {canEdit && (
-          <LinkButton className="product-primary-action" href={`/app/decks/${deck.id}/edit`}>
-            Add note
-          </LinkButton>
-        )}
       </div>
       <div className="library-toolbar" role="search">
         <Input
@@ -781,6 +796,7 @@ function DeckSettingsSnapshot({ deck }: { readonly deck: DeckDetail }) {
       <MediaUploader
         kind="image"
         label="Deck cover"
+        onRemoved={() => setCoverAssetId(null)}
         onUploaded={(asset) => setCoverAssetId(asset.id)}
       />
       {coverAssetId && <Badge tone="success">Cover image attached</Badge>}

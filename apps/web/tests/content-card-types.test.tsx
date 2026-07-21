@@ -27,34 +27,40 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("../components/content/rich-editor.client", () => ({
   RichEditor: ({
+    controlId,
     document,
+    errorId,
+    invalid,
     label,
     onChange,
   }: {
+    controlId?: string;
     document: unknown;
+    errorId?: string;
+    invalid?: boolean;
     label: string;
     onChange: (document: unknown) => void;
   }) => (
-    <label>
-      {label}
-      <textarea
-        aria-label={label}
-        data-document={JSON.stringify(document)}
-        onChange={(event) =>
-          onChange({
-            attrs: { language: "en" },
-            content: [
-              {
-                content: [{ text: event.target.value, type: "text" }],
-                type: "paragraph",
-              },
-            ],
-            schemaVersion: 2,
-            type: "doc",
-          })
-        }
-      />
-    </label>
+    <textarea
+      aria-describedby={errorId}
+      aria-invalid={invalid || undefined}
+      aria-label={label}
+      data-document={JSON.stringify(document)}
+      id={controlId}
+      onChange={(event) =>
+        onChange({
+          attrs: { language: "en" },
+          content: [
+            {
+              content: [{ text: event.target.value, type: "text" }],
+              type: "paragraph",
+            },
+          ],
+          schemaVersion: 2,
+          type: "doc",
+        })
+      }
+    />
   ),
 }));
 
@@ -100,6 +106,7 @@ vi.mock("../components/content/visual-region-editor.client", () => ({
   VisualRegionEditor: ({
     kind,
     onChange,
+    regionErrors,
     regions,
   }: {
     kind: string;
@@ -114,6 +121,11 @@ vi.mock("../components/content/visual-region-editor.client", () => ({
         shape: { kind: "rectangle"; x: number; y: number; width: number; height: number };
       }[],
     ) => void;
+    regionErrors?: readonly {
+      altText: string | undefined;
+      groupKey: string | undefined;
+      label: string | undefined;
+    }[];
     regions: readonly {
       aliases: readonly string[];
       altText: string;
@@ -127,6 +139,11 @@ vi.mock("../components/content/visual-region-editor.client", () => ({
     <section aria-label={`${kind} region editor`}>
       Accessible region editor
       <output aria-label={`${kind} mapped text alternative`}>{regions[0]?.altText ?? ""}</output>
+      <output aria-label={`${kind} region label error`}>{regionErrors?.[0]?.label ?? ""}</output>
+      <output aria-label={`${kind} region alternative error`}>
+        {regionErrors?.[0]?.altText ?? ""}
+      </output>
+      <output aria-label={`${kind} region group error`}>{regionErrors?.[0]?.groupKey ?? ""}</output>
       <button
         onClick={() =>
           onChange(
@@ -151,6 +168,39 @@ vi.mock("../components/content/visual-region-editor.client", () => ({
         type="button"
       >
         Update region text alternative
+      </button>
+      {kind === "diagram" && (
+        <button
+          onClick={() =>
+            onChange(
+              regions.map((region) => ({
+                ...region,
+                groupKey: "renamed-nucleus",
+              })),
+            )
+          }
+          type="button"
+        >
+          Rename diagram group
+        </button>
+      )}
+      <button
+        onClick={() =>
+          onChange([
+            {
+              aliases: [],
+              altText: "",
+              groupKey: "",
+              label: "",
+              promptDirection: "region_to_label",
+              semanticKey: "invalid-region",
+              shape: { kind: "rectangle", x: 0.1, y: 0.4, width: 0.2, height: 0.2 },
+            },
+          ])
+        }
+        type="button"
+      >
+        Add invalid region
       </button>
     </section>
   ),
@@ -277,6 +327,16 @@ describe("Phase 02 card-type catalog", () => {
 
     await user.type(screen.getByRole("textbox", { name: "Deck title" }), "Biology");
     await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    const stepTwoHeading = await screen.findByRole("heading", {
+      level: 2,
+      name: "Choose your first card type",
+    });
+    expect(stepTwoHeading).toHaveFocus();
+    expect(screen.getByText("Step 2 of 2: Choose your first card type")).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
 
     const options = screen
       .getAllByRole("button")
@@ -571,19 +631,101 @@ describe("diagram region alternative persistence", () => {
       "Large circular region near the lower-left edge",
     );
     await user.click(screen.getByRole("button", { name: "Update region text alternative" }));
+    await user.click(screen.getByRole("button", { name: "Rename diagram group" }));
     await user.click(screen.getByRole("button", { name: "Save note" }));
 
     const saveRequest = fetchMock.mock.calls.find(([, options]) => options?.method === "PATCH");
     const payload = JSON.parse(String(saveRequest?.[1]?.body)) as {
-      authoringData: { hotspots: readonly { altText: string }[] };
+      authoringData: { hotspots: readonly { altText: string; semanticKey: string }[] };
     };
     expect(payload.authoringData.hotspots).toEqual([
-      expect.objectContaining({ altText: "Edited lower-left circular region" }),
+      expect.objectContaining({
+        altText: "Edited lower-left circular region",
+        semanticKey: "renamed-nucleus",
+      }),
     ]);
   });
 });
 
 describe("live sibling preview", () => {
+  it("associates friendly save errors with the required front and back controls", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<NoteEditor deckId="deck-id" initialKind="basic" />);
+
+    await user.click(screen.getByRole("button", { name: "Save note" }));
+
+    const front = screen.getByRole("textbox", { name: "Front / prompt" });
+    const back = screen.getByRole("textbox", { name: "Back / answer" });
+    expect(front).toHaveAttribute("aria-invalid", "true");
+    expect(back).toHaveAttribute("aria-invalid", "true");
+    expect(document.getElementById(front.getAttribute("aria-describedby") ?? "")).toHaveTextContent(
+      "Add content to the front.",
+    );
+    expect(document.getElementById(back.getAttribute("aria-describedby") ?? "")).toHaveTextContent(
+      "Add content to the back.",
+    );
+    expect(document.body).not.toHaveTextContent("$.front");
+    expect(document.body).not.toHaveTextContent("empty_content");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await user.type(front, "What is ATP?");
+    expect(front).not.toHaveAttribute("aria-invalid");
+    expect(back).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("associates nested safe-CSS errors with the custom styling control", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<NoteEditor deckId="deck-id" initialKind="custom" />);
+
+    await user.type(screen.getByRole("textbox", { name: "Front" }), "What is ATP?");
+    const styling = screen.getByRole("textbox", { name: "Scoped CSS (optional)" });
+    fireEvent.change(styling, { target: { value: ".card { position: fixed; }" } });
+    await user.click(screen.getByRole("button", { name: "Save note" }));
+
+    expect(styling).toHaveAttribute("aria-invalid", "true");
+    expect(
+      document.getElementById(styling.getAttribute("aria-describedby") ?? ""),
+    ).toHaveTextContent("Check this card’s styling.");
+    expect(screen.getByRole("textbox", { name: "Front template" })).not.toHaveAttribute(
+      "aria-invalid",
+    );
+    expect(document.body).not.toHaveTextContent("unsafe_property");
+    expect(document.body).not.toHaveTextContent("$.templates");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("maps invalid visual-region paths to friendly label, alternative, and group errors", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<NoteEditor deckId="deck-id" initialKind="image_occlusion" />);
+
+    await user.click(screen.getByRole("button", { name: "Attach Occlusion image" }));
+    await user.click(screen.getByRole("button", { name: "Add invalid region" }));
+    await user.click(screen.getByRole("button", { name: "Save note" }));
+
+    expect(screen.getByLabelText("occlusion region label error")).toHaveTextContent(
+      "Add a short label for this region.",
+    );
+    expect(screen.getByLabelText("occlusion region alternative error")).toHaveTextContent(
+      "Describe this region’s location in the image.",
+    );
+    expect(screen.getByLabelText("occlusion region group error")).toHaveTextContent(
+      "Use letters, numbers, hyphens, or underscores for the group name.",
+    );
+    expect(document.body).not.toHaveTextContent("$.occlusions[0]");
+    expect(document.body).not.toHaveTextContent("invalid_length");
+    expect(
+      fetchMock.mock.calls.some(([, request]) =>
+        ["POST", "PATCH"].includes((request as RequestInit | undefined)?.method ?? ""),
+      ),
+    ).toBe(false);
+  });
+
   it("turns a valid basic note into a stable semantic sibling without saving", async () => {
     const user = userEvent.setup();
     render(<NoteEditor deckId="deck-id" initialKind="basic" />);

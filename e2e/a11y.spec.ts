@@ -205,6 +205,51 @@ test("the open compact navigation has no serious or critical axe violations", as
   await expectNoSeriousOrCriticalViolations(page);
 });
 
+test("the workspace Appearance popover is pointer-accessible above the mobile drawer", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await createA11yAuthor(page);
+  await page.setViewportSize({ height: 844, width: 390 });
+
+  await page.getByRole("button", { name: "Open workspace navigation" }).click();
+  const workspaceDrawer = page.getByRole("dialog", { name: "Workspace" });
+  await expect(workspaceDrawer).toBeVisible();
+  await workspaceDrawer.getByRole("button", { name: "Appearance" }).click();
+
+  const appearancePopover = page.locator(".workspace-appearance__popover");
+  const colorTheme = appearancePopover.getByLabel("Color theme");
+  await expect(appearancePopover).toBeVisible();
+  await expect(colorTheme).toBeVisible();
+  const layerOrder = await Promise.all([
+    appearancePopover.evaluate((element) => Number.parseInt(getComputedStyle(element).zIndex, 10)),
+    workspaceDrawer.evaluate((element) => Number.parseInt(getComputedStyle(element).zIndex, 10)),
+  ]);
+  expect(
+    layerOrder[0],
+    "The Appearance popover should stack above the workspace drawer",
+  ).toBeGreaterThan(layerOrder[1] ?? 0);
+  expect(
+    await colorTheme.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        bounds.left + bounds.width / 2,
+        bounds.top + bounds.height / 2,
+      );
+      return hit === element || element.contains(hit);
+    }),
+    "The theme control should win pointer hit testing above the modal layer",
+  ).toBe(true);
+
+  await colorTheme.click();
+  await expect(colorTheme).toBeFocused();
+  await colorTheme.selectOption("dark");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.keyboard.press("Escape");
+  await expect(appearancePopover).toBeHidden();
+  await expect(workspaceDrawer).toBeVisible();
+});
+
 test("the dark design-system gallery has no serious or critical axe violations", async ({
   page,
 }) => {
@@ -248,6 +293,9 @@ test("the authenticated library, deck creation, and card editor are accessible b
   await expect(page.getByRole("textbox", { name: "Deck title" })).toBeFocused();
   await page.getByRole("textbox", { name: "Deck title" }).fill("Accessible authoring deck");
   await page.getByRole("button", { name: "Continue" }).click();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Choose your first card type" }),
+  ).toBeFocused();
   await expect(page.locator(".card-type-option")).toHaveCount(17);
   const typedAnswer = page.locator('[aria-describedby="card-type-typed_answer-detail"]');
   await expect(typedAnswer).toBeVisible();

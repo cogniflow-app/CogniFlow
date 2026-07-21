@@ -83,6 +83,50 @@ function RegionHarness({
 }
 
 describe("visual region authoring", () => {
+  it("associates friendly region errors with the exact editable controls", () => {
+    const region: VisualRegion = {
+      aliases: [],
+      altText: "",
+      groupKey: "",
+      label: "",
+      promptDirection: "region_to_label",
+      semanticKey: "region-1",
+      shape: { height: 0.2, kind: "rectangle", width: 0.2, x: 0.4, y: 0.4 },
+    };
+    render(
+      <VisualRegionEditor
+        imageAlt="A labeled cell"
+        imageUrl="blob:test-image"
+        kind="occlusion"
+        onChange={vi.fn()}
+        regionErrors={[
+          {
+            aliases: undefined,
+            altText: "Describe this region’s location in the image.",
+            groupKey: "Use letters, numbers, hyphens, or underscores for the group name.",
+            label: "Add a short label for this region.",
+            promptDirection: undefined,
+            shape: undefined,
+          },
+        ]}
+        regions={[region]}
+      />,
+    );
+
+    for (const [name, message] of [
+      ["Region 1 label", "Add a short label for this region."],
+      ["Region 1 text alternative", "Describe this region’s location in the image."],
+      ["Region 1 group", "Use letters, numbers, hyphens, or underscores for the group name."],
+    ] as const) {
+      const control = screen.getByRole("textbox", { name });
+      expect(control).toHaveAttribute("aria-invalid", "true");
+      const describedBy = control.getAttribute("aria-describedby") ?? "";
+      expect(document.getElementById(describedBy)).toHaveTextContent(message);
+    }
+    expect(document.body).not.toHaveTextContent("$.occlusions[0]");
+    expect(document.body).not.toHaveTextContent("invalid_length");
+  });
+
   it("keeps the empty stage compact and disables mask tools before upload", () => {
     const { container } = render(<RegionHarness image={false} kind="occlusion" />);
 
@@ -99,7 +143,7 @@ describe("visual region authoring", () => {
 
     expect(screen.getByRole("toolbar", { name: "diagram region tools" })).toBeVisible();
     expect(
-      screen.getByRole("img", {
+      screen.getByRole("group", {
         name: /diagram image region canvas.*keyboard alternative/i,
       }),
     ).toBeVisible();
@@ -157,6 +201,55 @@ describe("visual region authoring", () => {
     await user.click(screen.getByRole("button", { name: "Pan down" }));
     await user.click(screen.getByRole("button", { name: "Reset view" }));
     expect(transform).toHaveStyle({ transform: "translate(0px, 0px) scale(1)" });
+  });
+
+  it("bounds wheel zoom over a ready image and exposes synchronized selected state", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<RegionHarness kind="diagram" />);
+    const stage = screen.getByRole("group", {
+      name: /diagram image region canvas.*keyboard alternative/i,
+    });
+    const transform = container.querySelector(".geometry-stage__transform");
+
+    fireEvent.wheel(stage, { cancelable: true, deltaY: -100 });
+    expect(transform).toHaveStyle({ transform: "translate(0px, 0px) scale(1)" });
+
+    const image = screen.getByRole("img", { name: "A labeled cell" });
+    Object.defineProperties(image, {
+      naturalHeight: { configurable: true, value: 600 },
+      naturalWidth: { configurable: true, value: 1_000 },
+    });
+    fireEvent.load(image);
+    await user.click(screen.getByRole("button", { name: "Add rectangle mask" }));
+
+    fireEvent.wheel(stage, { cancelable: true, deltaY: -100 });
+    expect(transform).toHaveStyle({ transform: "translate(0px, 0px) scale(1.1)" });
+    for (let index = 0; index < 20; index += 1) fireEvent.wheel(stage, { deltaY: -100 });
+    expect(transform).toHaveStyle({ transform: "translate(0px, 0px) scale(2.5)" });
+    for (let index = 0; index < 30; index += 1) fireEvent.wheel(stage, { deltaY: 100 });
+    expect(transform).toHaveStyle({ transform: "translate(0px, 0px) scale(0.75)" });
+
+    expect(screen.getByRole("button", { name: "Select Region 1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Select region 1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await user.click(screen.getByRole("button", { name: "Add ellipse mask" }));
+    expect(screen.getByRole("button", { name: "Select Region 1" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "Select Region 2" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Select region 2" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("moves the selected region from descendant stage content but ignores mask activation", async () => {
