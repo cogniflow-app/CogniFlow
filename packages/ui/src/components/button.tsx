@@ -14,7 +14,7 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const baseClasses = [
-  "relative inline-flex min-h-11 max-w-full min-w-0 items-center justify-center gap-2 rounded-[var(--radius-md)] border px-4 py-2 text-center leading-snug font-semibold whitespace-normal",
+  "relative inline-flex min-h-11 max-w-full min-w-0 shrink-0 items-center justify-center gap-2 overflow-visible rounded-[var(--radius-md)] border px-4 py-2 text-center leading-snug font-semibold whitespace-normal [&>svg]:size-4 [&>svg]:shrink-0",
   "transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--duration-fast)] ease-[var(--easing-standard)]",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]",
   "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-55 aria-disabled:pointer-events-none aria-disabled:opacity-55",
@@ -77,7 +77,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ) : (
         leadingIcon
       )}
-      <span className="min-w-0 text-center [overflow-wrap:anywhere]">
+      <span className="min-w-0 flex-[0_1_auto] text-center [overflow-wrap:anywhere]">
         {loading ? loadingLabel : children}
       </span>
       {!loading && trailingIcon}
@@ -157,7 +157,9 @@ export const LinkButton = forwardRef<HTMLAnchorElement, LinkButtonProps>(functio
       {...props}
     >
       {leadingIcon}
-      <span className="min-w-0 text-center [overflow-wrap:anywhere]">{children}</span>
+      <span className="min-w-0 flex-[0_1_auto] text-center [overflow-wrap:anywhere]">
+        {children}
+      </span>
       {trailingIcon}
     </a>
   );

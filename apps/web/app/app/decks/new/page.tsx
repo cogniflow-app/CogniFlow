@@ -6,7 +6,7 @@ import { readLibrarySnapshot } from "@/lib/server/content-repository";
 import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
-  description: "Create a private deck and choose its first note and card type.",
+  description: "Create a private deck and choose its first card type.",
   title: "Create deck",
 };
 

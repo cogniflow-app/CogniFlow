@@ -98,8 +98,9 @@ test("local email signup provisions, onboards, and opens real settings", async (
     testInfo.project.name !== "chromium-desktop",
     "One local account is enough for the integration path.",
   );
-  await page.setExtraHTTPHeaders({ "X-Forwarded-For": "198.51.100.41" });
   const suffix = crypto.randomUUID().replaceAll("-", "");
+  const octet = 20 + (Number.parseInt(suffix.slice(0, 2), 16) % 200);
+  await page.setExtraHTTPHeaders({ "X-Forwarded-For": `198.51.100.${String(octet)}` });
   const email = `phase01-${suffix}@example.test`;
   const handle = `learner_${suffix.slice(0, 12)}`;
 

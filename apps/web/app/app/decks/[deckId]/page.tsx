@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Badge, LinkButton } from "@lumen/ui";
+import { Badge } from "@lumen/ui";
 
 import { BulkQuickEditor } from "@/components/content/deck-workspace.client";
 import { requireAccountContext } from "@/lib/server/account-context";
@@ -23,11 +23,11 @@ export default async function DeckOverviewPage({
       <section className="deck-stat-grid" aria-label="Deck totals">
         <div>
           <strong>{deck.noteCount}</strong>
-          <span>Notes</span>
+          <span>Card entries</span>
         </div>
         <div>
           <strong>{deck.cardCount}</strong>
-          <span>Generated cards</span>
+          <span>Study cards</span>
         </div>
         <div>
           <strong>{deck.supportedCardTypes.length}</strong>
@@ -43,9 +43,6 @@ export default async function DeckOverviewPage({
           <div>
             <h2>Card-type mix</h2>
           </div>
-          {canEdit && (
-            <LinkButton href={`/app/decks/${deck.id}/edit`}>Add an advanced note</LinkButton>
-          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {deck.supportedCardTypes.length ? (
@@ -55,7 +52,7 @@ export default async function DeckOverviewPage({
               </Badge>
             ))
           ) : (
-            <p>No notes yet.</p>
+            <p>No cards yet.</p>
           )}
         </div>
       </section>

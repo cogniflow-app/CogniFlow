@@ -15,9 +15,29 @@ export interface UploadedMediaAsset {
 }
 
 interface MediaUploaderProps {
+  readonly imageDescription?:
+    | {
+        readonly error?: string | undefined;
+        readonly onChange: (value: string) => void;
+        readonly value: string;
+      }
+    | undefined;
   readonly kind: "audio" | "image";
   readonly label: string;
+  readonly onRemoved?: (() => void) | undefined;
   readonly onUploaded: (asset: UploadedMediaAsset) => void;
+}
+
+const MAXIMUM_FILE_BYTES = 10_000_000;
+
+function acceptedMimeTypes(kind: MediaUploaderProps["kind"]): readonly string[] {
+  return kind === "image"
+    ? ["image/png", "image/jpeg", "image/webp"]
+    : ["audio/mpeg", "audio/mp4", "audio/ogg", "audio/webm", "audio/wav"];
+}
+
+function baseMimeType(value: string): string {
+  return value.split(";", 1)[0]?.trim().toLocaleLowerCase() ?? "";
 }
 
 async function sha256Hex(file: Blob): Promise<string> {
@@ -49,7 +69,13 @@ async function preprocessImage(file: File): Promise<File> {
   });
 }
 
-export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
+export function MediaUploader({
+  imageDescription,
+  kind,
+  label,
+  onRemoved,
+  onUploaded,
+}: MediaUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [altText, setAltText] = useState("");
@@ -99,6 +125,20 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
 
   async function chooseFile(next: File | null) {
     if (!next) return;
+    if (!acceptedMimeTypes(kind).includes(baseMimeType(next.type))) {
+      setState("error");
+      setMessage(
+        kind === "image"
+          ? "Choose a PNG, JPEG, or WebP image."
+          : "Choose an MP3, MP4, OGG, WebM, or WAV audio file.",
+      );
+      return;
+    }
+    if (next.size > MAXIMUM_FILE_BYTES) {
+      setState("error");
+      setMessage("Choose a file that is 10 MB or smaller.");
+      return;
+    }
     setState("preparing");
     setMessage(null);
     try {
@@ -116,7 +156,8 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
   }
 
   async function upload() {
-    if (!file || (kind === "image" && !altText.trim())) {
+    const resolvedAltText = imageDescription?.value ?? altText;
+    if (!file || (kind === "image" && !resolvedAltText.trim())) {
       setState("error");
       setMessage(
         kind === "image"
@@ -127,11 +168,19 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
     }
     setState("preparing");
     setMessage(null);
-    const hash = await sha256Hex(file);
+    let hash: string;
+    try {
+      hash = await sha256Hex(file);
+    } catch {
+      if (!mountedRef.current) return;
+      setState("error");
+      setMessage("This file could not be prepared. Choose it again or try another file.");
+      return;
+    }
     if (!mountedRef.current) return;
     const operation = "media-uploader:upload";
     const command = {
-      altText: altText.trim(),
+      altText: resolvedAltText.trim(),
       byteSize: file.size,
       fileName: file.name,
       hash,
@@ -144,7 +193,7 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
     body.set("file", file);
     body.set("kind", kind);
     body.set("sha256", hash);
-    body.set("altText", altText.trim());
+    body.set("altText", resolvedAltText.trim());
     body.set("transcript", transcript.trim());
     body.set("idempotencyKey", idempotencyKey);
     const request = new XMLHttpRequest();
@@ -168,9 +217,11 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
         if (!mountedRef.current) return;
         setState("error");
         setMessage(
-          typeof request.response?.message === "string"
-            ? request.response.message
-            : "The upload was rejected. Review the file and try again.",
+          request.status === 413 || request.response?.code === "QUOTA_EXCEEDED"
+            ? "This file is too large. Choose a file that is 10 MB or smaller."
+            : request.response?.code === "INVALID_INPUT"
+              ? "This file could not be verified. Choose a supported file and try again."
+              : "The upload was rejected. Try again in a moment.",
         );
         return;
       }
@@ -275,12 +326,9 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
     setRecording(false);
   }
 
-  const accept =
-    kind === "image"
-      ? "image/png,image/jpeg,image/webp"
-      : "audio/mpeg,audio/mp4,audio/ogg,audio/webm,audio/wav";
+  const accept = acceptedMimeTypes(kind).join(",");
 
-  function clearSelection() {
+  function clearSelection(notifyParent = false) {
     if (preview) URL.revokeObjectURL(preview);
     setFile(null);
     setPreview(null);
@@ -289,6 +337,7 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
     setMessage(null);
     setState("idle");
     if (inputRef.current) inputRef.current.value = "";
+    if (notifyParent) onRemoved?.();
   }
 
   return (
@@ -297,10 +346,12 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
         label={label}
         description={kind === "image" ? "PNG, JPEG, or WebP" : "MP3, MP4, OGG, WebM, or WAV"}
       >
-        <div
+        <button
+          aria-label={`${file ? "Replace" : "Choose"} ${kind}: ${label}`}
           className="media-dropzone"
           data-dragging={dragging}
           data-has-file={Boolean(file)}
+          disabled={state === "uploading"}
           onDragEnter={(event) => {
             event.preventDefault();
             setDragging(true);
@@ -315,6 +366,8 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
             setDragging(false);
             void chooseFile(event.dataTransfer.files[0] ?? null);
           }}
+          onClick={() => inputRef.current?.click()}
+          type="button"
         >
           {file ? <FileIcon aria-hidden="true" /> : <UploadIcon aria-hidden="true" />}
           <div>
@@ -325,23 +378,18 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
                 : "or choose a file from your device"}
             </span>
           </div>
-          <Button
-            disabled={state === "uploading"}
-            onClick={() => inputRef.current?.click()}
-            size="sm"
-            variant="secondary"
-          >
+          <span className="media-dropzone__action" aria-hidden="true">
             {file ? `Replace ${kind}` : `Choose ${kind}`}
-          </Button>
-          <Input
-            ref={inputRef}
-            accept={accept}
-            className="visually-hidden"
-            disabled={state === "uploading"}
-            onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)}
-            type="file"
-          />
-        </div>
+          </span>
+        </button>
+        <Input
+          ref={inputRef}
+          accept={accept}
+          className="visually-hidden"
+          disabled={state === "uploading"}
+          onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)}
+          type="file"
+        />
       </FormField>
       {kind === "audio" && (
         <div className="flex flex-wrap gap-2">
@@ -370,12 +418,15 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
         </audio>
       )}
       {kind === "image" ? (
-        <FormField label="Image description" required>
+        <FormField error={imageDescription?.error} label="Image description" required>
           <Input
             maxLength={1_000}
-            onChange={(event) => setAltText(event.target.value)}
+            onChange={(event) => {
+              setAltText(event.target.value);
+              imageDescription?.onChange(event.target.value);
+            }}
             required
-            value={altText}
+            value={imageDescription?.value ?? altText}
           />
         </FormField>
       ) : (
@@ -407,14 +458,12 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
           {message}
         </p>
       )}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          disabled={!file || Boolean(attached)}
-          loading={state === "preparing"}
-          onClick={() => void upload()}
-        >
-          Upload and attach
-        </Button>
+      <div className="media-uploader__actions flex flex-wrap gap-2">
+        {!attached && (
+          <Button disabled={!file} loading={state === "preparing"} onClick={() => void upload()}>
+            Upload and attach
+          </Button>
+        )}
         {state === "uploading" && (
           <Button onClick={() => requestRef.current?.abort()} variant="secondary">
             Cancel upload
@@ -425,8 +474,13 @@ export function MediaUploader({ kind, label, onUploaded }: MediaUploaderProps) {
             Retry
           </Button>
         )}
-        {file && state !== "uploading" && !attached && (
-          <Button leadingIcon={<TrashIcon />} onClick={clearSelection} variant="ghost">
+        {file && state !== "uploading" && (!attached || onRemoved) && (
+          <Button
+            className="media-uploader__remove"
+            leadingIcon={<TrashIcon />}
+            onClick={() => clearSelection(Boolean(attached))}
+            variant="ghost"
+          >
             Remove
           </Button>
         )}

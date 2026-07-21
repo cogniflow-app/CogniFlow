@@ -6,7 +6,7 @@ import { requireAccountContext } from "@/lib/server/account-context";
 import { readLibrarySnapshot } from "@/lib/server/content-repository";
 
 export const metadata: Metadata = {
-  description: "Your query-backed deck, note, card, and folder library.",
+  description: "Your decks, study cards, and folders.",
   title: "Library",
 };
 

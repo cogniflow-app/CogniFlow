@@ -69,7 +69,7 @@ export function AppearanceControls({
 
   return (
     <details ref={detailsRef} className={className} onKeyDown={handleKeyDown}>
-      <summary>
+      <summary aria-label="Appearance">
         <PaletteIcon aria-hidden="true" className="size-5" />
         <span>Appearance</span>
       </summary>

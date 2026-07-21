@@ -47,6 +47,7 @@ export interface DeckSummary {
   readonly role: "editor" | "manager" | "owner" | "viewer";
   readonly status: DeckStatus;
   readonly title: string;
+  readonly theme?: DeckTheme;
   readonly updatedAt: string;
   readonly version: number;
   readonly visibility: DeckVisibility;

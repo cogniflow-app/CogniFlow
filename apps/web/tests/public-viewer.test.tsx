@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
+  eq: vi.fn(),
+  from: vi.fn(),
   getUser: vi.fn(),
   headers: vi.fn(),
+  maybeSingle: vi.fn(),
+  select: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ headers: mocks.headers }));
@@ -15,6 +19,7 @@ vi.mock("@/lib/supabase/server", () => ({
 import { HeaderAccountActionLink } from "../components/header-account-action";
 import {
   createPublicViewerContext,
+  loadOwnedPublicDeckId,
   loadPublicViewerContext,
   normalizePublicReturnUrl,
 } from "../lib/server/public-viewer";
@@ -22,8 +27,17 @@ import { config as middlewareConfig } from "../middleware";
 
 describe("public viewer context", () => {
   beforeEach(() => {
+    const query = {
+      eq: mocks.eq,
+      maybeSingle: mocks.maybeSingle,
+      select: mocks.select,
+    };
+    mocks.eq.mockReset().mockReturnValue(query);
+    mocks.from.mockReset().mockReturnValue(query);
+    mocks.maybeSingle.mockReset().mockResolvedValue({ data: null, error: null });
+    mocks.select.mockReset().mockReturnValue(query);
     mocks.headers.mockResolvedValue({ get: () => "/join/ABCDEF?source=host" });
-    mocks.createClient.mockResolvedValue({ auth: { getUser: mocks.getUser } });
+    mocks.createClient.mockResolvedValue({ auth: { getUser: mocks.getUser }, from: mocks.from });
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
   });
 
@@ -71,6 +85,21 @@ describe("public viewer context", () => {
       authenticated: false,
       intendedReturnTo: "/join/ABCDEF?source=host",
     });
+  });
+
+  it("returns a manageable deck id only through a verified owner-filtered lookup", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "account-id" } }, error: null });
+    mocks.maybeSingle.mockResolvedValue({ data: { id: "internal-deck-id" }, error: null });
+
+    await expect(loadOwnedPublicDeckId("public-deck-id")).resolves.toBe("internal-deck-id");
+    expect(mocks.from).toHaveBeenCalledWith("decks");
+    expect(mocks.eq).toHaveBeenNthCalledWith(1, "public_id", "public-deck-id");
+    expect(mocks.eq).toHaveBeenNthCalledWith(2, "owner_account_id", "account-id");
+  });
+
+  it("does not attempt an ownership lookup for an anonymous viewer", async () => {
+    await expect(loadOwnedPublicDeckId("public-deck-id")).resolves.toBeNull();
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it("renders the workspace action for a verified account", async () => {

@@ -88,3 +88,28 @@ export async function loadPublicViewerContext(
 }
 
 export const readPublicViewerContext = cache(loadPublicViewerContext);
+
+/**
+ * Resolves an internal deck id only when the verified public-page viewer owns
+ * the matching publication. The user-bound client and the explicit owner
+ * predicate make this fail closed under RLS, expired sessions, and outages.
+ */
+export async function loadOwnedPublicDeckId(publicId: string): Promise<string | null> {
+  try {
+    const client = await createNextServerDatabaseClient();
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError || !userData.user) return null;
+
+    const { data, error } = await client
+      .from("decks")
+      .select("id")
+      .eq("public_id", publicId)
+      .eq("owner_account_id", userData.user.id)
+      .maybeSingle();
+    return !error && typeof data?.id === "string" ? data.id : null;
+  } catch {
+    return null;
+  }
+}
+
+export const readOwnedPublicDeckId = cache(loadOwnedPublicDeckId);

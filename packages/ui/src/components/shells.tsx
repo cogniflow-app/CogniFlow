@@ -113,3 +113,145 @@ export const PageHeader = forwardRef<HTMLElement, PageHeaderProps>(function Page
     </header>
   );
 });
+
+/** Product-wide page boundary with the shared responsive gutters. */
+export const ProductPage = forwardRef<HTMLDivElement, PageShellProps>(function ProductPage(
+  { children, className, width = "wide", ...props },
+  ref,
+) {
+  return (
+    <PageShell ref={ref} className={cn("lumen-product-page", className)} width={width} {...props}>
+      {children}
+    </PageShell>
+  );
+});
+
+export const ProductPageHeader = forwardRef<HTMLElement, PageHeaderProps>(
+  function ProductPageHeader({ actions, className, description, eyebrow, title, ...props }, ref) {
+    return (
+      <PageHeader
+        ref={ref}
+        actions={actions}
+        className={cn("lumen-product-page-header", className)}
+        description={description}
+        eyebrow={eyebrow}
+        title={title}
+        {...props}
+      />
+    );
+  },
+);
+
+export interface ProductToolbarProps extends HTMLAttributes<HTMLDivElement> {
+  children: ReactNode;
+  label: string;
+}
+
+export const ProductToolbar = forwardRef<HTMLDivElement, ProductToolbarProps>(
+  function ProductToolbar({ children, className, label, ...props }, ref) {
+    return (
+      <div
+        ref={ref}
+        aria-label={label}
+        className={cn("lumen-product-toolbar", className)}
+        role="group"
+        {...props}
+      >
+        {children}
+      </div>
+    );
+  },
+);
+
+export const ReadableContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function ReadableContent({ children, className, ...props }, ref) {
+    return (
+      <div ref={ref} className={cn("lumen-readable-content", className)} {...props}>
+        {children}
+      </div>
+    );
+  },
+);
+
+export interface SectionHeaderProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
+  actions?: ReactNode;
+  description?: ReactNode;
+  title: ReactNode;
+}
+
+export const SectionHeader = forwardRef<HTMLElement, SectionHeaderProps>(function SectionHeader(
+  { actions, className, description, title, ...props },
+  ref,
+) {
+  return (
+    <header ref={ref} className={cn("lumen-section-header", className)} {...props}>
+      <div>
+        <h2>{title}</h2>
+        {description && <div className="lumen-compact-form-copy">{description}</div>}
+      </div>
+      {actions && <div className="lumen-responsive-actions">{actions}</div>}
+    </header>
+  );
+});
+
+export interface FormSectionProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
+  children: ReactNode;
+  description?: ReactNode;
+  title?: ReactNode;
+}
+
+export const FormSection = forwardRef<HTMLElement, FormSectionProps>(function FormSection(
+  { children, className, description, title, ...props },
+  ref,
+) {
+  return (
+    <section ref={ref} className={cn("lumen-form-section", className)} {...props}>
+      {(title || description) && (
+        <div className="lumen-form-section__heading">
+          {title && <h2>{title}</h2>}
+          {description && <div className="lumen-compact-form-copy">{description}</div>}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+});
+
+export const FieldGroup = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function FieldGroup({ children, className, ...props }, ref) {
+    return (
+      <div ref={ref} className={cn("lumen-field-group", className)} {...props}>
+        {children}
+      </div>
+    );
+  },
+);
+
+export const StickyActionBar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function StickyActionBar({ children, className, ...props }, ref) {
+    return (
+      <div ref={ref} className={cn("lumen-sticky-action-bar", className)} {...props}>
+        {children}
+      </div>
+    );
+  },
+);
+
+export type CompactStatusTone = "neutral" | "progress" | "success" | "danger";
+
+export interface CompactStatusProps extends HTMLAttributes<HTMLSpanElement> {
+  children: ReactNode;
+  tone?: CompactStatusTone;
+}
+
+export const CompactStatus = forwardRef<HTMLSpanElement, CompactStatusProps>(function CompactStatus(
+  { children, className, tone = "neutral", ...props },
+  ref,
+) {
+  return (
+    <span ref={ref} className={cn("lumen-compact-status", className)} data-tone={tone} {...props}>
+      <span aria-hidden="true" />
+      {children}
+    </span>
+  );
+});

@@ -7,7 +7,7 @@ import type { CardTypeCode } from "@/lib/content/view-models";
 import { requireAccountContext } from "@/lib/server/account-context";
 import { readDeckDetail } from "@/lib/server/content-repository";
 
-export const metadata: Metadata = { title: "Note editor" };
+export const metadata: Metadata = { title: "Card composer" };
 
 export default async function NoteEditorPage({
   params,
@@ -46,7 +46,9 @@ export default async function NoteEditorPage({
   const kind = allowed.includes(query.type ?? "") ? (query.type as CardTypeCode) : "basic";
   return (
     <NoteEditor
+      key={note?.id ?? `new:${kind}`}
       deckId={deck.id}
+      deckTitle={deck.title}
       existingNotes={deck.notes}
       initialKind={kind}
       {...(note ? { note } : {})}

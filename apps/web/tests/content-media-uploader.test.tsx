@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,7 +9,7 @@ type RequestListener = () => void;
 class FakeXmlHttpRequest {
   static instances: FakeXmlHttpRequest[] = [];
   static latest: FakeXmlHttpRequest | null = null;
-  static outcomes: Array<"error" | "success"> = [];
+  static outcomes: Array<"error" | "invalid" | "success"> = [];
 
   readonly listeners = new Map<string, RequestListener>();
   readonly open = vi.fn();
@@ -31,8 +31,18 @@ class FakeXmlHttpRequest {
 
   send(body: Document | XMLHttpRequestBodyInit | null) {
     this.sentBody = body;
-    if (FakeXmlHttpRequest.outcomes.shift() === "error") {
+    const outcome = FakeXmlHttpRequest.outcomes.shift();
+    if (outcome === "error") {
       queueMicrotask(() => this.listeners.get("error")?.());
+      return;
+    }
+    if (outcome === "invalid") {
+      this.status = 422;
+      this.response = {
+        code: "INVALID_INPUT",
+        message: "The file signature and media hash did not match.",
+      };
+      queueMicrotask(() => this.listeners.get("load")?.());
       return;
     }
     this.status = 201;
@@ -145,7 +155,99 @@ describe("explicit private media upload", () => {
     expect(form.get("transcript")).toBe("A spoken ATP prompt");
     expect(String(form.get("sha256"))).toMatch(/^[a-f0-9]{64}$/u);
     expect(screen.getByText("Audio attached.")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Replace audio" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Replace audio: Audio prompt/i })).toBeVisible();
+  });
+
+  it("makes the whole dropzone keyboard-operable and validates dropped files before upload", async () => {
+    const user = userEvent.setup();
+    render(<MediaUploader kind="image" label="Diagram image" onUploaded={vi.fn()} />);
+    const input = screen.getByLabelText("Diagram image", { selector: "input" });
+    const inputClick = vi.spyOn(input, "click");
+    const dropzone = screen.getByRole("button", { name: /Choose image: Diagram image/i });
+
+    await user.click(dropzone);
+    expect(inputClick).toHaveBeenCalledOnce();
+
+    fireEvent.drop(dropzone, {
+      dataTransfer: {
+        files: [new File(["not an image"], "notes.txt", { type: "text/plain" })],
+      },
+    });
+    expect(screen.getByText("Choose a PNG, JPEG, or WebP image.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Upload and attach" })).toBeDisabled();
+    expect(FakeXmlHttpRequest.latest).toBeNull();
+  });
+
+  it("accepts codec-qualified MIME types produced by browser audio recording", () => {
+    render(<MediaUploader kind="audio" label="Recorded prompt" onUploaded={vi.fn()} />);
+    const dropzone = screen.getByRole("button", { name: /Choose audio: Recorded prompt/i });
+
+    fireEvent.drop(dropzone, {
+      dataTransfer: {
+        files: [
+          new File([new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])], "recording.webm", {
+            type: "audio/webm;codecs=opus",
+          }),
+        ],
+      },
+    });
+
+    expect(screen.getByRole("button", { name: /Replace audio: Recorded prompt/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Upload and attach" })).toBeEnabled();
+    expect(screen.queryByText(/Choose an MP3, MP4, OGG, WebM, or WAV audio file/i)).toBeNull();
+  });
+
+  it("offers removal after attachment when the parent supports it", async () => {
+    const onRemoved = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <MediaUploader
+        kind="audio"
+        label="Removable audio"
+        onRemoved={onRemoved}
+        onUploaded={vi.fn()}
+      />,
+    );
+    await user.upload(
+      screen.getByLabelText("Removable audio", { selector: "input" }),
+      new File([new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])], "clip.webm", {
+        type: "audio/webm",
+      }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Transcript or non-audio fallback" }),
+      "Short clip",
+    );
+    await user.click(screen.getByRole("button", { name: "Upload and attach" }));
+    await screen.findByText("Audio attached.");
+
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    expect(onRemoved).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: /Choose audio: Removable audio/i })).toBeVisible();
+  });
+
+  it("keeps technical verification details out of upload errors", async () => {
+    FakeXmlHttpRequest.outcomes = ["invalid"];
+    const user = userEvent.setup();
+    render(<MediaUploader kind="audio" label="Invalid audio" onUploaded={vi.fn()} />);
+    await user.upload(
+      screen.getByLabelText("Invalid audio", { selector: "input" }),
+      new File([new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])], "invalid.webm", {
+        type: "audio/webm",
+      }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Transcript or non-audio fallback" }),
+      "Invalid test",
+    );
+    await user.click(screen.getByRole("button", { name: "Upload and attach" }));
+
+    expect(
+      await screen.findByText(
+        "This file could not be verified. Choose a supported file and try again.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/signature|hash/i)).not.toBeInTheDocument();
   });
 
   it("reports unavailable browser recording without claiming a recording was saved", async () => {

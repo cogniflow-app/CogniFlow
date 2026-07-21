@@ -1,18 +1,21 @@
 # Implementation status
 
 **Current phase:** Phase 02 — content model, editor, media, and card types  
-**Status:** Complete; local and Phase 02 Preview acceptance verified  
-**Evidence date:** 2026-07-20 UTC  
+**Status:** Usability and authoring redesign complete and aggregate-verified locally; one draft
+pull request is open and the final branch Preview is pending  
+**Evidence date:** 2026-07-21 UTC  
 **Next phase:** Phase 03 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
 
 ## Phase 02 product UI redesign
 
-Branch `codex/phase-02-product-ui-redesign` completes a presentation- and interaction-only redesign
-of the existing Phase 02 surfaces. It changes no content API or database contract, authentication
-behavior, appearance persistence contract, environment variable, RLS policy, hosted database, or
-migration. Phase 03 remains unstarted.
+Local branch `codex/phase-02-usability-and-authoring-redesign` contains the acceptance-hardened,
+presentation- and interaction-only redesign of the existing Phase 02 surfaces. It began at clean
+`origin/main` and is published as one draft pull request after the final aggregate gate. The
+changes add no content API or database contract, authentication behavior, appearance persistence
+contract, environment variable, RLS policy, hosted database operation, or migration. Phase 03
+remains unstarted.
 
 - Replaced the oversized authenticated welcome/dashboard with a responsive workspace shell, a
   256 px wide desktop rail, a focus-trapped mobile drawer, compact learner identity, first-class
@@ -48,10 +51,38 @@ migration. Phase 03 remains unstarted.
   pages no longer download product CSS or the Radix popover dependency; Lighthouse returned to the
   established performance budget while product routes retain the local Manrope variable font.
 
-Private, ignored before/after screenshots were captured and directly inspected for empty Library,
-populated Library, image occlusion before upload, and public player front/back. Sanitized automated
-artifacts cover those states plus populated mobile Library, the editor, image with a region, public
-mobile, and reduced motion. No personal screenshot or generated browser artifact is tracked.
+The post-merge acceptance audit additionally closed concrete edge cases found by direct pixel and
+interaction inspection:
+
+- Appearance now wins pointer hit testing above the focus-trapped mobile workspace drawer; the
+  first Escape explicitly closes that inner popover, preserves the drawer, and restores its trigger
+  focus. The Library rail, cards, primary action, media actions, editor top bar, and long centralized
+  brand names remain contained at 320×568 and 200% text.
+- All card types now receive friendly, control-associated validation. Diagram group renames persist
+  without losing focus, unsafe custom-card CSS marks the scoped-CSS field, visual-region errors map
+  to the exact region controls, and raw paths/codes never render.
+- Media selection validates supported base MIME types and the 10 MB limit before upload, accepts
+  codec-qualified browser recordings, sanitizes server errors, survives hashing failure, and
+  supports real attach/remove state. Image description is represented once, not by duplicate
+  controls.
+- Local signed image/audio URLs are allowed by CSP only in development; production CSP remains
+  restricted. Image occlusion now proves a loaded 640×360 image and visible selected mask rather
+  than passing on a blank stage.
+- The public player scopes keyboard and swipe behavior to the card, ignores nested interactive
+  controls, requires horizontal swipe intent, restores the front face on navigation, and exposes
+  owner-only Manage, authenticated Workspace, or anonymous Sign in actions. Copy confirmation is
+  transient and stale-safe.
+- Layout, authoring, and accessibility scenarios provision isolated, already-onboarded local
+  accounts through the existing service-only test boundary, then authenticate through the real
+  sign-in UI. The dedicated smoke test still exercises public signup and onboarding, so the
+  provider's deliberately low email allowance and the configured product limit remain intact.
+
+Private, ignored screenshots were captured and directly inspected at actual pixels for empty and
+populated Library, dark/serious and mobile Library, the editor, image occlusion before/after upload,
+the isolated stage with a selected mask, public player front/back, public mobile, and dark reduced
+motion. The in-app browser backend was unavailable, so repository Playwright produced the real
+browser pixels and the local image viewer was used for direct visual QA. No personal screenshot or
+generated browser artifact is tracked.
 Responsive inspection covers 1920×1080, 1536×1024, 1440×900, 1366×700, 1280×800, 1024×768,
 768×1024, 430×932, 390×844, 360×800, and 320×568, plus a 125% zoom equivalent, 200% text,
 light/dark themes, serious mode, reduced motion, keyboard-only interaction, and short-height rails.
@@ -62,20 +93,25 @@ light/dark themes, serious mode, reduced motion, keyboard-only interaction, and 
 | `pnpm format:check`                   | Exit 0                                                                                  |
 | `pnpm secret:scan`                    | Exit 0; no credential finding                                                           |
 | `pnpm lint` / `pnpm typecheck`        | Exit 0; lint/dependency boundaries and 8/8 strict TypeScript projects pass              |
-| `pnpm test`                           | Exit 0; 76 files / 589 tests pass                                                       |
+| `pnpm test`                           | Exit 0; 76 files / 617 tests pass                                                       |
+| Coverage                              | 80.52% statements, 70.00% branches, 81.77% functions, and 84.20% lines                  |
 | `pnpm db:reset` / `pnpm test:db`      | Exit 0; unchanged 33-migration chain resets and 19 files / 795 assertions pass          |
 | `pnpm db:types:check`                 | Exit 0; generated database types remain current                                         |
 | verification-wrapped production build | Exit 0; optimized Next build generates 60 route/static entries                          |
 | verification-wrapped portable build   | Exit 0; OpenNext emits the portable worker                                              |
 | `pnpm test:e2e`                       | Exit 0; 25 pass and 17 intentional cross-project skips                                  |
-| `pnpm test:a11y`                      | Exit 0; 27/27 axe, theme, motion, focus, drawer, and authenticated keyboard checks pass |
-| `pnpm test:lighthouse`                | Exit 0; scores 98/100/96/100; FCP 0.759 s, LCP 2.324 s, TBT 15 ms, and CLS 0            |
-| `pnpm test:load`                      | Exit 0; 15/15 checks, 3/3 requests, 0% failures, and request-duration p95 5.75 ms       |
-| `pnpm verify`                         | Exit 0; complete aggregate gate passed on the final redesign tree                       |
+| `pnpm test:a11y`                      | Exit 0; 28/28 axe, theme, motion, focus, drawer, and authenticated keyboard checks pass |
+| `pnpm test:lighthouse`                | Exit 0; scores 99/100/96/100; FCP 0.759 s, LCP 2.179 s, TBT 20 ms, and CLS 0            |
+| `pnpm test:load`                      | Exit 0; 15/15 checks, 3/3 requests, 0% failures, and request-duration p95 9.89 ms       |
+| `pnpm verify`                         | Exit 0; complete aggregate gate passed on the documented redesign tree                  |
 
 No new setup step or environment variable is required. The later-owner constraints below are
 unchanged: Phase 03 owns scheduling/review state, Phase 04 owns grading and persistent study, and
 later phases own offline sync, imports, collaboration, discovery, and games.
+
+The branch Preview URL and guarded hosted smoke result will be recorded after the single draft pull
+request is open. Local work has not touched Preview, Beta, or Production Supabase, and no hosted
+data has been created during this redesign audit.
 
 ## Phase 02 complete and Preview-verified
 

@@ -411,3 +411,102 @@ export function ZoomOutIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function BoldIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="M7 4h5.5a4 4 0 0 1 0 8H7V4Zm0 8h6a4 4 0 0 1 0 8H7v-8Z" />
+    </svg>
+  );
+}
+
+export function ItalicIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="M10 4h8M6 20h8M14 4 10 20" />
+    </svg>
+  );
+}
+
+export function UnderlineIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="M7 4v6a5 5 0 0 0 10 0V4M5 20h14" />
+    </svg>
+  );
+}
+
+export function StrikethroughIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="M6 7.5C6.7 5.4 8.7 4 11.5 4c3 0 5.1 1.3 5.8 3.5M5 12h14M8 16.5c1 2.3 6.9 2.4 8.2-.1" />
+    </svg>
+  );
+}
+
+export function HeadingIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="M5 5v14M13 5v14M5 12h8M17 11.5l2-1.5v9M17 19h4" />
+    </svg>
+  );
+}
+
+export function BulletListIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <circle cx="5" cy="7" r="1" />
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="5" cy="17" r="1" />
+      <path d="M9 7h10M9 12h10M9 17h10" />
+    </svg>
+  );
+}
+
+export function NumberedListIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="M4 6h1v3M4 9h2M4 13c.3-.7 2-.8 2 .3 0 .7-2 1.7-2 2.7h2M10 7h9M10 12h9M10 17h9" />
+    </svg>
+  );
+}
+
+export function QuoteIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="M5 7h5v5H6c0 2.2 1 3.5 3 4.5M14 7h5v5h-4c0 2.2 1 3.5 3 4.5" />
+    </svg>
+  );
+}
+
+export function CodeIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="m8 6-5 6 5 6M16 6l5 6-5 6M14 4l-4 16" />
+    </svg>
+  );
+}
+
+export function LinkIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="m9 15 6-6M7.5 17.5l-1 1a3.5 3.5 0 0 1-5-5l3-3a3.5 3.5 0 0 1 5 0M16.5 6.5l1-1a3.5 3.5 0 0 1 5 5l-3 3a3.5 3.5 0 0 1-5 0" />
+    </svg>
+  );
+}
+
+export function UndoIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="m8 7-5 5 5 5M4 12h9a6 6 0 0 1 6 6" />
+    </svg>
+  );
+}
+
+export function RedoIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="m16 7 5 5-5 5M20 12h-9a6 6 0 0 0-6 6" />
+    </svg>
+  );
+}

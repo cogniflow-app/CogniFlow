@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CARD_SCHEMA_VERSION, generateCardBlueprints } from "@lumen/domain";
@@ -56,24 +56,35 @@ describe("public deck preview", () => {
   it("supports Space, Enter, and arrow-key navigation", () => {
     render(<PublicDeckPreview deck={publicDeck} />);
     const scene = screen.getByRole("group", { name: /Question, card 1 of 2/i });
+
+    fireEvent.keyDown(document.body, { key: " " });
+    expect(screen.getByRole("group", { name: /Question, card 1 of 2/i })).toBeVisible();
     scene.focus();
 
-    act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: " " })));
+    fireEvent.keyDown(scene, { key: " " });
     expect(screen.getByRole("group", { name: /Answer, card 1 of 2/i })).toBeVisible();
-    act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" })));
+    fireEvent.keyDown(scene, { key: "Enter" });
     expect(screen.getByRole("group", { name: /Question, card 1 of 2/i })).toBeVisible();
-    act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" })));
+    fireEvent.keyDown(scene, { key: "ArrowRight" });
     expect(screen.getByRole("group", { name: /Question, card 2 of 2/i })).toBeVisible();
-    act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" })));
+    fireEvent.keyDown(scene, { key: "ArrowLeft" });
     expect(screen.getByRole("group", { name: /Question, card 1 of 2/i })).toBeVisible();
   });
 
   it("supports touch swipe navigation without flipping the destination", () => {
     render(<PublicDeckPreview deck={publicDeck} />);
     const scene = screen.getByRole("group", { name: /Question, card 1 of 2/i });
-    fireEvent.touchStart(scene, { changedTouches: [{ clientX: 120 }] });
-    fireEvent.touchEnd(scene, { changedTouches: [{ clientX: 10 }] });
+    fireEvent.touchStart(scene, { changedTouches: [{ clientX: 120, clientY: 30 }] });
+    fireEvent.touchEnd(scene, { changedTouches: [{ clientX: 10, clientY: 35 }] });
     expect(screen.getByRole("group", { name: /Question, card 2 of 2/i })).toBeVisible();
+  });
+
+  it("ignores vertical-intent touch gestures", () => {
+    render(<PublicDeckPreview deck={publicDeck} />);
+    const scene = screen.getByRole("group", { name: /Question, card 1 of 2/i });
+    fireEvent.touchStart(scene, { changedTouches: [{ clientX: 120, clientY: 20 }] });
+    fireEvent.touchEnd(scene, { changedTouches: [{ clientX: 60, clientY: 130 }] });
+    expect(screen.getByRole("group", { name: /Question, card 1 of 2/i })).toBeVisible();
   });
 
   it("uses a non-rotating reduced-motion state and removes visible duplicate flip copy", async () => {
@@ -177,6 +188,65 @@ describe("public deck preview", () => {
     fireEvent.keyDown(answer, { key: " " });
     fireEvent.keyDown(answer, { key: "Enter" });
     expect(screen.getByRole("group", { name: /Question, card 2 of 2/i })).toBeVisible();
+  });
+
+  it("does not navigate from a touch gesture inside nested interactive content", async () => {
+    const user = userEvent.setup();
+    render(<PublicDeckPreview deck={publicDeck} />);
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    const answer = screen.getByRole("textbox", { name: "Typed answer preview" });
+
+    fireEvent.touchStart(answer, { changedTouches: [{ clientX: 10, clientY: 20 }] });
+    fireEvent.touchEnd(answer, { changedTouches: [{ clientX: 120, clientY: 25 }] });
+
+    expect(screen.getByRole("group", { name: /Question, card 2 of 2/i })).toBeVisible();
+    expect(screen.getByText("2 / 2")).toBeVisible();
+  });
+
+  it("does not flip when a nested choice label is clicked", async () => {
+    const user = userEvent.setup();
+    const renderer = generateCardBlueprints({
+      answer: true,
+      kind: "true_false",
+      schemaVersion: CARD_SCHEMA_VERSION,
+      statement: {
+        content: [
+          {
+            content: [{ text: "ATP stores usable energy.", type: "text" }],
+            type: "paragraph",
+          },
+        ],
+        schemaVersion: 2,
+        type: "doc",
+      },
+    })[0]?.renderer;
+    if (!renderer) throw new Error("Expected a true/false public renderer fixture.");
+    const { container } = render(
+      <PublicDeckPreview
+        deck={{
+          ...publicDeck,
+          cardCount: 1,
+          cards: [
+            {
+              back: "True",
+              cardType: "true_false",
+              front: "ATP stores usable energy.",
+              id: "public-true-false-card",
+              media: [],
+              nonvisualFallback: "Choose true or false.",
+              renderer,
+            },
+          ],
+          supportedCardTypes: ["true_false"],
+        }}
+      />,
+    );
+
+    const choiceLabel = container.querySelector(".flashcard-front label");
+    if (!choiceLabel) throw new Error("Expected a true/false choice label.");
+    await user.click(choiceLabel);
+
+    expect(screen.getByRole("group", { name: /Question, card 1 of 1/i })).toBeVisible();
   });
 
   it("shows compact creator, license, date, and visibility attribution", () => {

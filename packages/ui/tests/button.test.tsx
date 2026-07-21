@@ -5,6 +5,26 @@ import { describe, expect, it, vi } from "vitest";
 import { Button, IconButton, LinkButton } from "../src";
 
 describe("buttons", () => {
+  it.each(["primary", "secondary", "ghost", "danger"] as const)(
+    "keeps the %s variant and its icon from shrinking inside crowded layouts",
+    (variant) => {
+      render(
+        <Button leadingIcon={<svg aria-hidden="true" />} variant={variant}>
+          New deck
+        </Button>,
+      );
+
+      const button = screen.getByRole("button", { name: "New deck" });
+      expect(button).toHaveClass(
+        "shrink-0",
+        "overflow-visible",
+        "[&>svg]:size-4",
+        "[&>svg]:shrink-0",
+      );
+      expect(button.lastElementChild).toHaveClass("flex-[0_1_auto]");
+    },
+  );
+
   it("prevents duplicate actions while loading and announces its state", async () => {
     const user = userEvent.setup();
     const onClick = vi.fn();
@@ -59,5 +79,17 @@ describe("buttons", () => {
     expect(link).toHaveAttribute("tabindex", "-1");
     await user.click(link);
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("applies the same non-shrinking content contract to link buttons", () => {
+    render(
+      <LinkButton href="/study" leadingIcon={<svg aria-hidden="true" />}>
+        Open player
+      </LinkButton>,
+    );
+
+    const link = screen.getByRole("link", { name: "Open player" });
+    expect(link).toHaveClass("shrink-0", "overflow-visible", "[&>svg]:size-4", "[&>svg]:shrink-0");
+    expect(link.lastElementChild).toHaveClass("flex-[0_1_auto]");
   });
 });

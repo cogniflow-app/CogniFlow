@@ -8,7 +8,27 @@ import {
   type RichNode,
   type RichTextMark,
 } from "@lumen/domain";
-import { Button, Dialog, FormField, Input, Select, Textarea } from "@lumen/ui";
+import {
+  BoldIcon,
+  BulletListIcon,
+  Button,
+  CodeIcon,
+  Dialog,
+  FormField,
+  HeadingIcon,
+  Input,
+  ItalicIcon,
+  LinkIcon,
+  NumberedListIcon,
+  PlusIcon,
+  QuoteIcon,
+  RedoIcon,
+  Select,
+  StrikethroughIcon,
+  Textarea,
+  UnderlineIcon,
+  UndoIcon,
+} from "@lumen/ui";
 import {
   useCallback,
   useEffect,
@@ -22,7 +42,11 @@ import {
 import { MediaUploader, type UploadedMediaAsset } from "./media-uploader.client";
 
 export interface RichEditorProps {
+  readonly compact?: boolean;
+  readonly controlId?: string | undefined;
   readonly document?: RichDocument;
+  readonly errorId?: string | undefined;
+  readonly invalid?: boolean;
   readonly label: string;
   readonly language?: string;
   readonly onBlur?: (document: RichDocument) => void;
@@ -600,7 +624,11 @@ function insertNodeAtSelection(
 }
 
 export function RichEditor({
+  compact = false,
+  controlId,
   document: initialDocument,
+  errorId,
+  invalid = false,
   label,
   language,
   onBlur,
@@ -619,6 +647,7 @@ export function RichEditor({
   const [audioOpen, setAudioOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
+  const [formattingOpen, setFormattingOpen] = useState(false);
   const [pendingImage, setPendingImage] = useState<UploadedMediaAsset | null>(null);
   const [annotationImage, setAnnotationImage] = useState<UploadedMediaAsset | null>(null);
   const [imageRotation, setImageRotation] = useState<0 | 90 | 180 | 270>(0);
@@ -903,12 +932,27 @@ export function RichEditor({
   }
 
   return (
-    <div className="rich-editor">
+    <div className="rich-editor" data-compact={compact || undefined}>
       <span className="visually-hidden" id={labelId}>
         {label}
       </span>
+      {compact && (
+        <div className="rich-editor__compact-actions">
+          <Button
+            aria-controls={`${controlId}-formatting`}
+            aria-expanded={formattingOpen}
+            onClick={() => setFormattingOpen((open) => !open)}
+            size="sm"
+            variant="ghost"
+          >
+            {formattingOpen ? "Hide formatting" : "Format"}
+          </Button>
+        </div>
+      )}
       <div
+        id={`${controlId}-formatting`}
         className="rich-editor__toolbar"
+        hidden={compact && !formattingOpen}
         onMouseDownCapture={rememberSelection}
         role="toolbar"
         aria-label={`${label} formatting`}
@@ -919,7 +963,7 @@ export function RichEditor({
           title="Bold (Ctrl+B)"
           type="button"
         >
-          <b>B</b>
+          <BoldIcon />
         </button>
         <button
           aria-label="Italic"
@@ -927,70 +971,97 @@ export function RichEditor({
           title="Italic (Ctrl+I)"
           type="button"
         >
-          <i>I</i>
+          <ItalicIcon />
         </button>
-        <button aria-label="Underline" onClick={() => command("underline")} type="button">
-          <u>U</u>
+        <button
+          aria-label="Underline"
+          onClick={() => command("underline")}
+          title="Underline (Ctrl+U)"
+          type="button"
+        >
+          <UnderlineIcon />
         </button>
-        <button aria-label="Strike through" onClick={() => command("strikeThrough")} type="button">
-          <s>S</s>
+        <button
+          aria-label="Strike through"
+          onClick={() => command("strikeThrough")}
+          title="Strike through"
+          type="button"
+        >
+          <StrikethroughIcon />
         </button>
-        <button aria-label="Heading" onClick={() => command("formatBlock", "h2")} type="button">
-          H2
+        <button
+          aria-label="Heading"
+          onClick={() => command("formatBlock", "h2")}
+          title="Heading"
+          type="button"
+        >
+          <HeadingIcon />
         </button>
         <button
           aria-label="Bulleted list"
           onClick={() => command("insertUnorderedList")}
+          title="Bulleted list"
           type="button"
         >
-          • list
+          <BulletListIcon />
         </button>
         <button
           aria-label="Numbered list"
           onClick={() => command("insertOrderedList")}
+          title="Numbered list"
           type="button"
         >
-          1. list
+          <NumberedListIcon />
         </button>
         <button
           aria-label="Block quote"
           onClick={() => command("formatBlock", "blockquote")}
+          title="Block quote"
           type="button"
         >
-          ❞
+          <QuoteIcon />
         </button>
         <button
           aria-label="Inline code"
           onClick={wrapInlineCode}
           onMouseDown={(event) => event.preventDefault()}
+          title="Inline code"
           type="button"
         >
-          &lt;/&gt;
+          <CodeIcon />
         </button>
-        <button aria-label="Insert link" onClick={() => setLinkOpen(true)} type="button">
-          Link
+        <button
+          aria-label="Insert link"
+          onClick={() => setLinkOpen(true)}
+          title="Insert link"
+          type="button"
+        >
+          <LinkIcon />
         </button>
-        <button aria-label="Undo" onClick={() => command("undo")} type="button">
-          ↶
+        <button aria-label="Undo" onClick={() => command("undo")} title="Undo" type="button">
+          <UndoIcon />
         </button>
-        <button aria-label="Redo" onClick={() => command("redo")} type="button">
-          ↷
+        <button aria-label="Redo" onClick={() => command("redo")} title="Redo" type="button">
+          <RedoIcon />
         </button>
         <button
           aria-label="Open insert command palette"
           onClick={() => setCommandOpen(true)}
+          title="Insert content"
           type="button"
         >
-          + block
+          <PlusIcon />
         </button>
       </div>
       <div
         ref={editorRef}
-        aria-describedby={`${labelId}-help`}
+        aria-describedby={[`${labelId}-help`, errorId].filter(Boolean).join(" ")}
+        aria-invalid={invalid || undefined}
         aria-labelledby={labelId}
         className="rich-editor__content"
         contentEditable
         data-placeholder={placeholder}
+        id={controlId}
         lang={contentLanguage}
         onBlur={() => {
           rememberSelection();
@@ -1010,7 +1081,9 @@ export function RichEditor({
         suppressContentEditableWarning
       />
       <div className="rich-editor__footer" id={`${labelId}-help`}>
-        <span>Ctrl/⌘ K opens blocks · Markdown-style shortcuts supported by the toolbar</span>
+        {!compact && (
+          <span>Ctrl/⌘ K opens blocks · Markdown-style shortcuts supported by the toolbar</span>
+        )}
         <span aria-live="polite">
           {counts.words} words · {counts.characters} characters
         </span>
@@ -1126,7 +1199,7 @@ export function RichEditor({
       </Dialog>
 
       <Dialog
-        description="Upload a private image explicitly, then choose a normalized crop, rotation, and optional annotation overlay. Alt text is required."
+        description="Upload an image, adjust its crop or rotation, and add an optional annotation. An image description is required."
         onOpenChange={setImageOpen}
         open={imageOpen}
         title="Insert image"
@@ -1148,7 +1221,7 @@ export function RichEditor({
                 />
               </FormField>
               <fieldset className="grid grid-cols-2 gap-2">
-                <legend className="col-span-2 text-sm font-bold">Normalized crop</legend>
+                <legend className="col-span-2 text-sm font-bold">Crop</legend>
                 {(["x", "y", "width", "height"] as const).map((key) => (
                   <FormField key={key} label={key.toUpperCase()}>
                     <Input
@@ -1198,7 +1271,7 @@ export function RichEditor({
       </Dialog>
 
       <Dialog
-        description="Only ordinary YouTube or Vimeo links are accepted and converted to privacy-enhanced player URLs. No iframe HTML is stored."
+        description="Paste a YouTube or Vimeo link. Playback uses a privacy-enhanced player."
         onOpenChange={setVideoOpen}
         open={videoOpen}
         title="Insert external video"
@@ -1250,7 +1323,7 @@ export function RichEditor({
       </Dialog>
 
       <Dialog
-        description="Only http, https, mailto, and tel links survive validation."
+        description="Use a web, email, or telephone link."
         onOpenChange={setLinkOpen}
         open={linkOpen}
         title="Add a safe link"

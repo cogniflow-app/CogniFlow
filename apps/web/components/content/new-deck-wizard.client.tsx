@@ -1,9 +1,9 @@
 "use client";
 
-import { Button, CheckIcon, FormField, Input, Select, Textarea } from "@lumen/ui";
+import { Button, CheckIcon, FormField, Input, ProductPage, Select, Textarea } from "@lumen/ui";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { CARD_TYPE_BY_CODE } from "@/lib/content/card-types";
 import { PendingContentMutations, performContentMutation } from "@/lib/content/client-mutations";
@@ -19,17 +19,19 @@ const CARD_TYPE_GROUPS: readonly {
   readonly types: readonly CardTypeCode[];
 }[] = [
   {
-    label: "Basic recall",
-    types: ["basic", "basic_reversed", "optional_reversed", "bidirectional"],
+    label: "Basic",
+    types: ["basic", "basic_reversed", "optional_reversed", "bidirectional", "typed_answer"],
   },
   {
-    label: "Written and structured",
-    types: ["typed_answer", "cloze", "ordering", "list_answer"],
+    label: "Quiz",
+    types: ["multiple_choice", "select_all", "true_false"],
   },
-  { label: "Quiz", types: ["multiple_choice", "select_all", "true_false"] },
-  { label: "Visual", types: ["image_occlusion", "diagram"] },
-  { label: "Audio and creative", types: ["audio_prompt", "pronunciation", "drawing"] },
-  { label: "Advanced / custom", types: ["custom"] },
+  { label: "Structured", types: ["cloze", "ordering", "list_answer"] },
+  {
+    label: "Visual and media",
+    types: ["image_occlusion", "diagram", "audio_prompt", "pronunciation", "drawing"],
+  },
+  { label: "Advanced", types: ["custom"] },
 ] as const;
 
 export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly FolderSummary[] }) {
@@ -42,19 +44,13 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pendingMutations = useRef(new PendingContentMutations());
+  const stepTwoHeadingRef = useRef<HTMLHeadingElement>(null);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (step === 1) {
-      if (!title.trim()) {
-        setError("Add a deck title to continue.");
-        return;
-      }
-      setError(null);
-      setStep(2);
-      return;
-    }
+  useEffect(() => {
+    if (step === 2) stepTwoHeadingRef.current?.focus();
+  }, [step]);
 
+  async function createDeck(openComposer: boolean) {
     setSubmitting(true);
     setError(null);
     try {
@@ -72,7 +68,9 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
         url: "/api/content/decks",
       });
       router.push(
-        `/app/decks/${result.data.id}/edit?type=${encodeURIComponent(cardType)}` as Route,
+        (openComposer
+          ? `/app/decks/${result.data.id}/edit?type=${encodeURIComponent(cardType)}`
+          : `/app/decks/${result.data.id}`) as Route,
       );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The deck could not be created.");
@@ -80,8 +78,22 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
     }
   }
 
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (step === 1) {
+      if (!title.trim()) {
+        setError("Add a deck title to continue.");
+        return;
+      }
+      setError(null);
+      setStep(2);
+      return;
+    }
+    await createDeck(true);
+  }
+
   return (
-    <div className="editor-shell deck-creation-shell">
+    <ProductPage className="editor-shell deck-creation-shell">
       <header className="editor-titlebar deck-creation-header">
         <div>
           <ol aria-label="Breadcrumb" className="breadcrumb-list">
@@ -98,15 +110,18 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
             <span>{step > 1 ? <CheckIcon /> : "1"}</span> Details
           </li>
           <li aria-current={step === 2 ? "step" : undefined}>
-            <span>2</span> First card type
+            <span>2</span> First cards
           </li>
         </ol>
       </header>
 
       <form className="deck-creation-form" onSubmit={submit}>
+        <p aria-atomic="true" aria-live="polite" className="visually-hidden">
+          Step {step} of 2: {step === 1 ? "Name the deck" : "Choose what to add first"}
+        </p>
         {step === 1 ? (
           <section aria-labelledby="deck-details-heading">
-            <h2 id="deck-details-heading">Deck details</h2>
+            <h2 id="deck-details-heading">Name the deck</h2>
             <div className="deck-details-fields">
               <FormField label="Deck title" required>
                 <Input
@@ -141,7 +156,9 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
           <section aria-labelledby="card-type-heading">
             <div className="deck-creation-section-heading">
               <div>
-                <h2 id="card-type-heading">Choose your first card type</h2>
+                <h2 id="card-type-heading" ref={stepTwoHeadingRef} tabIndex={-1}>
+                  Choose what to add first
+                </h2>
                 <p>Basic is a great default. You can mix formats later.</p>
               </div>
               <span className="selected-card-type">
@@ -169,6 +186,10 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
                           </span>
                           <strong>{descriptor.shortLabel}</strong>
                           <span id={`card-type-${code}-detail`}>{descriptor.description}</span>
+                          <small>
+                            {descriptor.generatedCards}
+                            {code === "basic" ? " · Recommended" : ""}
+                          </small>
                         </button>
                       );
                     })}
@@ -199,11 +220,18 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
               Back
             </Button>
           )}
-          <Button loading={submitting} loadingLabel="Creating deck" size="lg" type="submit">
-            {step === 1 ? "Continue" : "Create deck"}
-          </Button>
+          <div className="deck-creation-actions__primary">
+            {step === 2 && (
+              <Button disabled={submitting} onClick={() => void createDeck(false)} variant="ghost">
+                Create deck without adding cards
+              </Button>
+            )}
+            <Button loading={submitting} loadingLabel="Creating deck" size="lg" type="submit">
+              {step === 1 ? "Continue" : "Create deck and add cards"}
+            </Button>
+          </div>
         </footer>
       </form>
-    </div>
+    </ProductPage>
   );
 }

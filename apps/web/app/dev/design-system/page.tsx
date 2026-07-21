@@ -3,6 +3,7 @@ import "./design-system.css";
 import { Badge } from "@lumen/ui/content";
 import { AppShell, PageHeader, PageShell } from "@lumen/ui/shells";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
 import { DesignSystemGallery } from "./gallery.client";
 
@@ -13,6 +14,7 @@ export const metadata: Metadata = {
 };
 
 export default function DesignSystemPage() {
+  if (process.env.NODE_ENV === "production") notFound();
   return (
     <AppShell>
       <PageShell width="wide">

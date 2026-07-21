@@ -5,7 +5,7 @@ import { NoteCardBrowser } from "@/components/content/deck-workspace.client";
 import { requireAccountContext } from "@/lib/server/account-context";
 import { readDeckDetail, readLibrarySnapshot } from "@/lib/server/content-repository";
 
-export const metadata: Metadata = { title: "Notes and cards" };
+export const metadata: Metadata = { title: "Card previews" };
 
 export default async function CardsPage({
   params,

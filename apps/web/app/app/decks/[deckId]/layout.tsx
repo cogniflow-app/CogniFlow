@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
-import { LinkButton, PlusIcon } from "@lumen/ui";
+import { LinkButton, PlusIcon, ProductPage } from "@lumen/ui";
 
 import { DeckCommandBar } from "@/components/content/deck-workspace.client";
 import { DeckNavigation } from "@/components/content/deck-navigation.client";
@@ -17,7 +17,7 @@ export default async function DeckLayout({
   if (!deck) notFound();
   const canEdit = deck.status === "active" && ["owner", "manager", "editor"].includes(deck.role);
   return (
-    <div className="deck-shell">
+    <ProductPage className="deck-shell">
       <header className="deck-titlebar">
         <div>
           <ol aria-label="Breadcrumb" className="breadcrumb-list">
@@ -33,14 +33,18 @@ export default async function DeckLayout({
           {deck.descriptionPlain && <p>{deck.descriptionPlain}</p>}
         </div>
         {canEdit && (
-          <LinkButton href={`/app/decks/${deck.id}/edit`} leadingIcon={<PlusIcon />}>
-            Add note
+          <LinkButton
+            className="product-primary-action"
+            href={`/app/decks/${deck.id}/edit`}
+            leadingIcon={<PlusIcon />}
+          >
+            Add cards
           </LinkButton>
         )}
       </header>
       <DeckCommandBar key={`${deck.id}:${String(deck.version)}`} deck={deck} />
       <DeckNavigation deck={deck} />
       {children}
-    </div>
+    </ProductPage>
   );
 }

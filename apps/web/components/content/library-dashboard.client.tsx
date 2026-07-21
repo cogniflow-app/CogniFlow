@@ -14,6 +14,7 @@ import {
   ListIcon,
   MoreIcon,
   PlusIcon,
+  ProductPage,
   SearchIcon,
   SegmentedControl,
   Select,
@@ -46,7 +47,7 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
         ? "warning"
         : "neutral";
   return (
-    <article className="deck-tile">
+    <article className="deck-tile" data-deck-theme={deck.theme ?? "neutral"}>
       <div className="deck-tile__top">
         <div className="deck-tile__cover">
           <span aria-hidden="true" className="deck-tile__mark">
@@ -56,9 +57,11 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
         </div>
         <div className="deck-tile__heading">
           <h3>
-            <a href={`/app/decks/${deck.id}`}>{deck.title}</a>
+            <a className="deck-tile__stretched-link" href={`/app/decks/${deck.id}`}>
+              {deck.title}
+            </a>
           </h3>
-          <p>{deck.descriptionPlain || "Open to add the first note."}</p>
+          <p>{deck.descriptionPlain || "Open to add the first cards."}</p>
         </div>
         <Dropdown
           label={`Actions for ${deck.title}`}
@@ -77,7 +80,12 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
               : []),
           ]}
           trigger={
-            <IconButton label={`Actions for ${deck.title}`} size="sm" variant="ghost">
+            <IconButton
+              className="deck-tile__menu"
+              label={`Actions for ${deck.title}`}
+              size="sm"
+              variant="ghost"
+            >
               <MoreIcon />
             </IconButton>
           }
@@ -85,7 +93,7 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
       </div>
       <div className="deck-tile__meta">
         <span>
-          {deck.noteCount} {deck.noteCount === 1 ? "note" : "notes"}
+          {deck.noteCount} {deck.noteCount === 1 ? "entry" : "entries"}
         </span>
         <span>
           {deck.cardCount} {deck.cardCount === 1 ? "card" : "cards"}
@@ -180,7 +188,8 @@ export function LibraryDashboard({
 
   const visibleDecks = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
-    const filtered = decks.filter((deck) => {
+    const sourceDecks = filterMode === "recent" ? snapshot.recentlyEdited : decks;
+    return sourceDecks.filter((deck) => {
       const matchesQuery =
         !normalized ||
         deck.title.toLocaleLowerCase().includes(normalized) ||
@@ -196,10 +205,7 @@ export function LibraryDashboard({
               : true;
       return matchesQuery && matchesFolder && matchesFilter;
     });
-    return filterMode === "recent"
-      ? filtered.filter((deck) => deck.status === "active").slice(0, 200)
-      : filtered;
-  }, [decks, filterMode, query, selectedFolder]);
+  }, [decks, filterMode, query, selectedFolder, snapshot.recentlyEdited]);
 
   async function createFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -303,8 +309,9 @@ export function LibraryDashboard({
         : filterMode === "archived"
           ? "Archived decks"
           : "All decks";
+  const filtersActive = Boolean(query.trim() || selectedFolder || filterMode !== "recent");
   return (
-    <div className="library-shell">
+    <ProductPage className="library-shell">
       <section className="library-hero" aria-labelledby="library-heading">
         <div className="library-hero__copy">
           <h1 id="library-heading">Library</h1>
@@ -332,7 +339,7 @@ export function LibraryDashboard({
             {snapshot.counts.activeDecks} {snapshot.counts.activeDecks === 1 ? "deck" : "decks"}
           </span>
           <span>
-            {snapshot.counts.notes} {snapshot.counts.notes === 1 ? "note" : "notes"}
+            {snapshot.counts.notes} {snapshot.counts.notes === 1 ? "entry" : "entries"}
           </span>
           <span>
             {snapshot.counts.cards} {snapshot.counts.cards === 1 ? "card" : "cards"}
@@ -391,15 +398,17 @@ export function LibraryDashboard({
               value={filterMode}
             />
             <div className="library-toolbar__actions">
-              <Select
-                aria-label="Folder filter"
-                onValueChange={(value) => setSelectedFolder(value === "all" ? null : value)}
-                options={[
-                  { label: "Every folder", value: "all" },
-                  ...folders.map((folder) => ({ label: folder.name, value: folder.id })),
-                ]}
-                value={selectedFolder ?? "all"}
-              />
+              <div className="library-folder-filter">
+                <Select
+                  aria-label="Folder filter"
+                  onValueChange={(value) => setSelectedFolder(value === "all" ? null : value)}
+                  options={[
+                    { label: "Every folder", value: "all" },
+                    ...folders.map((folder) => ({ label: folder.name, value: folder.id })),
+                  ]}
+                  value={selectedFolder ?? "all"}
+                />
+              </div>
               <div className="view-toggle" role="group" aria-label="Deck presentation">
                 <Tooltip content="Grid view">
                   <IconButton
@@ -424,6 +433,19 @@ export function LibraryDashboard({
                   </IconButton>
                 </Tooltip>
               </div>
+              {filtersActive && (
+                <Button
+                  onClick={() => {
+                    setQuery("");
+                    setSelectedFolder(null);
+                    setFilterMode("recent");
+                  }}
+                  size="sm"
+                  variant="ghost"
+                >
+                  Clear filters
+                </Button>
+              )}
             </div>
           </div>
 
@@ -431,11 +453,6 @@ export function LibraryDashboard({
             <aside className="folder-panel" aria-labelledby="folders-heading">
               <div className="folder-panel__header">
                 <h2 id="folders-heading">Folders</h2>
-                {canCreate && (
-                  <Button onClick={() => setFolderDialogOpen(true)} size="sm" variant="ghost">
-                    Add
-                  </Button>
-                )}
               </div>
               <ul className="folder-tree">
                 <li>
@@ -503,9 +520,8 @@ export function LibraryDashboard({
                 <div className="deck-panel mt-4 text-center">
                   <h3 className="m-0">No decks match this view</h3>
                   <p className="text-[var(--color-text-muted)]">
-                    Clear a filter, search another phrase, or create a deck here.
+                    Clear a filter or search another phrase.
                   </p>
-                  {canCreate && <LinkButton href="/app/decks/new">New deck</LinkButton>}
                 </div>
               )}
             </section>
@@ -592,6 +608,6 @@ export function LibraryDashboard({
           </form>
         </Dialog>
       )}
-    </div>
+    </ProductPage>
   );
 }

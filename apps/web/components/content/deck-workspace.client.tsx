@@ -307,10 +307,10 @@ export function BulkQuickEditor({ deckId }: { readonly deckId: string }) {
           ...Array.from({ length: Math.max(0, 3 - remaining.length) }, () => newRow()),
         ];
       });
-      setMessage(`${String(complete.length)} ${complete.length === 1 ? "note" : "notes"} saved.`);
+      setMessage(`${String(complete.length)} ${complete.length === 1 ? "card" : "cards"} saved.`);
       router.refresh();
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "The notes could not be saved.");
+      setMessage(caught instanceof Error ? caught.message : "The cards could not be saved.");
     } finally {
       setBusy(false);
     }
@@ -322,44 +322,64 @@ export function BulkQuickEditor({ deckId }: { readonly deckId: string }) {
         <div>
           <h2 id="quick-editor-heading">Quick add</h2>
           <p>
-            Add basic notes in a keyboard-friendly grid. Use the rich editor for media and advanced
-            card types.
+            Add basic cards in a keyboard-friendly grid, or open the Card Composer for another card
+            type.
           </p>
         </div>
         <LinkButton href={`/app/decks/${deckId}/edit`} variant="secondary">
-          Rich editor
+          Open Card Composer
         </LinkButton>
       </div>
-      <div className="quick-grid" role="table" aria-label="Quick note rows">
-        <div className="quick-grid__header" role="row">
-          <span role="columnheader">Front</span>
-          <span role="columnheader">Back</span>
-          <span role="columnheader">Tags</span>
-          <span role="columnheader">Order</span>
+      <div
+        aria-colcount={4}
+        aria-label="Quick card rows"
+        aria-rowcount={rows.length + 1}
+        className="quick-grid"
+        role="table"
+      >
+        <div aria-rowindex={1} className="quick-grid__header" role="row">
+          <span aria-colindex={1} role="columnheader">
+            Front
+          </span>
+          <span aria-colindex={2} role="columnheader">
+            Back
+          </span>
+          <span aria-colindex={3} role="columnheader">
+            Tags
+          </span>
+          <span aria-colindex={4} role="columnheader">
+            Order
+          </span>
         </div>
         {rows.map((row, index) => (
-          <div className="quick-grid__row" key={row.id} role="row">
-            <Textarea
-              aria-label={`Row ${String(index + 1)} front`}
-              onChange={(event) => patchRow(row.id, { front: event.target.value })}
-              placeholder="Prompt"
-              rows={2}
-              value={row.front}
-            />
-            <Textarea
-              aria-label={`Row ${String(index + 1)} back`}
-              onChange={(event) => patchRow(row.id, { back: event.target.value })}
-              placeholder="Answer"
-              rows={2}
-              value={row.back}
-            />
-            <Input
-              aria-label={`Row ${String(index + 1)} tags`}
-              onChange={(event) => patchRow(row.id, { tags: event.target.value })}
-              placeholder="tag, tag"
-              value={row.tags}
-            />
-            <div className="quick-grid__controls">
+          <div aria-rowindex={index + 2} className="quick-grid__row" key={row.id} role="row">
+            <div aria-colindex={1} className="quick-grid__cell" role="cell">
+              <Textarea
+                aria-label={`Row ${String(index + 1)} front`}
+                onChange={(event) => patchRow(row.id, { front: event.target.value })}
+                placeholder="Prompt"
+                rows={2}
+                value={row.front}
+              />
+            </div>
+            <div aria-colindex={2} className="quick-grid__cell" role="cell">
+              <Textarea
+                aria-label={`Row ${String(index + 1)} back`}
+                onChange={(event) => patchRow(row.id, { back: event.target.value })}
+                placeholder="Answer"
+                rows={2}
+                value={row.back}
+              />
+            </div>
+            <div aria-colindex={3} className="quick-grid__cell" role="cell">
+              <Input
+                aria-label={`Row ${String(index + 1)} tags`}
+                onChange={(event) => patchRow(row.id, { tags: event.target.value })}
+                placeholder="tag, tag"
+                value={row.tags}
+              />
+            </div>
+            <div aria-colindex={4} className="quick-grid__controls" role="cell">
               <Tooltip content="Move up">
                 <IconButton
                   label={`Move row ${String(index + 1)} up`}
@@ -491,7 +511,7 @@ export function NoteCardBrowser({
       setAddTags("");
       setRemoveTags("");
       setMessage(
-        `Tags updated on ${String(selectedNotes.length)} ${selectedNotes.length === 1 ? "note" : "notes"}.`,
+        `Tags updated on ${String(selectedNotes.length)} ${selectedNotes.length === 1 ? "card" : "cards"}.`,
       );
       router.refresh();
     } catch (caught) {
@@ -527,11 +547,11 @@ export function NoteCardBrowser({
       setSelected([]);
       setTargetDeckId("none");
       setMessage(
-        `${String(selectedNotes.length)} ${selectedNotes.length === 1 ? "note" : "notes"} moved to ${target.title}.`,
+        `${String(selectedNotes.length)} ${selectedNotes.length === 1 ? "card" : "cards"} moved to ${target.title}.`,
       );
       router.refresh();
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "The notes could not be moved.");
+      setMessage(caught instanceof Error ? caught.message : "The cards could not be moved.");
     } finally {
       setBusy(false);
     }
@@ -541,23 +561,18 @@ export function NoteCardBrowser({
     <section className="deck-browser" aria-labelledby="note-browser-heading">
       <div className="deck-browser__toolbar">
         <div>
-          <h2 id="note-browser-heading">Notes and generated cards</h2>
+          <h2 id="note-browser-heading">Card entries and previews</h2>
           <p>
-            {deck.noteCount} {deck.noteCount === 1 ? "note" : "notes"} · {deck.cardCount}{" "}
-            {deck.cardCount === 1 ? "card" : "cards"}
+            {deck.noteCount} {deck.noteCount === 1 ? "entry" : "entries"} · {deck.cardCount}{" "}
+            {deck.cardCount === 1 ? "study card" : "study cards"}
           </p>
         </div>
-        {canEdit && (
-          <LinkButton className="product-primary-action" href={`/app/decks/${deck.id}/edit`}>
-            Add note
-          </LinkButton>
-        )}
       </div>
       <div className="library-toolbar" role="search">
         <Input
           aria-label="Search within deck"
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search note text or tags"
+          placeholder="Search card text or tags"
           type="search"
           value={query}
         />
@@ -576,7 +591,7 @@ export function NoteCardBrowser({
       </div>
       <div className="note-browser-list">
         {notes.length === 0 ? (
-          <p className="library-empty">No notes match these filters.</p>
+          <p className="library-empty">No cards match these filters.</p>
         ) : (
           notes.map((note) => {
             const siblings = deck.cards.filter((card) => card.noteId === note.id && card.active);
@@ -586,7 +601,7 @@ export function NoteCardBrowser({
                 {canEdit ? (
                   <Checkbox
                     checked={checked}
-                    label={`Select ${note.preview || "untitled note"}`}
+                    label={`Select ${note.preview || "untitled card"}`}
                     onCheckedChange={(value) =>
                       setSelected((current) =>
                         value === true
@@ -601,9 +616,8 @@ export function NoteCardBrowser({
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone="info">{note.cardType.replaceAll("_", " ")}</Badge>
-                    <span className="text-xs text-[var(--color-text-muted)]">v{note.version}</span>
                   </div>
-                  <h3>{note.preview || "Untitled note"}</h3>
+                  <h3>{note.preview || "Untitled card"}</h3>
                   <div className="flex flex-wrap gap-1">
                     {note.tags.map((tag) => (
                       <Badge key={tag}>{tag}</Badge>
@@ -612,7 +626,7 @@ export function NoteCardBrowser({
                 </div>
                 <div
                   className="sibling-chips"
-                  aria-label={`${String(siblings.length)} generated cards`}
+                  aria-label={`${String(siblings.length)} card previews`}
                 >
                   {siblings.map((card) => (
                     <div className="generated-card-row" key={card.id}>
@@ -625,7 +639,7 @@ export function NoteCardBrowser({
                         <span>{card.previewBack || "No back preview"}</span>
                       </div>
                       <Badge tone="info">{card.cardType.replaceAll("_", " ")}</Badge>
-                      <small>Source: {note.preview || "Untitled note"}</small>
+                      <small>Entry: {note.preview || "Untitled card"}</small>
                     </div>
                   ))}
                 </div>
@@ -643,10 +657,10 @@ export function NoteCardBrowser({
         )}
       </div>
       {canEdit && selected.length > 0 && (
-        <div className="bulk-bar" role="region" aria-label="Bulk note actions">
+        <div className="bulk-bar" role="region" aria-label="Bulk card actions">
           <div className="bulk-bar__summary">
             <strong>{selected.length} selected</strong>
-            <p>Add tags or move these notes to another deck.</p>
+            <p>Add tags or move these card entries to another deck.</p>
             <Button disabled={busy} onClick={() => setSelected([])} size="sm" variant="ghost">
               Clear selection
             </Button>
@@ -689,7 +703,7 @@ export function NoteCardBrowser({
               size="sm"
               variant="secondary"
             >
-              Move notes
+              Move cards
             </Button>
           </div>
         </div>
@@ -781,6 +795,7 @@ function DeckSettingsSnapshot({ deck }: { readonly deck: DeckDetail }) {
       <MediaUploader
         kind="image"
         label="Deck cover"
+        onRemoved={() => setCoverAssetId(null)}
         onUploaded={(asset) => setCoverAssetId(asset.id)}
       />
       {coverAssetId && <Badge tone="success">Cover image attached</Badge>}
@@ -1000,29 +1015,26 @@ export function VersionHistory({ deck }: { readonly deck: DeckDetail }) {
       >
         <dl className="version-diff">
           <div>
-            <dt>Notes added since this version</dt>
+            <dt>Card entries added since this version</dt>
             <dd>{String(selectedVersion?.diffFromCurrent.added ?? 0)}</dd>
           </div>
           <div>
-            <dt>Notes removed since this version</dt>
+            <dt>Card entries removed since this version</dt>
             <dd>{String(selectedVersion?.diffFromCurrent.removed ?? 0)}</dd>
           </div>
           <div>
-            <dt>Notes changed since this version</dt>
+            <dt>Card entries changed since this version</dt>
             <dd>{String(selectedVersion?.diffFromCurrent.changed ?? 0)}</dd>
           </div>
           <div>
             <dt>Scheduling impact</dt>
-            <dd>
-              This history records content impact only and never changes review state. Prompt,
-              answer, and structural changes retain explicit preserve/relearn/reset metadata.
-            </dd>
+            <dd>This history records content changes only. It does not create study activity.</dd>
           </div>
         </dl>
         {selectedVersion?.diffFromCurrent.changes.length ? (
-          <ol className="version-diff__changes" aria-label="Note content changes">
+          <ol className="version-diff__changes" aria-label="Card content changes">
             {selectedVersion.diffFromCurrent.changes.map((change) => {
-              const label = change.current?.prompt || change.version?.prompt || "Untitled note";
+              const label = change.current?.prompt || change.version?.prompt || "Untitled card";
               return (
                 <li key={`${change.kind}:${change.noteId}`}>
                   <header>
@@ -1043,12 +1055,12 @@ export function VersionHistory({ deck }: { readonly deck: DeckDetail }) {
                   <div className="version-diff__comparison">
                     <VersionNoteSide
                       content={change.version}
-                      emptyLabel={`This note was not present in version ${String(selectedVersion.deckVersion)}.`}
+                      emptyLabel={`This card entry was not present in version ${String(selectedVersion.deckVersion)}.`}
                       heading={`Version ${String(selectedVersion.deckVersion)}`}
                     />
                     <VersionNoteSide
                       content={change.current}
-                      emptyLabel="This note is no longer present in the current deck."
+                      emptyLabel="This card entry is no longer present in the current deck."
                       heading="Current deck"
                     />
                   </div>
@@ -1057,7 +1069,7 @@ export function VersionHistory({ deck }: { readonly deck: DeckDetail }) {
             })}
           </ol>
         ) : (
-          <p className="version-diff__empty">No note content differs from the current deck.</p>
+          <p className="version-diff__empty">No card content differs from the current deck.</p>
         )}
       </Dialog>
     </section>

@@ -1,9 +1,12 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
+import { provisionAndSignInLocalAuthor } from "./support/local-account";
+
 const VIEWPORTS = [
   { height: 1080, width: 1920 },
   { height: 1024, width: 1536 },
   { height: 900, width: 1440 },
+  { height: 768, width: 1366 },
   { height: 800, width: 1280 },
   { height: 768, width: 1024 },
   { height: 1024, width: 768 },
@@ -12,6 +15,26 @@ const VIEWPORTS = [
   { height: 800, width: 360 },
   { height: 568, width: 320 },
   { height: 700, width: 1366 },
+] as const;
+
+const CARD_TYPES = [
+  "basic",
+  "basic_reversed",
+  "optional_reversed",
+  "bidirectional",
+  "typed_answer",
+  "multiple_choice",
+  "select_all",
+  "true_false",
+  "cloze",
+  "ordering",
+  "list_answer",
+  "image_occlusion",
+  "diagram",
+  "audio_prompt",
+  "pronunciation",
+  "drawing",
+  "custom",
 ] as const;
 
 async function expectNoHorizontalOverflow(page: Page): Promise<void> {
@@ -50,32 +73,77 @@ async function expectInsideViewport(page: Page, locator: Locator): Promise<void>
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height + 1);
 }
 
+async function expectHorizontallyInsideViewport(page: Page, locator: Locator): Promise<void> {
+  await expect(locator).toBeVisible();
+  const bounds = await locator.boundingBox();
+  const viewport = page.viewportSize();
+  expect(bounds).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  if (!bounds || !viewport) return;
+  expect(bounds.x).toBeGreaterThanOrEqual(-1);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width + 1);
+}
+
 async function capture(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   await page.screenshot({ animations: "disabled", path: testInfo.outputPath(`${name}.png`) });
 }
 
-async function createAdultAccount(page: Page): Promise<void> {
-  const suffix = crypto.randomUUID().replaceAll("-", "");
-  await page.setExtraHTTPHeaders({ "X-Forwarded-For": "203.0.113.65" });
-  await page.goto("/auth/sign-up?returnTo=%2Fapp");
-  await page.getByRole("combobox", { name: /which age range describes you/i }).click();
-  await page.getByRole("option", { name: "18 or older" }).click();
-  await page
-    .getByRole("textbox", { name: "Email address" })
-    .fill(`phase02-layout-${suffix}@example.test`);
-  await page.getByLabel("Password").fill(`Local-only-password-${suffix}`);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).toHaveURL(/\/onboarding\?returnTo=%2Fapp$/u);
-  await page.getByRole("textbox", { name: "Display name" }).fill("Layout learner");
-  await page.getByRole("textbox", { name: "Handle" }).fill(`layout_${suffix.slice(0, 12)}`);
-  await page.getByRole("button", { name: "Finish account setup" }).click();
-  await expect(page).toHaveURL(/\/app$/u);
+async function captureLocator(locator: Locator, testInfo: TestInfo, name: string): Promise<void> {
+  await locator.screenshot({ animations: "disabled", path: testInfo.outputPath(`${name}.png`) });
 }
 
-async function createDeck(page: Page, title: string, type: "basic" | "image_occlusion") {
+async function expectTextNotClipped(locator: Locator): Promise<void> {
+  const dimensions = await locator.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    clientWidth: element.clientWidth,
+    scrollHeight: element.scrollHeight,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+  expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 1);
+}
+
+async function expectButtonContentInside(button: Locator): Promise<void> {
+  await expect(button).toBeVisible();
+  const result = await button.evaluate((element) => {
+    const outer = element.getBoundingClientRect();
+    return Array.from(element.children).map((child) => {
+      const inner = child.getBoundingClientRect();
+      return {
+        bottom: inner.bottom <= outer.bottom + 1,
+        left: inner.left >= outer.left - 1,
+        right: inner.right <= outer.right + 1,
+        top: inner.top >= outer.top - 1,
+      };
+    });
+  });
+  expect(result.every((edge) => Object.values(edge).every(Boolean))).toBe(true);
+}
+
+async function createAdultAccount(page: Page): Promise<void> {
+  await provisionAndSignInLocalAuthor(page, {
+    displayName: "Layout learner",
+    emailPrefix: "phase02-layout",
+    handlePrefix: "layout",
+    returnTo: "/app",
+  });
+}
+
+async function createDeck(
+  page: Page,
+  title: string,
+  type: "basic" | "image_occlusion",
+  testInfo?: TestInfo,
+) {
   await page.goto("/app/decks/new");
+  await expect(page.getByRole("heading", { level: 1, name: "Create a deck" })).toBeVisible();
+  if (testInfo) await capture(page, testInfo, "new-deck-details");
   await page.getByRole("textbox", { name: "Deck title" }).fill(title);
   await page.getByRole("button", { name: "Continue" }).click();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Choose what to add first" }),
+  ).toBeVisible();
+  if (testInfo) await capture(page, testInfo, "new-deck-card-types");
   if (type === "image_occlusion") {
     await page.locator('[aria-describedby="card-type-image_occlusion-detail"]').click();
   }
@@ -83,7 +151,7 @@ async function createDeck(page: Page, title: string, type: "basic" | "image_occl
     (response) =>
       response.url().endsWith("/api/content/decks") && response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Create deck" }).click();
+  await page.getByRole("button", { name: "Create deck and add cards" }).click();
   const response = await responsePromise;
   expect(response.status()).toBe(201);
   const body = (await response.json()) as { data: { id: string } };
@@ -103,6 +171,7 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
   await createAdultAccount(page);
   await expect(page.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
   await expect(page.getByRole("link", { name: "New deck" })).toHaveCount(1);
+  await expectButtonContentInside(page.getByRole("link", { name: "New deck" }));
   await expect(page.locator(".library-metric")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, "empty-dashboard-desktop");
@@ -112,21 +181,55 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
   await expectInsideViewport(page, page.getByRole("button", { name: "Sign out" }));
 
   await page.setViewportSize({ height: 900, width: 1440 });
-  const deckId = await createDeck(page, "Layout biology", "basic");
-  await expect(page.getByRole("heading", { level: 1, name: "New note" })).toBeVisible();
+  const deckId = await createDeck(page, "Layout biology", "basic", testInfo);
+  await expect(page.getByRole("heading", { level: 1, name: "Add cards" })).toBeVisible();
+  await expectButtonContentInside(page.getByRole("button", { name: "Save card" }));
   await capture(page, testInfo, "editor-desktop");
+  await page.setViewportSize({ height: 568, width: 320 });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
+  await expectNoHorizontalOverflow(page);
+  await expectHorizontallyInsideViewport(page, page.locator(".workspace-mobile-brand"));
+  await expectInsideViewport(page, page.getByRole("button", { name: "Open workspace navigation" }));
+  const editorTopbarActions = page.locator(".note-editor-topbar__actions");
+  await editorTopbarActions.scrollIntoViewIfNeeded();
+  await expectInsideViewport(page, editorTopbarActions);
+  await expectInsideViewport(page, editorTopbarActions.getByRole("button", { name: "Preview" }));
+  await expectInsideViewport(page, editorTopbarActions.getByRole("button", { name: "Save card" }));
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "";
+  });
+  await page.setViewportSize({ height: 900, width: 1440 });
   await page.getByRole("textbox", { name: "Front / prompt" }).fill("What surrounds a cell?");
   await page.getByRole("textbox", { name: "Back / answer" }).fill("The cell membrane");
-  await page.getByRole("button", { name: "Save note" }).click();
+  await page.getByRole("button", { name: "Save card" }).click();
   await expect(page.getByText("All changes saved.")).toBeVisible();
 
   await page.goto(`/app/decks/${deckId}/edit?type=basic`);
   await page.getByRole("textbox", { name: "Front / prompt" }).fill("Where is DNA stored?");
   await page.getByRole("textbox", { name: "Back / answer" }).fill("In the nucleus");
-  await page.getByRole("button", { name: "Save note" }).click();
+  await page.getByRole("button", { name: "Save card" }).click();
   await expect(page.getByText("All changes saved.")).toBeVisible();
 
+  await page.goto(`/app/decks/${deckId}`);
+  await expect(page.getByRole("heading", { level: 2, name: "Card-type mix" })).toBeVisible();
+  await capture(page, testInfo, "deck-overview-desktop");
+  await page.goto(`/app/decks/${deckId}/cards`);
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Card entries and previews" }),
+  ).toBeVisible();
+  await capture(page, testInfo, "card-browser-desktop");
+  await page.goto(`/app/decks/${deckId}/history`);
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Content version history" }),
+  ).toBeVisible();
+  await capture(page, testInfo, "deck-history-desktop");
   await page.goto(`/app/decks/${deckId}/settings`);
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Deck details and publication" }),
+  ).toBeVisible();
+  await capture(page, testInfo, "deck-settings-desktop");
   await page.getByRole("combobox", { name: "Publication visibility" }).click();
   await page.getByRole("option", { name: "Public" }).click();
   const publishResponse = page.waitForResponse(
@@ -140,6 +243,10 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
     .getByRole("link", { name: "Open public preview" })
     .getAttribute("href");
   expect(publicHref).toBeTruthy();
+
+  await page.goto("/app/published");
+  await expect(page.getByRole("heading", { level: 1, name: "Published" })).toBeVisible();
+  await capture(page, testInfo, "published-decks-desktop");
 
   await page.goto("/app");
   await expect(page.getByRole("heading", { level: 3, name: "Layout biology" })).toBeVisible();
@@ -189,9 +296,14 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
   }
 
   await page.setViewportSize({ height: 844, width: 390 });
+  await expectTextNotClipped(page.getByRole("link", { name: "New deck" }).locator("span"));
   await capture(page, testInfo, "populated-dashboard-mobile");
   await page.evaluate(() => {
     document.documentElement.style.zoom = "1.25";
+  });
+  await expectNoHorizontalOverflow(page);
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = "1.5";
   });
   await expectNoHorizontalOverflow(page);
   await page.evaluate(() => {
@@ -217,17 +329,65 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
     document.documentElement.dataset.motion = "full";
   });
 
+  await page.setViewportSize({ height: 900, width: 1440 });
+  for (const cardType of CARD_TYPES) {
+    await page.goto(`/app/decks/${deckId}/edit?type=${cardType}`);
+    await expect(page.getByRole("heading", { level: 1, name: "Add cards" })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await expectButtonContentInside(page.getByRole("button", { name: "Save card" }));
+    await capture(page, testInfo, `composer-${cardType}-desktop`);
+  }
+
   const visualDeckId = await createDeck(page, "Visual anatomy", "image_occlusion");
-  await expect(page.getByRole("button", { name: "Add rectangle mask" })).toBeDisabled();
+  await expect(page.getByRole("toolbar", { name: "image occlusion region tools" })).toHaveCount(0);
   await expect(page.locator(".geometry-stage")).toHaveCount(0);
   await capture(page, testInfo, "image-occlusion-empty");
+
+  const png = Buffer.from(
+    await page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 360;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Canvas is unavailable for the visual fixture.");
+      context.fillStyle = "#dff4ff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "#7dd3fc";
+      context.beginPath();
+      context.ellipse(320, 180, 210, 125, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = "#4f46e5";
+      context.beginPath();
+      context.arc(320, 180, 58, 0, Math.PI * 2);
+      context.fill();
+      return canvas.toDataURL("image/png").split(",", 2)[1] ?? "";
+    }),
+    "base64",
+  );
+  await page.locator('input[type="file"]').setInputFiles({
+    buffer: png,
+    mimeType: "image/png",
+    name: "sanitized-cell.png",
+  });
+  await page
+    .getByRole("group", { name: "Image" })
+    .getByRole("textbox", { name: "Image description" })
+    .fill("A simple cell diagram");
+  await page.getByRole("button", { name: "Upload and attach" }).click();
+  await expect(page.getByText("Image attached.")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("textbox", { name: "Image description" })).toHaveCount(1);
+  await expectTextNotClipped(page.getByRole("button", { name: "Remove" }).locator("span"));
+  const uploadedStageImage = page.locator(".geometry-stage img");
+  await expect(uploadedStageImage).toHaveCSS("object-fit", "contain");
+  await expect.poll(() => uploadedStageImage.evaluate((image) => image.naturalWidth)).toBe(640);
+  await expect(page.locator('.geometry-image-plane[data-image-ready="true"]')).toBeVisible();
   const toolbarButtons = page
     .getByRole("toolbar", { name: "image occlusion region tools" })
     .getByRole("button");
   const toolbarBoxes = await toolbarButtons.evaluateAll((buttons) =>
     buttons.map((button) => {
       const box = button.getBoundingClientRect();
-      return { left: box.left, right: box.right, width: box.width };
+      return { width: box.width };
     }),
   );
   expect(toolbarBoxes.every((box) => box.width > 0)).toBe(true);
@@ -237,23 +397,14 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
       groups.map((group) => Number.parseFloat(getComputedStyle(group).columnGap)),
     );
   expect(toolbarGaps.every((gap) => gap > 0)).toBe(true);
-
-  const png = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-    "base64",
-  );
-  await page.locator('input[type="file"]').setInputFiles({
-    buffer: png,
-    mimeType: "image/png",
-    name: "sanitized-cell.png",
-  });
-  await page.getByRole("textbox", { name: "Image description" }).fill("A simple cell diagram");
-  await page.getByRole("button", { name: "Upload and attach" }).click();
-  await expect(page.getByText("Image attached.")).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator(".geometry-stage img")).toHaveCSS("object-fit", "contain");
   await page.getByRole("button", { name: "Add rectangle mask" }).click();
-  await expect(page.getByRole("button", { name: /Select Region 1/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Select Region 1", exact: true })).toBeVisible();
   await capture(page, testInfo, "image-occlusion-with-mask");
+  await captureLocator(
+    page.locator(".geometry-stage"),
+    testInfo,
+    "image-occlusion-stage-with-mask",
+  );
   await expectNoHorizontalOverflow(page);
   expect(visualDeckId).toBeTruthy();
 
@@ -279,25 +430,104 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
       .locator(".flashcard-back .study-rich-document")
       .evaluate((content) => getComputedStyle(content).transform),
   ).toBe("none");
+  await page.evaluate(() => window.scrollTo(0, 0));
   await capture(page, testInfo, "public-player-back");
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await expect(page.getByRole("group", { name: /Question, card 2 of 2/i })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.locator(".flashcard-inner").evaluate((inner) => getComputedStyle(inner).transform),
+    )
+    .toBe("none");
 
   await page.setViewportSize({ height: 844, width: 390 });
   await expectNoHorizontalOverflow(page);
-  await expectInsideViewport(page, page.locator(".flashcard-scene"));
-  const mobileCardWidth = await page
-    .locator(".flashcard-scene")
-    .evaluate((scene) => scene.getBoundingClientRect().width);
-  expect(mobileCardWidth / 390).toBeGreaterThan(0.85);
+  const normalMobileScene = page.getByRole("group", { name: /Question, card 2 of 2/i });
+  await expectHorizontallyInsideViewport(page, normalMobileScene);
+  const normalMobileCardWidth = await normalMobileScene.evaluate(
+    (scene) => scene.getBoundingClientRect().width,
+  );
+  expect(normalMobileCardWidth / 390).toBeGreaterThan(0.85);
+  await page.evaluate(() => window.scrollTo(0, 0));
   await capture(page, testInfo, "public-player-mobile");
 
-  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "lumen:appearance:v1",
+      JSON.stringify({ color: "dark", reduceMotion: true, seriousMode: true }),
+    );
+  });
   await page.reload();
-  await expect(page.locator(".public-preview")).toHaveAttribute("data-reduced-motion", "true");
-  await page.getByRole("group", { name: /Question, card 1 of 2/i }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("html")).toHaveAttribute("data-serious-mode", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "reduce");
+  const mobilePreview = page.getByRole("region", { name: "Flashcard player" });
+  await expect(mobilePreview).toHaveAttribute("data-reduced-motion", "true");
+  await expectNoHorizontalOverflow(page);
+
+  const mobileScene = mobilePreview.getByRole("group", { name: /Question, card 1 of 2/i });
+  await expectHorizontallyInsideViewport(page, mobileScene);
+  const reducedFaceTransforms = await mobilePreview
+    .locator(".flashcard-face")
+    .evaluateAll((faces) => faces.map((face) => getComputedStyle(face).transform));
+  expect(reducedFaceTransforms).toEqual(["none", "none"]);
+  await expect(mobilePreview.locator(".flashcard-front")).toBeVisible();
+  await expect(mobilePreview.locator(".flashcard-back")).toBeHidden();
+  await expectTextNotClipped(mobilePreview.locator(".flashcard-front .flashcard-face__content"));
   expect(
-    await page.locator(".flashcard-inner").evaluate((inner) => getComputedStyle(inner).transform),
+    await mobilePreview
+      .locator(".flashcard-inner")
+      .evaluate((inner) => getComputedStyle(inner).transform),
   ).toBe("none");
+
+  await mobileScene.click();
+  await expect(mobilePreview.getByRole("group", { name: /Answer, card 1 of 2/i })).toBeVisible();
+  await expect(mobilePreview.locator('.flashcard-inner[data-flipped="true"]')).toHaveCount(1);
+  await expect(mobilePreview.locator(".flashcard-front")).toBeHidden();
+  await expect(mobilePreview.locator(".flashcard-back")).toBeVisible();
+  await expectTextNotClipped(mobilePreview.locator(".flashcard-back .flashcard-face__content"));
+  expect(
+    await mobilePreview
+      .locator(".flashcard-back .study-rich-document")
+      .evaluate((content) => getComputedStyle(content).transform),
+  ).toBe("none");
+  expect(
+    await mobilePreview
+      .locator(".flashcard-inner")
+      .evaluate((inner) => getComputedStyle(inner).transform),
+  ).toBe("none");
+  await expectNoHorizontalOverflow(page);
+  await page.evaluate(() => window.scrollTo(0, 0));
   await capture(page, testInfo, "public-player-reduced-motion");
+
+  await page.reload();
+  await page.setViewportSize({ height: 568, width: 320 });
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  const enlargedPreview = page.getByRole("region", { name: "Flashcard player" });
+  await expect(enlargedPreview).toHaveAttribute("data-reduced-motion", "true");
+  expect(
+    await page
+      .locator("html")
+      .evaluate((root) => Number.parseFloat(getComputedStyle(root).fontSize)),
+  ).toBeGreaterThanOrEqual(31);
+  await expectNoHorizontalOverflow(page);
+  const enlargedScene = enlargedPreview.getByRole("group", { name: /Question, card 1 of 2/i });
+  const enlargedControls = enlargedPreview.locator(".public-preview__controls");
+  await expectHorizontallyInsideViewport(page, enlargedScene);
+  await enlargedControls.scrollIntoViewIfNeeded();
+  await expectInsideViewport(page, enlargedControls);
+  for (const control of await enlargedControls.getByRole("button").all()) {
+    await expectInsideViewport(page, control);
+  }
+  await expectTextNotClipped(enlargedPreview.locator(".flashcard-front .flashcard-face__content"));
+  await enlargedScene.click();
+  await expect(enlargedPreview.getByRole("group", { name: /Answer, card 1 of 2/i })).toBeVisible();
+  await expectTextNotClipped(enlargedPreview.locator(".flashcard-back .flashcard-face__content"));
+  expect(
+    await enlargedPreview
+      .locator(".flashcard-back .study-rich-document")
+      .evaluate((content) => getComputedStyle(content).transform),
+  ).toBe("none");
+  await expectNoHorizontalOverflow(page);
 });

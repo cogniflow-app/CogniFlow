@@ -116,6 +116,7 @@ function deckSummary(
       ? stringValue(deck.status)
       : "active") as DeckSummary["status"],
     title: stringValue(deck.title, "Untitled deck"),
+    theme: deckTheme(deck.theme),
     updatedAt: stringValue(deck.updated_at, new Date(0).toISOString()),
     version: numberValue(deck.version, 1),
     visibility: (["private", "public", "unlisted"].includes(stringValue(deck.visibility))
@@ -137,7 +138,7 @@ export const readLibrarySnapshot = cache(async (accountId: string): Promise<Libr
     client
       .from("decks")
       .select(
-        "id,public_id,owner_account_id,title,slug,description_plain,visibility,version,published_version,note_count,card_count,status,updated_at",
+        "id,public_id,owner_account_id,title,slug,description_plain,visibility,version,published_version,note_count,card_count,status,theme,updated_at",
       )
       .in("status", ["active", "archived"])
       .order("updated_at", { ascending: false })

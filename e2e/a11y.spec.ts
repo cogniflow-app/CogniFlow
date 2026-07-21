@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { provisionAndSignInLocalAuthor } from "./support/local-account";
+
 async function expectNoSeriousOrCriticalViolations(page: Page): Promise<void> {
   const result = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
@@ -69,21 +71,12 @@ async function readLongestTransitionMilliseconds(locator: Locator): Promise<numb
 }
 
 async function createA11yAuthor(page: Page): Promise<void> {
-  const suffix = crypto.randomUUID().replaceAll("-", "");
-  await page.setExtraHTTPHeaders({ "X-Forwarded-For": "198.51.100.63" });
-  await page.goto("/auth/sign-up?returnTo=%2Fapp");
-  await page.getByRole("combobox", { name: /which age range describes you/i }).click();
-  await page.getByRole("option", { name: "18 or older" }).click();
-  await page
-    .getByRole("textbox", { name: "Email address" })
-    .fill(`phase02-a11y-${suffix}@example.test`);
-  await page.getByLabel("Password").fill(`Local-only-password-${suffix}`);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).toHaveURL(/\/onboarding\?returnTo=%2Fapp$/u);
-  await page.getByRole("textbox", { name: "Display name" }).fill("Accessibility author");
-  await page.getByRole("textbox", { name: "Handle" }).fill(`a11y_${suffix.slice(0, 12)}`);
-  await page.getByRole("button", { name: "Finish account setup" }).click();
-  await expect(page).toHaveURL(/\/app$/u);
+  await provisionAndSignInLocalAuthor(page, {
+    displayName: "Accessibility author",
+    emailPrefix: "phase02-a11y",
+    handlePrefix: "a11y",
+    returnTo: "/app",
+  });
 }
 
 async function expectNoDocumentOverflow(page: Page): Promise<void> {
@@ -205,6 +198,58 @@ test("the open compact navigation has no serious or critical axe violations", as
   await expectNoSeriousOrCriticalViolations(page);
 });
 
+test("the workspace Appearance popover is pointer-accessible above the mobile drawer", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await createA11yAuthor(page);
+  await page.setViewportSize({ height: 844, width: 390 });
+
+  await page.getByRole("button", { name: "Open workspace navigation" }).click();
+  const workspaceDrawer = page.getByRole("dialog", { name: "Workspace" });
+  await expect(workspaceDrawer).toBeVisible();
+  const appearanceTrigger = workspaceDrawer.getByRole("button", { name: "Appearance" });
+  await appearanceTrigger.click();
+
+  const appearancePopover = page.locator(".workspace-appearance__popover");
+  const colorTheme = appearancePopover.getByLabel("Color theme");
+  await expect(appearancePopover).toBeVisible();
+  await expect(colorTheme).toBeVisible();
+  const layerOrder = await Promise.all([
+    appearancePopover.evaluate((element) => Number.parseInt(getComputedStyle(element).zIndex, 10)),
+    workspaceDrawer.evaluate((element) => Number.parseInt(getComputedStyle(element).zIndex, 10)),
+  ]);
+  expect(
+    layerOrder[0],
+    "The Appearance popover should stack above the workspace drawer",
+  ).toBeGreaterThan(layerOrder[1] ?? 0);
+  expect(
+    await colorTheme.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        bounds.left + bounds.width / 2,
+        bounds.top + bounds.height / 2,
+      );
+      return hit === element || element.contains(hit);
+    }),
+    "The theme control should win pointer hit testing above the modal layer",
+  ).toBe(true);
+
+  await colorTheme.click();
+  await expect(colorTheme).toBeFocused();
+  await colorTheme.selectOption("dark");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  // Linux can retain the native select picker after a programmatic option change, where Escape
+  // belongs to the browser picker first. Focus the popover layer so this assertion exercises the
+  // nested Radix popover's Escape boundary rather than platform-specific select chrome.
+  await appearancePopover.focus();
+  await expect(appearancePopover).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(appearancePopover).toBeHidden();
+  await expect(workspaceDrawer).toBeVisible();
+  await expect(appearanceTrigger).toBeFocused();
+});
+
 test("the dark design-system gallery has no serious or critical axe violations", async ({
   page,
 }) => {
@@ -248,6 +293,9 @@ test("the authenticated library, deck creation, and card editor are accessible b
   await expect(page.getByRole("textbox", { name: "Deck title" })).toBeFocused();
   await page.getByRole("textbox", { name: "Deck title" }).fill("Accessible authoring deck");
   await page.getByRole("button", { name: "Continue" }).click();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Choose what to add first" }),
+  ).toBeFocused();
   await expect(page.locator(".card-type-option")).toHaveCount(17);
   const typedAnswer = page.locator('[aria-describedby="card-type-typed_answer-detail"]');
   await expect(typedAnswer).toBeVisible();
@@ -262,7 +310,7 @@ test("the authenticated library, deck creation, and card editor are accessible b
     (response) =>
       response.url().endsWith("/api/content/decks") && response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Create deck" }).click();
+  await page.getByRole("button", { name: "Create deck and add cards" }).click();
   expect((await createResponse).status()).toBe(201);
   await expect(page).toHaveURL(/\/app\/decks\/[^/]+\/edit\?type=typed_answer$/u);
 
@@ -270,14 +318,18 @@ test("the authenticated library, deck creation, and card editor are accessible b
   await prompt.focus();
   await expect(prompt).toBeFocused();
   await page.keyboard.type("What does ATP stand for?");
-  await page.getByRole("textbox", { name: "Displayed answer" }).fill("Adenosine triphosphate");
-  await page
-    .getByRole("textbox", { name: "Accepted typed answers" })
-    .fill("adenosine triphosphate");
+  await page.getByRole("textbox", { name: "Correct answer" }).fill("Adenosine triphosphate");
+  await page.getByRole("textbox", { name: "Main typed answer" }).fill("adenosine triphosphate");
   await expect(page.getByText("Card 1")).toBeVisible();
   await expectNoDocumentOverflow(page);
   await expectNoSeriousOrCriticalViolations(page);
 
+  await page.getByRole("button", { name: "Back to deck" }).click();
+  const leaveDialog = page.getByRole("dialog", { name: "Discard unsaved changes?" });
+  await expect(leaveDialog).toBeVisible();
+  await expectNoSeriousOrCriticalViolations(page);
+  await leaveDialog.getByRole("button", { name: "Leave without saving" }).click();
+  await expect(page).toHaveURL(/\/app\/decks\/[^/]+$/u);
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Delete this deck?" })).toBeVisible();
   await page.getByRole("button", { name: "Delete deck" }).click();

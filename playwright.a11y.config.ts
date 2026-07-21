@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
+const a11yAppEncryptionKey = `a11y-${randomUUID()}-isolated-rate-limit-key`;
 
 export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
@@ -19,6 +21,7 @@ export default defineConfig({
   },
   webServer: {
     command: "node scripts/start-test-development-server.mjs",
+    env: { APP_ENCRYPTION_KEY: a11yAppEncryptionKey },
     reuseExistingServer: false,
     stderr: "pipe",
     stdout: "pipe",
