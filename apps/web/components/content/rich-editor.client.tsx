@@ -1017,7 +1017,7 @@ export function RichEditor({
       </div>
 
       <Dialog
-        description="Choose a semantic block. Stored content remains structured JSON; scripts and arbitrary embeds are never accepted."
+        description="Choose the kind of content you want to add."
         onOpenChange={setCommandOpen}
         open={commandOpen}
         title="Insert block"

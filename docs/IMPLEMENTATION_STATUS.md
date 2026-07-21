@@ -2,10 +2,80 @@
 
 **Current phase:** Phase 02 — content model, editor, media, and card types  
 **Status:** Complete; local and Phase 02 Preview acceptance verified  
-**Evidence date:** 2026-07-17 UTC  
+**Evidence date:** 2026-07-20 UTC  
 **Next phase:** Phase 03 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
+
+## Phase 02 product UI redesign
+
+Branch `codex/phase-02-product-ui-redesign` completes a presentation- and interaction-only redesign
+of the existing Phase 02 surfaces. It changes no content API or database contract, authentication
+behavior, appearance persistence contract, environment variable, RLS policy, hosted database, or
+migration. Phase 03 remains unstarted.
+
+- Replaced the oversized authenticated welcome/dashboard with a responsive workspace shell, a
+  256 px wide desktop rail, a focus-trapped mobile drawer, compact learner identity, first-class
+  Published navigation, and a viewport-safe Appearance popover. The shell keeps Appearance and
+  Sign out reachable at short heights and restores focus after Escape.
+- Rebuilt empty and populated Library states around a compact title/greeting, one primary New deck
+  action, a single search/filter/folder/view toolbar, optional folder rail, summary counts, and
+  responsive deck cards. The former five large metric cards, duplicated primary actions, floating
+  card-type action, and oversized empty instructions are gone.
+- Reworked deck creation into details and first-card-type steps with a Basic default and grouped
+  compact choices. Simplified workspace tabs, quick entry, generated-card rows, history, and
+  settings copy while retaining all 17 card types and existing mutations.
+- Rebuilt note authoring around a persistent top bar, clear save state, field groups, progressive
+  disclosure, and a useful responsive preview. Raw validation paths, schema objects, and internal
+  identity/projection terminology are translated into field-level language and short completion
+  checklists.
+- Replaced raw media inputs with accessible dropzones, progress/cancel/retry states, previews, and
+  replace/remove actions. Image occlusion now starts with a bounded upload state rather than a giant
+  patterned canvas, disables tools until an image exists, groups mask/view/selection controls with
+  SVG icons and tooltips, contains the uploaded image, and synchronizes stage and region-list
+  selection while preserving normalized geometry.
+- Rebuilt the public player as a focused sans-serif study surface. Its front and back are separate,
+  absolutely aligned sibling faces with hidden backfaces; only the preserve-3d inner card rotates.
+  The back begins at `rotateY(180deg)`, so answer content itself is never transformed or mirrored.
+  Click/tap, Space/Enter, arrows, swipe, nested-interactive exclusion, front reset on navigation,
+  and a non-rotating reduced-motion path are covered. Visible Tap/Reveal/Show prompts, duplicated
+  flip controls, and the permanent privacy paragraph were removed; privacy semantics remain
+  available to assistive technology.
+- Rebuilt `/app/published` with search, Public/Unlisted filters, responsive deck cards, direct Open
+  player, Copy link confirmation, Manage, and the existing guarded Unpublish mutation. Public deck
+  attribution is now a compact details footer.
+- Scoped the Phase 02 styles and workspace-only popover bundle to product route segments. Marketing
+  pages no longer download product CSS or the Radix popover dependency; Lighthouse returned to the
+  established performance budget while product routes retain the local Manrope variable font.
+
+Private, ignored before/after screenshots were captured and directly inspected for empty Library,
+populated Library, image occlusion before upload, and public player front/back. Sanitized automated
+artifacts cover those states plus populated mobile Library, the editor, image with a region, public
+mobile, and reduced motion. No personal screenshot or generated browser artifact is tracked.
+Responsive inspection covers 1920×1080, 1536×1024, 1440×900, 1366×700, 1280×800, 1024×768,
+768×1024, 430×932, 390×844, 360×800, and 320×568, plus a 125% zoom equivalent, 200% text,
+light/dark themes, serious mode, reduced motion, keyboard-only interaction, and short-height rails.
+
+| Redesign validation command           | Local result                                                                            |
+| ------------------------------------- | --------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`      | Exit 0; lockfile accepted unchanged                                                     |
+| `pnpm format:check`                   | Exit 0                                                                                  |
+| `pnpm secret:scan`                    | Exit 0; no credential finding                                                           |
+| `pnpm lint` / `pnpm typecheck`        | Exit 0; lint/dependency boundaries and 8/8 strict TypeScript projects pass              |
+| `pnpm test`                           | Exit 0; 76 files / 589 tests pass                                                       |
+| `pnpm db:reset` / `pnpm test:db`      | Exit 0; unchanged 33-migration chain resets and 19 files / 795 assertions pass          |
+| `pnpm db:types:check`                 | Exit 0; generated database types remain current                                         |
+| verification-wrapped production build | Exit 0; optimized Next build generates 60 route/static entries                          |
+| verification-wrapped portable build   | Exit 0; OpenNext emits the portable worker                                              |
+| `pnpm test:e2e`                       | Exit 0; 25 pass and 17 intentional cross-project skips                                  |
+| `pnpm test:a11y`                      | Exit 0; 27/27 axe, theme, motion, focus, drawer, and authenticated keyboard checks pass |
+| `pnpm test:lighthouse`                | Exit 0; scores 98/100/96/100; FCP 0.759 s, LCP 2.324 s, TBT 15 ms, and CLS 0            |
+| `pnpm test:load`                      | Exit 0; 15/15 checks, 3/3 requests, 0% failures, and request-duration p95 5.75 ms       |
+| `pnpm verify`                         | Exit 0; complete aggregate gate passed on the final redesign tree                       |
+
+No new setup step or environment variable is required. The later-owner constraints below are
+unchanged: Phase 03 owns scheduling/review state, Phase 04 owns grading and persistent study, and
+later phases own offline sync, imports, collaboration, discovery, and games.
 
 ## Phase 02 complete and Preview-verified
 

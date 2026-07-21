@@ -1,16 +1,43 @@
 "use client";
 
-import { Button, FormField, Input, Textarea } from "@lumen/ui";
-import { useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { Button, CheckIcon, FormField, Input, Select, Textarea } from "@lumen/ui";
 import type { Route } from "next";
+import { useRouter } from "next/navigation";
+import { useRef, useState, type FormEvent } from "react";
 
-import { CARD_TYPE_DESCRIPTORS } from "@/lib/content/card-types";
+import { CARD_TYPE_BY_CODE } from "@/lib/content/card-types";
 import { PendingContentMutations, performContentMutation } from "@/lib/content/client-mutations";
-import type { CardTypeCode, ContentMutationResult, DeckSummary } from "@/lib/content/view-models";
+import type {
+  CardTypeCode,
+  ContentMutationResult,
+  DeckSummary,
+  FolderSummary,
+} from "@/lib/content/view-models";
 
-export function NewDeckWizard() {
+const CARD_TYPE_GROUPS: readonly {
+  readonly label: string;
+  readonly types: readonly CardTypeCode[];
+}[] = [
+  {
+    label: "Basic recall",
+    types: ["basic", "basic_reversed", "optional_reversed", "bidirectional"],
+  },
+  {
+    label: "Written and structured",
+    types: ["typed_answer", "cloze", "ordering", "list_answer"],
+  },
+  { label: "Quiz", types: ["multiple_choice", "select_all", "true_false"] },
+  { label: "Visual", types: ["image_occlusion", "diagram"] },
+  { label: "Audio and creative", types: ["audio_prompt", "pronunciation", "drawing"] },
+  { label: "Advanced / custom", types: ["custom"] },
+] as const;
+
+export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly FolderSummary[] }) {
   const router = useRouter();
+  const [step, setStep] = useState<1 | 2>(1);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [folderId, setFolderId] = useState("none");
   const [cardType, setCardType] = useState<CardTypeCode>("basic");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,18 +45,26 @@ export function NewDeckWizard() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (step === 1) {
+      if (!title.trim()) {
+        setError("Add a deck title to continue.");
+        return;
+      }
+      setError(null);
+      setStep(2);
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
-    const form = new FormData(event.currentTarget);
-    const command = {
-      description: String(form.get("description") ?? ""),
-      folderId: null,
-      title: String(form.get("title") ?? ""),
-      visibility: "private",
-    } as const;
     try {
       const result = await performContentMutation<ContentMutationResult<DeckSummary>>({
-        body: command,
+        body: {
+          description,
+          folderId: folderId === "none" ? null : folderId,
+          title,
+          visibility: "private",
+        },
         fallbackMessage: "The deck could not be created.",
         method: "POST",
         operation: "new-deck-wizard:create",
@@ -46,86 +81,128 @@ export function NewDeckWizard() {
   }
 
   return (
-    <div className="editor-shell">
-      <header className="editor-titlebar">
+    <div className="editor-shell deck-creation-shell">
+      <header className="editor-titlebar deck-creation-header">
         <div>
           <ol aria-label="Breadcrumb" className="breadcrumb-list">
             <li>
               <a href="/app">Library</a>
             </li>
-            <li aria-current="page">Create deck</li>
+            <li aria-current="page">New deck</li>
           </ol>
-          <h1>Start with the way you want to recall</h1>
-          <p>
-            Name the deck, then choose the first card type. You can mix all seventeen types in the
-            same deck, with each format keeping its own prompt, answer, and interaction.
-          </p>
+          <h1>Create a deck</h1>
+          <p>Give it a name, then choose how you want to start studying.</p>
         </div>
+        <ol className="deck-creation-steps" aria-label="Deck creation progress">
+          <li aria-current={step === 1 ? "step" : undefined} data-complete={step > 1}>
+            <span>{step > 1 ? <CheckIcon /> : "1"}</span> Details
+          </li>
+          <li aria-current={step === 2 ? "step" : undefined}>
+            <span>2</span> First card type
+          </li>
+        </ol>
       </header>
-      <form className="editor-layout" onSubmit={submit}>
-        <div className="editor-main">
-          <section className="editor-panel" aria-labelledby="deck-details-heading">
+
+      <form className="deck-creation-form" onSubmit={submit}>
+        {step === 1 ? (
+          <section aria-labelledby="deck-details-heading">
             <h2 id="deck-details-heading">Deck details</h2>
-            <div className="mt-5 grid gap-5">
+            <div className="deck-details-fields">
               <FormField label="Deck title" required>
-                <Input autoFocus maxLength={120} name="title" required />
+                <Input
+                  autoFocus
+                  maxLength={120}
+                  onChange={(event) => setTitle(event.currentTarget.value)}
+                  required
+                  value={title}
+                />
               </FormField>
-              <FormField
-                label="Description"
-                description="Describe what belongs here. This becomes the public summary only if you later publish."
-              >
-                <Textarea maxLength={2_000} name="description" rows={4} />
+              <FormField label="Description" description="Optional">
+                <Textarea
+                  maxLength={2_000}
+                  onChange={(event) => setDescription(event.currentTarget.value)}
+                  rows={3}
+                  value={description}
+                />
+              </FormField>
+              <FormField label="Folder" description="Optional">
+                <Select
+                  onValueChange={setFolderId}
+                  options={[
+                    { label: "No folder", value: "none" },
+                    ...folders.map((folder) => ({ label: folder.name, value: folder.id })),
+                  ]}
+                  value={folderId}
+                />
               </FormField>
             </div>
           </section>
-          <section className="editor-panel" aria-labelledby="card-type-heading">
-            <h2 id="card-type-heading">First card type</h2>
-            <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
-              Choose the interaction that fits the material: recall, recognition, visual, audio, or
-              self-review. You can add other formats at any time.
-            </p>
-            <div className="card-type-grid">
-              {CARD_TYPE_DESCRIPTORS.map((descriptor) => (
-                <button
-                  aria-describedby={`card-type-${descriptor.code}-detail`}
-                  aria-pressed={cardType === descriptor.code}
-                  className="card-type-option"
-                  key={descriptor.code}
-                  onClick={() => setCardType(descriptor.code)}
-                  type="button"
-                >
-                  <strong>{descriptor.shortLabel}</strong>
-                  <span id={`card-type-${descriptor.code}-detail`}>{descriptor.description}</span>
-                </button>
+        ) : (
+          <section aria-labelledby="card-type-heading">
+            <div className="deck-creation-section-heading">
+              <div>
+                <h2 id="card-type-heading">Choose your first card type</h2>
+                <p>Basic is a great default. You can mix formats later.</p>
+              </div>
+              <span className="selected-card-type">
+                Selected: {CARD_TYPE_BY_CODE[cardType].shortLabel}
+              </span>
+            </div>
+            <div className="card-type-groups">
+              {CARD_TYPE_GROUPS.map((group) => (
+                <fieldset key={group.label}>
+                  <legend>{group.label}</legend>
+                  <div className="card-type-grid">
+                    {group.types.map((code) => {
+                      const descriptor = CARD_TYPE_BY_CODE[code];
+                      return (
+                        <button
+                          aria-describedby={`card-type-${code}-detail`}
+                          aria-pressed={cardType === code}
+                          className="card-type-option"
+                          key={code}
+                          onClick={() => setCardType(code)}
+                          type="button"
+                        >
+                          <span className="card-type-option__check" aria-hidden="true">
+                            {cardType === code && <CheckIcon />}
+                          </span>
+                          <strong>{descriptor.shortLabel}</strong>
+                          <span id={`card-type-${code}-detail`}>{descriptor.description}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
               ))}
             </div>
           </section>
-        </div>
-        <aside className="editor-sidebar" aria-label="Creation summary">
-          <section className="preview-panel">
-            <h2>{CARD_TYPE_DESCRIPTORS.find((item) => item.code === cardType)?.label}</h2>
-            <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
-              {CARD_TYPE_DESCRIPTORS.find((item) => item.code === cardType)?.editorHint}
-            </p>
-            <p className="text-sm font-bold text-[var(--color-brand)]">
-              {CARD_TYPE_DESCRIPTORS.find((item) => item.code === cardType)?.generatedCards}
-            </p>
-          </section>
-          {error && (
-            <p
-              role="alert"
-              className="m-0 rounded-[var(--radius-md)] bg-[color-mix(in_srgb,var(--color-danger)_10%,transparent)] p-3 text-sm text-[var(--color-danger)]"
+        )}
+
+        {error && (
+          <p role="alert" className="deck-creation-error">
+            {error}
+          </p>
+        )}
+
+        <footer className="deck-creation-actions">
+          {step === 1 ? (
+            <a href="/app">Cancel</a>
+          ) : (
+            <Button
+              onClick={() => {
+                setError(null);
+                setStep(1);
+              }}
+              variant="ghost"
             >
-              {error}
-            </p>
+              Back
+            </Button>
           )}
           <Button loading={submitting} loadingLabel="Creating deck" size="lg" type="submit">
-            Create deck and continue
+            {step === 1 ? "Continue" : "Create deck"}
           </Button>
-          <a className="text-center text-sm font-bold text-[var(--color-text-muted)]" href="/app">
-            Cancel
-          </a>
-        </aside>
+        </footer>
       </form>
     </div>
   );

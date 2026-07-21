@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import type { DrawingStroke } from "@lumen/domain";
 
@@ -37,9 +37,30 @@ beforeAll(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
-function RegionHarness({ kind }: { readonly kind: "diagram" | "occlusion" }) {
+beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+    bottom: 600,
+    height: 600,
+    left: 0,
+    right: 1_000,
+    toJSON: () => ({}),
+    top: 0,
+    width: 1_000,
+    x: 0,
+    y: 0,
+  });
+});
+
+function RegionHarness({
+  image = true,
+  kind,
+}: {
+  readonly image?: boolean;
+  readonly kind: "diagram" | "occlusion";
+}) {
   const [regions, setRegions] = useState<readonly VisualRegion[]>([]);
   const [mode, setMode] = useState<"hide_all_reveal_one" | "hide_one_reveal_others">(
     "hide_one_reveal_others",
@@ -48,7 +69,7 @@ function RegionHarness({ kind }: { readonly kind: "diagram" | "occlusion" }) {
     <>
       <VisualRegionEditor
         imageAlt="A labeled cell"
-        imageUrl={null}
+        imageUrl={image ? "blob:test-image" : null}
         kind={kind}
         mode={mode}
         onChange={setRegions}
@@ -62,6 +83,16 @@ function RegionHarness({ kind }: { readonly kind: "diagram" | "occlusion" }) {
 }
 
 describe("visual region authoring", () => {
+  it("keeps the empty stage compact and disables mask tools before upload", () => {
+    const { container } = render(<RegionHarness image={false} kind="occlusion" />);
+
+    expect(container.querySelector(".geometry-stage")).not.toBeInTheDocument();
+    expect(screen.getByText("Add an image to start drawing masks.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add rectangle mask" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add ellipse mask" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add polygon mask" })).toBeDisabled();
+  });
+
   it("provides equivalent keyboard controls for creating and editing normalized regions", async () => {
     const user = userEvent.setup();
     render(<RegionHarness kind="diagram" />);
@@ -72,9 +103,9 @@ describe("visual region authoring", () => {
         name: /diagram image region canvas.*keyboard alternative/i,
       }),
     ).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Accessible region list" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Regions" })).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: /Rectangle/i }));
+    await user.click(screen.getByRole("button", { name: "Add rectangle mask" }));
     expect(screen.getByLabelText("Region count")).toHaveTextContent("1");
     expect(screen.getByRole("spinbutton", { name: "Region 1 x" })).toHaveValue(0.2);
     expect(screen.getByRole("spinbutton", { name: "Region 1 width" })).toHaveValue(0.24);
@@ -104,7 +135,7 @@ describe("visual region authoring", () => {
     await user.click(screen.getByRole("combobox", { name: "Reveal behavior" }));
     await user.click(screen.getByRole("option", { name: "Hide all, reveal one" }));
     expect(screen.getByLabelText("Reveal mode")).toHaveTextContent("hide_all_reveal_one");
-    await user.click(screen.getByRole("button", { name: /Polygon/i }));
+    await user.click(screen.getByRole("button", { name: "Add polygon mask" }));
     expect(screen.getByLabelText("Region count")).toHaveTextContent("1");
     expect(screen.getByRole("spinbutton", { name: "Region 1 height" })).toBeVisible();
   });
@@ -115,12 +146,14 @@ describe("visual region authoring", () => {
     const transform = container.querySelector(".geometry-stage__transform");
 
     expect(transform).toHaveStyle({ transform: "translate(0px, 0px) scale(1)" });
+    await user.click(screen.getByRole("button", { name: "Zoom in" }));
+    await user.click(screen.getByRole("button", { name: "Open pan controls" }));
     await user.click(screen.getByRole("button", { name: "Pan up" }));
     await user.click(screen.getByRole("button", { name: "Pan left" }));
-    expect(transform).toHaveStyle({ transform: "translate(-5px, -5px) scale(1)" });
+    expect(transform).toHaveStyle({ transform: "translate(-16px, -16px) scale(1.25)" });
     await user.click(screen.getByRole("button", { name: "Pan down" }));
     await user.click(screen.getByRole("button", { name: "Pan right" }));
-    expect(transform).toHaveStyle({ transform: "translate(0px, 0px) scale(1)" });
+    expect(transform).toHaveStyle({ transform: "translate(0px, 0px) scale(1.25)" });
     await user.click(screen.getByRole("button", { name: "Pan down" }));
     await user.click(screen.getByRole("button", { name: "Reset view" }));
     expect(transform).toHaveStyle({ transform: "translate(0px, 0px) scale(1)" });
@@ -129,26 +162,17 @@ describe("visual region authoring", () => {
   it("moves the selected region from descendant stage content but ignores mask activation", async () => {
     const user = userEvent.setup();
     const { container } = render(<RegionHarness kind="diagram" />);
-    await user.click(screen.getByRole("button", { name: /Rectangle/i }));
-
-    const stage = screen.getByRole("img", { name: /diagram image region canvas/i });
-    Object.defineProperty(stage, "getBoundingClientRect", {
-      configurable: true,
-      value: () => ({
-        bottom: 1_000,
-        height: 1_000,
-        left: 0,
-        right: 1_000,
-        toJSON: () => ({}),
-        top: 0,
-        width: 1_000,
-        x: 0,
-        y: 0,
-      }),
+    const image = screen.getByRole("img", { name: "A labeled cell" });
+    Object.defineProperties(image, {
+      naturalHeight: { configurable: true, value: 600 },
+      naturalWidth: { configurable: true, value: 1_000 },
     });
-    fireEvent.doubleClick(screen.getByText(/Upload or select an image/i), {
+    fireEvent.load(image);
+    await user.click(screen.getByRole("button", { name: "Add rectangle mask" }));
+
+    fireEvent.doubleClick(image, {
       clientX: 800,
-      clientY: 700,
+      clientY: 420,
     });
 
     expect(screen.getByRole("spinbutton", { name: "Region 1 x" })).toHaveValue(0.68);
@@ -165,7 +189,13 @@ describe("visual region authoring", () => {
   it("expresses polygon points relative to the positioned mask bounding box", async () => {
     const user = userEvent.setup();
     const { container } = render(<RegionHarness kind="occlusion" />);
-    await user.click(screen.getByRole("button", { name: /Polygon/i }));
+    const image = screen.getByRole("img", { name: "A labeled cell" });
+    Object.defineProperties(image, {
+      naturalHeight: { configurable: true, value: 600 },
+      naturalWidth: { configurable: true, value: 1_000 },
+    });
+    fireEvent.load(image);
+    await user.click(screen.getByRole("button", { name: "Add polygon mask" }));
 
     expect(container.querySelector(".geometry-mask")).toHaveStyle({
       clipPath: "polygon(0% 100%, 50% 0%, 100% 100%)",

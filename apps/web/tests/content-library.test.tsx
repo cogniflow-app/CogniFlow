@@ -1,10 +1,13 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LibraryDashboard } from "../components/content/library-dashboard.client";
+import { PublishedDecksDashboard } from "../components/content/published-decks-dashboard.client";
 import { WorkspaceNavigation } from "../components/content/workspace-navigation.client";
 import {
+  activeDeck,
+  archivedDeck,
   emptyLibrarySnapshot,
   largeLibrarySnapshot,
   populatedLibrarySnapshot,
@@ -33,28 +36,23 @@ describe("content library dashboard", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("renders a truthful educational empty state with real creation actions", async () => {
+  it("renders one compact empty state with one primary New deck action and no zero metrics", async () => {
     const user = userEvent.setup();
     render(<LibraryDashboard canCreate learnerName="Ari" snapshot={emptyLibrarySnapshot} />);
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: "A clear place to build, Ari." }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
+    expect(screen.getByText("Welcome back, Ari.")).toBeVisible();
     expect(screen.getByRole("heading", { level: 2, name: "Create your first deck" })).toBeVisible();
-    expect(screen.getByText(/each note can generate one or more sibling cards/i)).toBeVisible();
-    expect(screen.getByText(/pick a card type/i)).toBeVisible();
-    expect(screen.queryByText(/your authorized account/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /current boundary/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Start with a subject you want to remember.")).toBeVisible();
+    expect(screen.getAllByRole("link", { name: "New deck" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "New deck" })).toHaveAttribute(
+      "href",
+      "/app/decks/new",
+    );
+    expect(screen.queryByLabelText("Library totals")).not.toBeInTheDocument();
+    expect(screen.queryByText("Generated cards")).not.toBeInTheDocument();
 
-    const totals = screen.getByRole("region", { name: "Library totals" });
-    expect(within(totals).getAllByText("0")).toHaveLength(5);
-
-    await user.click(screen.getAllByRole("button", { name: "Create deck" })[0]!);
-    expect(screen.getByRole("dialog", { name: "Create a deck" })).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Deck title" })).toBeRequired();
-    await user.click(screen.getByRole("button", { name: "Close dialog" }));
-
-    await user.click(screen.getAllByRole("button", { name: /new folder|create folder/i })[0]!);
+    await user.click(screen.getByRole("button", { name: "Create folder" }));
     expect(screen.getByRole("dialog", { name: "Create a folder" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Folder name" })).toBeRequired();
   });
@@ -63,7 +61,8 @@ describe("content library dashboard", () => {
     const user = userEvent.setup();
     render(<LibraryDashboard canCreate learnerName="Ari" snapshot={populatedLibrarySnapshot} />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "Welcome back, Ari." })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
+    expect(screen.getByText("Welcome back, Ari.")).toBeVisible();
     expect(screen.getByRole("link", { name: /Cell biology/i })).toHaveAttribute(
       "href",
       `/app/decks/${populatedLibrarySnapshot.decks[0]!.id}`,
@@ -80,32 +79,33 @@ describe("content library dashboard", () => {
     ).toBeVisible();
 
     await user.clear(screen.getByRole("searchbox", { name: "Search decks" }));
+    const allFilter = screen.getByRole("radio", { name: "All" });
+    await user.click(allFilter);
+    expect(allFilter).toHaveAttribute("data-state", "checked");
+    const publishedFilter = screen.getByRole("radio", { name: "Published" });
+    publishedFilter.focus();
+    await user.keyboard(" ");
+    expect(publishedFilter).toHaveAttribute("data-state", "checked");
+
     await user.click(screen.getByRole("button", { name: "List view" }));
     expect(screen.getByRole("button", { name: "List view" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    expect(screen.getByText(/Edited 7\/16\/2026/i)).toBeVisible();
+    expect(screen.getByText(/Edited 7\/15\/2026/i)).toBeVisible();
     expect(screen.getByRole("button", { name: /^Biology1$/ })).toBeVisible();
     expect(screen.getByRole("button", { name: /^Languages1$/ })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Choose a card type" })).toHaveAttribute(
+    expect(screen.queryByRole("link", { name: "Choose a card type" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "New deck" })).toHaveAttribute(
       "href",
       "/app/decks/new",
     );
   });
 
-  it("reuses deck and folder creation keys when their first responses are lost", async () => {
-    const deck = populatedLibrarySnapshot.decks[0]!;
+  it("reuses a folder creation key when the first response is lost", async () => {
     const folder = populatedLibrarySnapshot.folders[0]!;
     const fetchMock = vi
       .fn()
-      .mockRejectedValueOnce(new TypeError("deck response lost"))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ data: deck, status: "created" }), {
-          headers: { "Content-Type": "application/json" },
-          status: 201,
-        }),
-      )
       .mockRejectedValueOnce(new TypeError("folder response lost"))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ data: folder, status: "created" }), {
@@ -117,13 +117,7 @@ describe("content library dashboard", () => {
     const user = userEvent.setup();
     render(<LibraryDashboard canCreate learnerName="Ari" snapshot={emptyLibrarySnapshot} />);
 
-    await user.click(screen.getAllByRole("button", { name: "Create deck" })[0]!);
-    await user.type(screen.getByRole("textbox", { name: "Deck title" }), "Biology");
-    await user.click(screen.getByRole("button", { name: "Create and add notes" }));
-    expect(await screen.findByText("deck response lost")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Create and add notes" }));
-
-    await user.click(screen.getAllByRole("button", { name: /new folder|create folder/i })[0]!);
+    await user.click(screen.getByRole("button", { name: "Create folder" }));
     await user.type(screen.getByRole("textbox", { name: "Folder name" }), "Science");
     await user.click(screen.getByRole("button", { name: "Create folder" }));
     expect(await screen.findByText("folder response lost")).toBeVisible();
@@ -134,8 +128,6 @@ describe("content library dashboard", () => {
       return (JSON.parse(String(request.body)) as { idempotencyKey: string }).idempotencyKey;
     });
     expect(keys[0]).toBe(keys[1]);
-    expect(keys[2]).toBe(keys[3]);
-    expect(keys[0]).not.toBe(keys[2]);
   });
 
   it("keeps content creation controls out of a managed learner session", () => {
@@ -156,7 +148,7 @@ describe("content library dashboard", () => {
     expect(
       screen.getByText(/guardian or educator can make authorized content available/i),
     ).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Create deck" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "New deck" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /folder/i })).not.toBeInTheDocument();
   });
 
@@ -168,15 +160,14 @@ describe("content library dashboard", () => {
       "Showing most recently edited 200 of 260 decks.",
     );
     expect(screen.getAllByRole("link", { name: /Deck \d{3}/i })).toHaveLength(200);
-    expect(screen.getByText("260")).toBeVisible();
+    expect(screen.getByLabelText("Library totals")).toHaveTextContent("260 decks");
     expect(screen.queryByRole("link", { name: /Deck 201/i })).not.toBeInTheDocument();
   });
 
   it("surfaces a published area and a dedicated published workspace link", () => {
     render(<LibraryDashboard canCreate learnerName="Ari" snapshot={populatedLibrarySnapshot} />);
 
-    expect(screen.getByRole("heading", { name: "Published decks" })).toBeVisible();
-    expect(screen.getByRole("link", { name: /Manage published decks/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "1 published" })).toHaveAttribute(
       "href",
       "/app/published",
     );
@@ -206,5 +197,48 @@ describe("workspace content navigation", () => {
     expect(screen.getByRole("link", { name: "Library" })).toBeVisible();
     expect(screen.queryByRole("link", { name: "Profile" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Privacy" })).not.toBeInTheDocument();
+  });
+});
+
+describe("published decks dashboard", () => {
+  const publicDeck = {
+    ...activeDeck,
+    publicId: "0190d9f0-0000-7000-8000-000000000099",
+    publicSlug: "cell-biology",
+    visibility: "public" as const,
+  };
+
+  it("offers direct player, copy, manage, visibility filter, and unpublish actions", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    render(<PublishedDecksDashboard initialDecks={[publicDeck, archivedDeck]} />);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Published" })).toBeVisible();
+    expect(screen.getAllByRole("link", { name: "Open player" })[0]).toHaveAttribute(
+      "href",
+      "/deck/cell-biology",
+    );
+    expect(screen.getAllByRole("link", { name: "Manage" })[0]).toHaveAttribute(
+      "href",
+      `/app/decks/${publicDeck.id}/settings`,
+    );
+
+    await user.click(screen.getAllByRole("button", { name: "Copy link" })[0]!);
+    expect(writeText).toHaveBeenCalledWith("http://localhost:3000/deck/cell-biology");
+    expect(await screen.findByText("Link copied for Cell biology.")).toBeVisible();
+
+    await user.click(screen.getByRole("radio", { name: "Unlisted" }));
+    expect(screen.getByRole("heading", { level: 3, name: "Spanish verbs" })).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { level: 3, name: "Cell biology" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Unpublish" }));
+    expect(screen.getByRole("dialog", { name: "Unpublish Spanish verbs?" })).toBeVisible();
+    expect(screen.getByText(/public link will stop working/i)).toBeVisible();
   });
 });

@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "next/font/local": new URL("./tests/next-font-local.ts", import.meta.url).pathname,
       "server-only": new URL("./tests/server-only.ts", import.meta.url).pathname,
     },
     tsconfigPaths: true,

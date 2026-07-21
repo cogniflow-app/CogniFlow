@@ -25,7 +25,17 @@ import {
   type SelectAllCardData,
   type AudioPromptCardData,
 } from "@lumen/domain";
-import { Badge, Button, Checkbox, Dialog, FormField, Input, Select, Textarea } from "@lumen/ui";
+import {
+  ArrowLeftIcon,
+  Badge,
+  Button,
+  Checkbox,
+  Dialog,
+  FormField,
+  Input,
+  Select,
+  Textarea,
+} from "@lumen/ui";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -593,7 +603,7 @@ function CustomEditor({
           }
           variant="secondary"
         >
-          Add template sibling
+          Add card layout
         </Button>
       </section>
     </div>
@@ -615,14 +625,13 @@ function ClozeEditor({
         value={value.text}
       />
       <p className="m-0 text-sm text-[var(--color-text-muted)]">
-        Select exact character ranges in the extracted passage. Ranges may overlap when they belong
-        to different semantic groups.
+        Mark the start and end of each blank. Reuse a group name when blanks should appear together.
       </p>
       <fieldset className="repeatable-list">
         <legend>Deletion groups</legend>
         {value.clozes.map((cloze, index) => (
           <div className="repeatable-row" key={cloze.semanticKey}>
-            <FormField label={`Group ${String(index + 1)} key`}>
+            <FormField label={`Group ${String(index + 1)} name`}>
               <Input
                 value={cloze.semanticKey}
                 onChange={(event) =>
@@ -1229,7 +1238,7 @@ function CardFields({
           />
           <Checkbox
             checked={data.reverseEnabled}
-            label="Generate a reverse sibling for this note"
+            label="Create a second card in the reverse direction"
             onCheckedChange={(checked) => onChange({ ...data, reverseEnabled: checked === true })}
           />
         </div>
@@ -1406,6 +1415,50 @@ function replacePrimaryDrawingStrokes(
   return [{ ...primary, strokes }, ...remaining];
 }
 
+function friendlyPreviewNeeds(
+  data: CardAuthoringData,
+  issues: readonly { readonly path: unknown }[],
+): readonly string[] {
+  if (data.kind === "image_occlusion") {
+    return [
+      ...(!data.imageAssetId.trim() ? ["Add an image."] : []),
+      ...(!data.imageAlt.trim() ? ["Add a short image description."] : []),
+      ...(data.occlusions.length === 0 ? ["Draw at least one mask."] : []),
+    ];
+  }
+  if (data.kind === "diagram") {
+    return [
+      ...(!data.imageAssetId.trim() ? ["Add an image."] : []),
+      ...(!data.imageAlt.trim() ? ["Add a short image description."] : []),
+      ...(data.hotspots.length === 0 ? ["Add at least one region."] : []),
+    ];
+  }
+
+  const labels: Readonly<Record<string, string>> = {
+    acceptedAnswers: "Add at least one accepted answer.",
+    answer: "Add an answer.",
+    back: "Add content to the back.",
+    choices: "Complete the answer choices.",
+    clozes: "Add at least one blank.",
+    fields: "Complete the card fields.",
+    front: "Add content to the front.",
+    listItems: "Add at least one list item.",
+    orderingItems: "Add at least two items.",
+    prompt: "Add a prompt.",
+    sideA: "Add the first concept.",
+    sideB: "Add the second concept.",
+    statement: "Add a statement.",
+    templates: "Complete the card layout.",
+    text: "Add the cloze passage.",
+  };
+  const messages = issues.flatMap((issue) => {
+    const path = Array.isArray(issue.path) ? issue.path.join(".") : String(issue.path ?? "");
+    const match = Object.entries(labels).find(([field]) => path.includes(field));
+    return match ? [match[1]] : [];
+  });
+  return [...new Set(messages.length > 0 ? messages : ["Complete the card fields."])];
+}
+
 function SiblingPreview({ data }: { readonly data: CardAuthoringData }) {
   const result = useMemo(() => {
     const parsed = cardAuthoringSchema.safeParse(data);
@@ -1413,42 +1466,28 @@ function SiblingPreview({ data }: { readonly data: CardAuthoringData }) {
     return { issues: [], siblings: generateCardBlueprints(parsed.data) } as const;
   }, [data]);
   return (
-    <aside className="card-preview-pane" aria-labelledby="siblings-heading">
+    <aside className="card-preview-pane" aria-labelledby="card-preview-heading">
       <div>
         <span className="text-xs font-extrabold tracking-wider text-[var(--color-brand)] uppercase">
-          Live generation
+          Preview
         </span>
-        <h2 id="siblings-heading">Sibling cards</h2>
-        <p>
-          Each semantic sibling keeps its own durable card identity. Removing one deactivates it
-          instead of assigning its identity to new content.
-        </p>
+        <h2 id="card-preview-heading">Cards from this note</h2>
       </div>
       {result.issues.length > 0 ? (
         <div className="editor-validation" role="status">
-          <strong>Complete the highlighted card data to preview it.</strong>
-          <ul>
-            {result.issues.slice(0, 6).map((issue) => (
-              <li key={`${issue.path}-${issue.code}`}>
-                {issue.path}: {issue.message}
-              </li>
+          <strong>To preview this card:</strong>
+          <ol>
+            {friendlyPreviewNeeds(data, result.issues).map((message) => (
+              <li key={message}>{message}</li>
             ))}
-          </ul>
+          </ol>
         </div>
       ) : (
         <ol className="sibling-list">
           {result.siblings.map((sibling, index) => (
             <li key={sibling.generationKey}>
-              <div className="flex items-center justify-between gap-2">
-                <strong>Sibling {String(index + 1)}</strong>
-                <Badge tone="info">{sibling.semanticKey}</Badge>
-              </div>
+              <strong>Card {String(index + 1)}</strong>
               <StudyRendererPreview renderer={sibling.renderer} />
-              <small>{sibling.renderer.accessibility.instructions}</small>
-              <details>
-                <summary>Accessible fallback</summary>
-                <p>{sibling.renderer.accessibility.nonvisualAlternative}</p>
-              </details>
             </li>
           ))}
         </ol>
@@ -1503,6 +1542,7 @@ export function NoteEditor({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const firstRender = useRef(true);
   const pendingMutations = useRef(new PendingContentMutations());
   const latestDraft = useRef(draftFingerprint(data, source, tags));
@@ -1558,9 +1598,7 @@ export function NoteEditor({
     const parsed = cardAuthoringSchema.safeParse(data);
     if (!parsed.success) {
       setState("error");
-      setMessage(
-        "Complete the card fields before saving. The live preview lists the remaining validation issues.",
-      );
+      setMessage("Complete the highlighted fields before saving.");
       return;
     }
     const submittedDraft = draftFingerprint(parsed.data, source, tags);
@@ -1641,117 +1679,143 @@ export function NoteEditor({
 
   const descriptor = CARD_TYPE_BY_CODE[data.kind];
   return (
-    <div className="note-editor-shell">
-      <section className="note-editor-main">
-        <header className="editor-heading">
-          <div>
-            <span className="text-xs font-extrabold tracking-wider text-[var(--color-brand)] uppercase">
-              {savedNoteId ? "Edit note" : "New note"}
-            </span>
-            <h1>{descriptor.label}</h1>
-            <p>
-              {descriptor.description} {descriptor.generatedCards}.
-            </p>
-          </div>
-          <div className="autosave-state" data-state={state} aria-live="polite">
-            <span aria-hidden="true" />
-            {state === "saving"
-              ? "Saving…"
-              : state === "reloading"
-                ? "Loading current version…"
-                : state === "dirty"
-                  ? "Unsaved changes"
-                  : state === "saved"
-                    ? "Saved"
-                    : state === "conflict"
-                      ? "Version conflict"
-                      : state === "error"
-                        ? "Needs attention"
-                        : "Ready"}
-          </div>
-        </header>
-        <FormField
-          label="Card type"
-          description={
-            savedNoteId
-              ? "A saved note keeps its note type so generated sibling identities remain stable. To use another type, create a new note."
-              : descriptor.editorHint
-          }
-        >
-          <Select
-            disabled={savedNoteId !== null}
-            value={data.kind}
-            onValueChange={(value) => setData(initialData(value as CardTypeCode))}
-            options={CARD_TYPE_DESCRIPTORS.map((type) => ({ label: type.label, value: type.code }))}
-          />
-        </FormField>
-        <CardFields data={data} onChange={setData} />
-        {duplicateMatches.length > 0 && (
-          <aside className="editor-message" role="status">
-            <strong>Possible duplicate note</strong>
-            <p>
-              {duplicateMatches.length === 1
-                ? "Another note in this deck has the same normalized prompt."
-                : `${String(duplicateMatches.length)} notes in this deck have the same normalized prompt.`}{" "}
-              You can still save when the answer or context is intentionally different.
-            </p>
-          </aside>
-        )}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="Tags" description="Comma separated. Tags are normalized when saved.">
-            <Input
-              value={tags}
-              onChange={(event) => setTags(event.target.value)}
-              placeholder="biology, chapter-4"
-            />
-          </FormField>
-          <FormField
-            label="Source or citation note"
-            description="Optional provenance for this note."
-          >
-            <Input
-              value={source}
-              onChange={(event) => setSource(event.target.value)}
-              placeholder="Textbook, lecture, URL, or page"
-            />
-          </FormField>
+    <div className="note-editor-shell" data-preview-open={previewOpen}>
+      <header className="note-editor-topbar">
+        <a className="note-editor-back" href={`/app/decks/${deckId}`}>
+          <ArrowLeftIcon aria-hidden="true" />
+          Back to deck
+        </a>
+        <div className="note-editor-context">
+          <Badge tone="info">{descriptor.shortLabel}</Badge>
+          <strong>{savedNoteId ? "Edit note" : "New note"}</strong>
         </div>
-        {message && (
-          <p
-            className={
-              state === "error" || state === "conflict"
-                ? "editor-message editor-message--error"
-                : "editor-message"
-            }
-            role="status"
-          >
-            {message}
-          </p>
-        )}
-        <div className="editor-actions">
-          <Button loading={state === "saving"} onClick={() => void save(false)}>
-            Save note
-          </Button>
+        <div className="autosave-state" data-state={state} aria-live="polite">
+          <span aria-hidden="true" />
+          {state === "saving"
+            ? "Saving…"
+            : state === "reloading"
+              ? "Loading…"
+              : state === "dirty"
+                ? "Unsaved changes"
+                : state === "saved"
+                  ? "Saved"
+                  : state === "conflict"
+                    ? "Version conflict"
+                    : state === "error"
+                      ? "Needs attention"
+                      : "Ready"}
+        </div>
+        <div className="note-editor-topbar__actions">
           <Button
-            onClick={() => router.push(`/app/decks/${deckId}/cards` as Route)}
+            aria-controls="note-card-preview"
+            aria-expanded={previewOpen}
+            onClick={() => setPreviewOpen((open) => !open)}
             variant="secondary"
           >
-            Open card browser
+            Preview
           </Button>
-          {savedNoteId && (
-            <Button
-              onClick={() => {
-                setDeleteError(null);
-                setDeleteOpen(true);
-              }}
-              variant="danger"
-            >
-              Delete note
-            </Button>
-          )}
+          <Button
+            aria-label="Save note"
+            loading={state === "saving"}
+            onClick={() => void save(false)}
+          >
+            Save
+          </Button>
         </div>
-      </section>
-      <SiblingPreview data={data} />
+      </header>
+      <div className="note-editor-layout">
+        <section className="note-editor-main">
+          <header className="editor-heading">
+            <div>
+              <h1>{savedNoteId ? "Edit note" : "New note"}</h1>
+              <p>{descriptor.description}</p>
+            </div>
+          </header>
+          <FormField
+            label="Card type"
+            description={
+              savedNoteId
+                ? "Card type can’t be changed after saving. Create a new note to use another type."
+                : descriptor.editorHint
+            }
+          >
+            <Select
+              disabled={savedNoteId !== null}
+              value={data.kind}
+              onValueChange={(value) => setData(initialData(value as CardTypeCode))}
+              options={CARD_TYPE_DESCRIPTORS.map((type) => ({
+                label: type.label,
+                value: type.code,
+              }))}
+            />
+          </FormField>
+          <CardFields data={data} onChange={setData} />
+          {duplicateMatches.length > 0 && (
+            <aside className="editor-message" role="status">
+              <strong>Possible duplicate note</strong>
+              <p>
+                {duplicateMatches.length === 1
+                  ? "Another note in this deck has the same normalized prompt."
+                  : `${String(duplicateMatches.length)} notes in this deck have the same normalized prompt.`}{" "}
+                You can still save when the answer or context is intentionally different.
+              </p>
+            </aside>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="Tags" description="Comma separated. Tags are normalized when saved.">
+              <Input
+                value={tags}
+                onChange={(event) => setTags(event.target.value)}
+                placeholder="biology, chapter-4"
+              />
+            </FormField>
+            <FormField
+              label="Source or citation note"
+              description="Optional provenance for this note."
+            >
+              <Input
+                value={source}
+                onChange={(event) => setSource(event.target.value)}
+                placeholder="Textbook, lecture, URL, or page"
+              />
+            </FormField>
+          </div>
+          {message && (
+            <p
+              className={
+                state === "error" || state === "conflict"
+                  ? "editor-message editor-message--error"
+                  : "editor-message"
+              }
+              role="status"
+            >
+              {message}
+            </p>
+          )}
+          <div className="editor-actions">
+            <Button
+              onClick={() => router.push(`/app/decks/${deckId}/cards` as Route)}
+              variant="secondary"
+            >
+              Generated cards
+            </Button>
+            {savedNoteId && (
+              <Button
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteOpen(true);
+                }}
+                variant="danger"
+              >
+                Delete note
+              </Button>
+            )}
+          </div>
+        </section>
+        <div className="note-editor-preview" id="note-card-preview">
+          <SiblingPreview data={data} />
+        </div>
+      </div>
       <Dialog
         open={state === "conflict"}
         onOpenChange={(open) => {
@@ -1785,7 +1849,7 @@ export function NoteEditor({
         </p>
       </Dialog>
       <Dialog
-        description="The note and its generated siblings will be removed from the active deck. Stored history remains auditable."
+        description="The note and its cards will be removed from this deck."
         footer={
           <>
             <Button disabled={deleting} onClick={() => setDeleteOpen(false)} variant="secondary">

@@ -203,7 +203,7 @@ const editorLandmark: Readonly<Record<CardTypeCode, string>> = {
   image_occlusion: "Occlusion image",
   list_answer: "Expected list items",
   multiple_choice: "Answer choices",
-  optional_reversed: "Generate a reverse sibling for this note",
+  optional_reversed: "Create a second card in the reverse direction",
   ordering: "Correct order",
   pronunciation: "Text to pronounce",
   select_all: "Answer choices",
@@ -275,6 +275,9 @@ describe("Phase 02 card-type catalog", () => {
     const user = userEvent.setup();
     render(<NewDeckWizard />);
 
+    await user.type(screen.getByRole("textbox", { name: "Deck title" }), "Biology");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
     const options = screen
       .getAllByRole("button")
       .filter((option) => option.hasAttribute("aria-pressed"));
@@ -288,8 +291,7 @@ describe("Phase 02 card-type catalog", () => {
       if (!option) throw new Error(`The ${descriptor.label} chooser is not a button.`);
       await user.click(option);
       expect(option).toHaveAttribute("aria-pressed", "true");
-      expect(screen.getByRole("heading", { level: 2, name: descriptor.label })).toBeVisible();
-      expect(screen.getByText(descriptor.generatedCards)).toBeVisible();
+      expect(screen.getByText(`Selected: ${descriptor.shortLabel}`)).toBeVisible();
     }
   });
 
@@ -322,8 +324,9 @@ describe("Phase 02 card-type catalog", () => {
     render(<NewDeckWizard />);
 
     await user.type(screen.getByRole("textbox", { name: "Deck title" }), "World history");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     await user.click(screen.getByRole("button", { name: /Cloze/i }));
-    await user.click(screen.getByRole("button", { name: "Create deck and continue" }));
+    await user.click(screen.getByRole("button", { name: "Create deck" }));
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/content/decks",
@@ -337,11 +340,12 @@ describe("Phase 02 card-type catalog", () => {
 });
 
 describe.each(CARD_TYPE_DESCRIPTORS)("$label editor", ({ code, label }) => {
-  it("renders its specific authoring surface and sibling preview", () => {
+  it("renders its specific authoring surface and card preview", () => {
     render(<NoteEditor deckId="deck-id" initialKind={code} />);
 
-    expect(screen.getByRole("heading", { level: 1, name: label })).toBeVisible();
-    expect(screen.getByRole("heading", { level: 2, name: "Sibling cards" })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1, name: "New note" })).toBeVisible();
+    expect(screen.getAllByText(label)[0]).toBeVisible();
+    expect(screen.getByRole("heading", { level: 2, name: "Cards from this note" })).toBeVisible();
     if (code === "drawing") {
       expect(screen.getByRole("region", { name: editorLandmark[code] })).toBeVisible();
     } else {
@@ -590,8 +594,7 @@ describe("live sibling preview", () => {
       "A cell's energy carrier",
     );
 
-    expect(screen.getByText("Sibling 1")).toBeVisible();
-    expect(screen.getByText("forward")).toBeVisible();
+    expect(screen.getByText("Card 1")).toBeVisible();
     expect(screen.getByText("What is ATP?")).toBeVisible();
     expect(navigation.refresh).not.toHaveBeenCalled();
   });
@@ -790,7 +793,7 @@ describe("live sibling preview", () => {
     expect(screen.getByRole("combobox", { name: "Card type" })).toBeDisabled();
     expect(
       screen.getByText(
-        "A saved note keeps its note type so generated sibling identities remain stable. To use another type, create a new note.",
+        "Card type can’t be changed after saving. Create a new note to use another type.",
       ),
     ).toBeVisible();
   });

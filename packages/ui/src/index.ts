@@ -9,3 +9,4 @@ export * from "./components/overlays";
 export * from "./components/shells";
 export * from "./components/study-primitives";
 export { cn } from "./lib/cn";
+export * from "./lib/icons";

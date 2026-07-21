@@ -3,14 +3,19 @@
 import { CARD_SCHEMA_VERSION, emptyRichDocument, type RichDocument } from "@lumen/domain";
 import {
   Badge,
+  ArrowDownIcon,
+  ArrowUpIcon,
   Button,
   Checkbox,
   Dialog,
   FormField,
   Input,
+  IconButton,
   LinkButton,
   Select,
   Textarea,
+  Tooltip,
+  TrashIcon,
 } from "@lumen/ui";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
@@ -355,34 +360,40 @@ export function BulkQuickEditor({ deckId }: { readonly deckId: string }) {
               value={row.tags}
             />
             <div className="quick-grid__controls">
-              <Button
-                aria-label={`Move row ${String(index + 1)} up`}
-                disabled={index === 0}
-                onClick={() => move(index, -1)}
-                size="sm"
-                variant="ghost"
-              >
-                ↑
-              </Button>
-              <Button
-                aria-label={`Move row ${String(index + 1)} down`}
-                disabled={index === rows.length - 1}
-                onClick={() => move(index, 1)}
-                size="sm"
-                variant="ghost"
-              >
-                ↓
-              </Button>
-              <Button
-                aria-label={`Remove row ${String(index + 1)}`}
-                onClick={() =>
-                  setRows((current) => current.filter((candidate) => candidate.id !== row.id))
-                }
-                size="sm"
-                variant="ghost"
-              >
-                ×
-              </Button>
+              <Tooltip content="Move up">
+                <IconButton
+                  label={`Move row ${String(index + 1)} up`}
+                  disabled={index === 0}
+                  onClick={() => move(index, -1)}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <ArrowUpIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip content="Move down">
+                <IconButton
+                  label={`Move row ${String(index + 1)} down`}
+                  disabled={index === rows.length - 1}
+                  onClick={() => move(index, 1)}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <ArrowDownIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip content="Delete row">
+                <IconButton
+                  label={`Remove row ${String(index + 1)}`}
+                  onClick={() =>
+                    setRows((current) => current.filter((candidate) => candidate.id !== row.id))
+                  }
+                  size="sm"
+                  variant="ghost"
+                >
+                  <TrashIcon />
+                </IconButton>
+              </Tooltip>
             </div>
           </div>
         ))}
@@ -530,13 +541,17 @@ export function NoteCardBrowser({
     <section className="deck-browser" aria-labelledby="note-browser-heading">
       <div className="deck-browser__toolbar">
         <div>
-          <h2 id="note-browser-heading">Notes and generated siblings</h2>
+          <h2 id="note-browser-heading">Notes and generated cards</h2>
           <p>
-            {deck.noteCount} notes generate {deck.cardCount} active cards. Browse and manage each
-            authored note and its generated card relationships here.
+            {deck.noteCount} {deck.noteCount === 1 ? "note" : "notes"} · {deck.cardCount}{" "}
+            {deck.cardCount === 1 ? "card" : "cards"}
           </p>
         </div>
-        {canEdit && <LinkButton href={`/app/decks/${deck.id}/edit`}>Add note</LinkButton>}
+        {canEdit && (
+          <LinkButton className="product-primary-action" href={`/app/decks/${deck.id}/edit`}>
+            Add note
+          </LinkButton>
+        )}
       </div>
       <div className="library-toolbar" role="search">
         <Input
@@ -597,10 +612,21 @@ export function NoteCardBrowser({
                 </div>
                 <div
                   className="sibling-chips"
-                  aria-label={`${String(siblings.length)} generated siblings`}
+                  aria-label={`${String(siblings.length)} generated cards`}
                 >
                   {siblings.map((card) => (
-                    <span key={card.id}>{card.previewFront || card.generationKey}</span>
+                    <div className="generated-card-row" key={card.id}>
+                      <div>
+                        <small>Front</small>
+                        <span>{card.previewFront || "No front preview"}</span>
+                      </div>
+                      <div>
+                        <small>Back</small>
+                        <span>{card.previewBack || "No back preview"}</span>
+                      </div>
+                      <Badge tone="info">{card.cardType.replaceAll("_", " ")}</Badge>
+                      <small>Source: {note.preview || "Untitled note"}</small>
+                    </div>
                   ))}
                 </div>
                 {canEdit && (
@@ -620,7 +646,7 @@ export function NoteCardBrowser({
         <div className="bulk-bar" role="region" aria-label="Bulk note actions">
           <div className="bulk-bar__summary">
             <strong>{selected.length} selected</strong>
-            <p>Tag or move these notes without changing their identities.</p>
+            <p>Add tags or move these notes to another deck.</p>
             <Button disabled={busy} onClick={() => setSelected([])} size="sm" variant="ghost">
               Clear selection
             </Button>
@@ -721,7 +747,7 @@ function DeckSettingsSnapshot({ deck }: { readonly deck: DeckDetail }) {
       publishDeckVersion(deck.id, result.data.version);
       setMessage(
         action === "publish"
-          ? "Published projection refreshed."
+          ? "Published deck updated."
           : action === "unpublish"
             ? "Deck unpublished."
             : "Deck details saved. Publication visibility changes when you publish or unpublish.",
@@ -742,10 +768,7 @@ function DeckSettingsSnapshot({ deck }: { readonly deck: DeckDetail }) {
     <section className="deck-settings-form" aria-labelledby="deck-settings-heading">
       <div>
         <h2 id="deck-settings-heading">Deck details and publication</h2>
-        <p>
-          Only a frozen published projection is public. Draft notes, revisions, members, internal
-          IDs, and private media paths stay private.
-        </p>
+        <p>Choose how this deck looks and whether people can open it with a link.</p>
       </div>
       <FormField label="Description">
         <Textarea
@@ -794,7 +817,7 @@ function DeckSettingsSnapshot({ deck }: { readonly deck: DeckDetail }) {
         </FormField>
         <FormField
           label="Publication visibility"
-          description="Applied when you publish. Choose Private and unpublish to remove the public projection."
+          description="Choose who can open the published deck."
         >
           <Select
             onValueChange={(value) => setVisibility(value as DeckVisibility)}

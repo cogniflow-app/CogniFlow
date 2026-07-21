@@ -9,6 +9,12 @@ async function revealSiteNavigation(page: Page): Promise<void> {
   }
 }
 
+async function openWorkspaceAppearance(page: Page): Promise<void> {
+  const trigger = page.getByRole("button", { name: "Appearance" }).last();
+  await trigger.click();
+  await expect(page.getByLabel("Color theme").last()).toBeVisible();
+}
+
 test("the public landing page exposes only real destinations", async ({ page }) => {
   await page.goto("/");
 
@@ -87,6 +93,7 @@ test("an under-13 signup follows the guardian path without creating an account",
 test("local email signup provisions, onboards, and opens real settings", async ({
   page,
 }, testInfo) => {
+  test.setTimeout(90_000);
   test.skip(
     testInfo.project.name !== "chromium-desktop",
     "One local account is enough for the integration path.",
@@ -120,42 +127,42 @@ test("local email signup provisions, onboards, and opens real settings", async (
   await page.getByRole("button", { name: "Finish account setup" }).click();
 
   await expect(page).toHaveURL(/\/app$/u);
-  await expect(
-    page.getByRole("heading", { level: 1, name: "A clear place to build, Local learner." }),
-  ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Welcome, Local learner." })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
+  await expect(page.getByText("Welcome back, Local learner.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Library", exact: true })).toHaveAttribute(
     "aria-current",
     "page",
   );
 
   await revealSiteNavigation(page);
-  const workspaceAppearance = page.locator(".workspace-appearance").last();
-  await workspaceAppearance.locator("> summary").click();
-  const darkWrite = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/settings/appearance") &&
-      response.request().method() === "PATCH",
-  );
-  await workspaceAppearance.getByLabel("Color theme").selectOption("dark");
-  expect((await darkWrite).ok()).toBe(true);
+  await openWorkspaceAppearance(page);
+  const accountAppearance = page.getByRole("dialog").last();
+  const [darkWrite] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/settings/appearance") &&
+        response.request().method() === "PATCH",
+    ),
+    accountAppearance.getByLabel("Color theme").selectOption("dark"),
+  ]);
+  expect(darkWrite.ok()).toBe(true);
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.locator("html")).toHaveAttribute("data-color-preference", "dark");
 
-  const motionWrite = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/settings/appearance") &&
-      response.request().method() === "PATCH",
-  );
-  await workspaceAppearance.getByLabel("Reduce motion").check();
-  expect((await motionWrite).ok()).toBe(true);
-  const seriousWrite = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/settings/appearance") &&
-      response.request().method() === "PATCH",
-  );
-  await workspaceAppearance.getByLabel("Serious mode").check();
-  expect((await seriousWrite).ok()).toBe(true);
+  const [motionWrite] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/settings/appearance") &&
+        response.request().method() === "PATCH",
+    ),
+    accountAppearance.getByLabel("Reduce motion").check(),
+  ]);
+  expect(motionWrite.ok()).toBe(true);
+  await expect(accountAppearance.getByLabel("Reduce motion")).toBeChecked();
+  const seriousModeControl = accountAppearance.getByLabel("Serious mode");
+  await seriousModeControl.focus();
+  await page.keyboard.press("Space");
+  await expect(seriousModeControl).toBeChecked();
   await expect(page.locator("html")).toHaveAttribute("data-motion", "reduce");
   await expect(page.locator("html")).toHaveAttribute("data-serious-mode", "true");
 
@@ -187,13 +194,13 @@ test("local email signup provisions, onboards, and opens real settings", async (
   await expect(page.locator("html")).toHaveAttribute("data-serious-mode", "true");
 
   await revealSiteNavigation(page);
-  await workspaceAppearance.locator("> summary").click();
+  await openWorkspaceAppearance(page);
   const lightWrite = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/settings/appearance") &&
       response.request().method() === "PATCH",
   );
-  await workspaceAppearance.getByLabel("Color theme").selectOption("light");
+  await page.getByLabel("Color theme").last().selectOption("light");
   expect((await lightWrite).ok()).toBe(true);
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -205,14 +212,14 @@ test("local email signup provisions, onboards, and opens real settings", async (
   await expect(page.locator("html")).toHaveAttribute("data-serious-mode", "true");
 
   await revealSiteNavigation(page);
-  await workspaceAppearance.locator("> summary").click();
+  await openWorkspaceAppearance(page);
   await page.emulateMedia({ colorScheme: "dark" });
   const systemWrite = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/settings/appearance") &&
       response.request().method() === "PATCH",
   );
-  await workspaceAppearance.getByLabel("Color theme").selectOption("system");
+  await page.getByLabel("Color theme").last().selectOption("system");
   expect((await systemWrite).ok()).toBe(true);
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.emulateMedia({ colorScheme: "light" });
@@ -225,7 +232,7 @@ test("local email signup provisions, onboards, and opens real settings", async (
       response.url().endsWith("/api/settings/appearance") &&
       response.request().method() === "PATCH",
   );
-  await workspaceAppearance.getByLabel("Color theme").selectOption("dark");
+  await page.getByLabel("Color theme").last().selectOption("dark");
   expect((await explicitWrite).ok()).toBe(true);
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");

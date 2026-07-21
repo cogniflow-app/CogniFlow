@@ -1,9 +1,10 @@
 "use client";
 
-import { Badge, Button, LinkButton } from "@lumen/ui";
-import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
+import { ArrowLeftIcon, ArrowRightIcon, Badge, Button } from "@lumen/ui";
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 
 import type { PublicDeckView } from "@/lib/content/view-models";
+
 import { StudyCardRenderer } from "./study-card-renderer.client";
 
 function isNestedInteractiveTarget(target: EventTarget | null): boolean {
@@ -20,12 +21,9 @@ function isNestedInteractiveTarget(target: EventTarget | null): boolean {
 export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
   const [index, setIndex] = useState(0);
   const [back, setBack] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    return mediaQuery?.matches ?? false;
-  });
+  const [reducedMotion, setReducedMotion] = useState(false);
   const touchStart = useRef<number | null>(null);
+  const didSwipe = useRef(false);
   const card = deck.cards[index];
 
   const move = useCallback(
@@ -36,32 +34,46 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
     [deck.cards.length],
   );
 
+  const flip = useCallback(() => setBack((value) => !value), []);
+
   useEffect(() => {
     const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (!mediaQuery) return undefined;
-
-    const updateReducedMotion = () => setReducedMotion(mediaQuery.matches);
+    const root = document.documentElement;
+    const updateReducedMotion = () =>
+      setReducedMotion(root.dataset.motion === "reduce" || Boolean(mediaQuery?.matches));
     updateReducedMotion();
-    mediaQuery.addEventListener?.("change", updateReducedMotion);
-    return () => mediaQuery.removeEventListener?.("change", updateReducedMotion);
+    mediaQuery?.addEventListener?.("change", updateReducedMotion);
+    const observer = new MutationObserver(updateReducedMotion);
+    observer.observe(root, { attributeFilter: ["data-motion"], attributes: true });
+    return () => {
+      mediaQuery?.removeEventListener?.("change", updateReducedMotion);
+      observer.disconnect();
+    };
   }, []);
 
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
       if (isNestedInteractiveTarget(event.target)) return;
-      if (event.key === "ArrowLeft") move(-1);
-      if (event.key === "ArrowRight") move(1);
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        move(-1);
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        move(1);
+      }
       if (event.key === " " || event.key === "Enter") {
         event.preventDefault();
-        setBack((value) => !value);
+        flip();
       }
     }
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [move]);
+  }, [flip, move]);
 
   function beginTouch(event: TouchEvent) {
     touchStart.current = event.changedTouches[0]?.clientX ?? null;
+    didSwipe.current = false;
   }
 
   function finishTouch(event: TouchEvent) {
@@ -69,138 +81,126 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
     const end = event.changedTouches[0]?.clientX;
     touchStart.current = null;
     if (start === null || end === undefined || Math.abs(end - start) < 48) return;
+    didSwipe.current = true;
     move(end < start ? 1 : -1);
   }
 
+  function handleCardClick(event: MouseEvent<HTMLDivElement>) {
+    if (didSwipe.current) {
+      didSwipe.current = false;
+      return;
+    }
+    if (isNestedInteractiveTarget(event.target)) return;
+    flip();
+  }
+
   return (
-    <div
+    <section
+      aria-label="Flashcard player"
       className="public-preview"
       data-deck-theme={deck.theme}
       data-reduced-motion={reducedMotion ? "true" : "false"}
     >
-      <div className="public-preview__progress" aria-live="polite">
-        <span>
-          {deck.cards.length ? `${String(index + 1)} of ${String(deck.cards.length)}` : "No cards"}
-        </span>
+      <div className="public-preview__progress">
         <progress max={Math.max(deck.cards.length, 1)} value={deck.cards.length ? index + 1 : 0}>
           {deck.cards.length ? index + 1 : 0} of {deck.cards.length}
         </progress>
       </div>
+
       {card ? (
         <div
-          aria-label={`${back ? "Answer" : "Prompt"} card preview`}
-          className="public-preview__viewport"
-          role="region"
+          aria-describedby="public-player-instructions"
+          aria-label={`${back ? "Answer" : "Question"}, card ${String(index + 1)} of ${String(deck.cards.length)}`}
+          className="flashcard-scene"
+          onClick={handleCardClick}
+          onTouchEnd={finishTouch}
+          onTouchStart={beginTouch}
+          role="group"
+          tabIndex={0}
         >
-          <button
-            aria-label={`${back ? "Answer" : "Prompt"} card preview`}
-            className="public-preview__card"
-            data-side={back ? "back" : "front"}
-            onClick={() => setBack((value) => !value)}
-            onTouchEnd={finishTouch}
-            onTouchStart={beginTouch}
-            type="button"
-          >
-            <span className="public-preview__side">{back ? "Answer" : "Prompt"}</span>
-            <div className="public-preview__flip-shell">
-              <div
-                className={`public-preview__flip-face ${reducedMotion ? "public-preview__flip-face--static" : "public-preview__flip-face--animated"}`}
-                data-side={back ? "back" : "front"}
-              >
-                <StudyCardRenderer media={card.media} renderer={card.renderer} revealed={back} />
+          <div className="flashcard-inner" data-flipped={back ? "true" : "false"}>
+            <article
+              aria-hidden={back}
+              className="flashcard-face flashcard-front"
+              data-face="front"
+              inert={back}
+            >
+              <span className="flashcard-face__label">Question</span>
+              <div className="flashcard-face__content">
+                <StudyCardRenderer media={card.media} renderer={card.renderer} revealed={false} />
               </div>
-            </div>
-            <div className="public-preview__footer">
               <small>{card.cardType.replaceAll("_", " ")}</small>
-              {!reducedMotion && <span className="public-preview__hint">Tap to flip</span>}
-            </div>
-            <span className="visually-hidden">{card.nonvisualFallback}</span>
-          </button>
+            </article>
+            <article
+              aria-hidden={!back}
+              className="flashcard-face flashcard-back"
+              data-face="back"
+              inert={!back}
+            >
+              <span className="flashcard-face__label">Answer</span>
+              <div className="flashcard-face__content">
+                <StudyCardRenderer media={card.media} renderer={card.renderer} revealed />
+              </div>
+              <small>{card.cardType.replaceAll("_", " ")}</small>
+            </article>
+          </div>
           <button
-            className="public-preview__toggle"
+            className="visually-hidden public-preview__flip-action"
             onClick={(event) => {
               event.stopPropagation();
-              setBack((value) => !value);
+              flip();
             }}
             type="button"
           >
-            {back ? "Show prompt" : "Reveal answer"}
+            Flip card
           </button>
+          <span className="visually-hidden">{card.nonvisualFallback}</span>
         </div>
       ) : (
-        <div className="public-preview__card">
+        <div className="public-preview__empty">
           <strong>This published deck has no cards.</strong>
         </div>
       )}
+
       <div className="public-preview__controls">
-        <Button disabled={index === 0} onClick={() => move(-1)} variant="secondary">
-          ← Previous
+        <Button
+          disabled={index === 0}
+          leadingIcon={<ArrowLeftIcon />}
+          onClick={() => move(-1)}
+          variant="secondary"
+        >
+          Previous
         </Button>
+        <output aria-live="polite">
+          {deck.cards.length ? `${String(index + 1)} / ${String(deck.cards.length)}` : "0 / 0"}
+        </output>
         <Button
           disabled={index >= deck.cards.length - 1}
           onClick={() => move(1)}
+          trailingIcon={<ArrowRightIcon />}
           variant="secondary"
         >
-          Next →
+          Next
         </Button>
       </div>
-      <p className="public-preview__privacy">
-        This preview does not create learner progress, history, scheduling state, or browser
-        tracking records.
-        <span className="visually-hidden">
-          It is a read-only public preview that keeps deck content visible without adding study
-          history or progress records.
-        </span>
+
+      <p className="visually-hidden" id="public-player-instructions">
+        Press Space or Enter to flip the card. Use the left and right arrow keys to move between
+        cards. This public preview does not create study progress or history.
       </p>
-    </div>
+    </section>
   );
 }
 
 export function PublicDeckAttribution({ deck }: { readonly deck: PublicDeckView }) {
-  const returnTo = `/deck/${encodeURIComponent(deck.slug)}`;
   return (
-    <aside className="public-deck-attribution" aria-labelledby="public-attribution-heading">
-      <div>
-        <span className="text-xs font-extrabold tracking-wider text-[var(--color-brand)] uppercase">
-          Published by
-        </span>
-        <h2 id="public-attribution-heading">{deck.creator.displayName}</h2>
-        {deck.creator.handle && <p>@{deck.creator.handle}</p>}
-      </div>
-      <dl>
-        <div>
-          <dt>License</dt>
-          <dd>{deck.license.replaceAll("_", " ").toUpperCase()}</dd>
-        </div>
-        <div>
-          <dt>Cards</dt>
-          <dd>{deck.cardCount}</dd>
-        </div>
-        <div>
-          <dt>Card types</dt>
-          <dd>
-            {deck.supportedCardTypes.map((kind) => kind.replaceAll("_", " ")).join(", ") || "None"}
-          </dd>
-        </div>
-        <div>
-          <dt>Updated</dt>
-          <dd>{new Date(deck.updatedAt).toLocaleDateString()}</dd>
-        </div>
-      </dl>
-      <div className="flex flex-wrap gap-2">
-        <LinkButton href={`/auth/sign-up?returnTo=${encodeURIComponent(returnTo)}`}>
-          Create your own deck
-        </LinkButton>
-        <LinkButton
-          href={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}
-          variant="secondary"
-        >
-          Sign in
-        </LinkButton>
-        <Badge tone={deck.visibility === "unlisted" ? "warning" : "success"}>
-          {deck.visibility}
-        </Badge>
-      </div>
-    </aside>
+    <footer className="public-deck-attribution" aria-label="Deck details">
+      <span>
+        Created by <strong>{deck.creator.displayName}</strong>
+      </span>
+      <span>{deck.license.replaceAll("_", " ")}</span>
+      <span>Updated {new Date(deck.updatedAt).toLocaleDateString()}</span>
+      <Badge tone={deck.visibility === "unlisted" ? "warning" : "success"}>{deck.visibility}</Badge>
+    </footer>
   );
 }
