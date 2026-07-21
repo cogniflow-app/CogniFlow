@@ -1,8 +1,8 @@
 import { CARD_SCHEMA_VERSION, generateCardBlueprints, type RichDocument } from "@lumen/domain";
 import { DEFAULT_FSRS_PRESET } from "@lumen/srs";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ReviewCardView, StudySessionSummary } from "@/lib/study/models";
 
@@ -55,6 +55,8 @@ function card(rescheduling = true): ReviewCardView {
 }
 
 describe("review session", () => {
+  afterEach(() => vi.useRealTimers());
+
   beforeEach(() => {
     navigation.push.mockReset();
     navigation.refresh.mockReset();
@@ -127,15 +129,23 @@ describe("review session", () => {
 
   it("keeps the answer out of the DOM until reveal and supports keyboard grading", async () => {
     const user = userEvent.setup();
-    render(<ReviewSession card={card()} reducedMotion seriousMode />);
+    const { container } = render(<ReviewSession card={card()} reducedMotion seriousMode />);
 
     expect(screen.getByText("Visible prompt")).toBeVisible();
     expect(screen.queryByText("Secret answer")).not.toBeInTheDocument();
+    expect(container.querySelector(".review-card--answer")).not.toBeInTheDocument();
+    expect(container.querySelector(".review-card-flipper")).toHaveAttribute(
+      "data-flipped",
+      "false",
+    );
     expect(document.querySelector(".review-session--serious")).not.toBeNull();
     expect(document.querySelector(".review-session--reduced-motion")).not.toBeNull();
 
     await user.keyboard(" ");
     expect(screen.getByText("Secret answer")).toBeVisible();
+    expect(container.querySelector(".review-card-flipper")).toHaveAttribute("data-flipped", "true");
+    expect(container.querySelector(".review-card--prompt")).not.toBeInTheDocument();
+    expect(container.querySelector(".review-card--answer")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Good/ })).toBeVisible();
 
     await user.keyboard("3");
@@ -147,6 +157,30 @@ describe("review session", () => {
     expect(navigation.refresh).toHaveBeenCalledOnce();
   });
 
+  it("keeps the answer secret through the first half of the staged card flip", () => {
+    vi.useFakeTimers();
+    const { container } = render(
+      <ReviewSession card={card()} reducedMotion={false} seriousMode={false} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Show answer/ }));
+    expect(container.querySelector(".review-card-flipper")).toHaveAttribute(
+      "data-flip-phase",
+      "turning",
+    );
+    expect(screen.queryByText("Secret answer")).not.toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(229));
+    expect(screen.queryByText("Secret answer")).not.toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(container.querySelector(".review-card-flipper")).toHaveAttribute(
+      "data-flip-phase",
+      "answer",
+    );
+    expect(screen.getByText("Secret answer")).toBeVisible();
+  });
+
   it("turns a swipe into a reversible selection and never an automatic grade", async () => {
     const user = userEvent.setup();
     const { container } = render(
@@ -155,7 +189,8 @@ describe("review session", () => {
     await user.click(screen.getByRole("button", { name: "More" }));
     await user.click(screen.getByRole("menuitemcheckbox", { name: "Swipe selection" }));
     await user.click(screen.getByRole("button", { name: /Show answer/ }));
-    const surface = container.querySelector(".review-card");
+    await screen.findByText("Secret answer");
+    const surface = container.querySelector(".review-card-scene");
     if (!surface) throw new Error("Review card surface is missing.");
 
     fireEvent.pointerDown(surface, { clientX: 10, clientY: 50 });
@@ -173,7 +208,7 @@ describe("review session", () => {
 
     await user.click(screen.getByRole("button", { name: /Show answer/ }));
     expect(screen.queryByRole("button", { name: /Good/ })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Next preview" }));
+    await user.click(await screen.findByRole("button", { name: "Next preview" }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain("/control");
@@ -193,9 +228,10 @@ describe("review session", () => {
     const user = userEvent.setup();
     render(<ReviewSession card={card()} reducedMotion={false} seriousMode={false} />);
     await user.click(screen.getByRole("button", { name: /Show answer/ }));
+    const good = await screen.findByRole("button", { name: /Good/ });
 
-    fireEvent.keyDown(window, { key: "3" });
-    fireEvent.keyDown(window, { key: "3" });
+    fireEvent.click(good);
+    fireEvent.click(good);
     expect(fetch).toHaveBeenCalledOnce();
 
     resolveRequest?.(
@@ -228,7 +264,7 @@ describe("review session", () => {
     render(<ReviewSession card={card()} reducedMotion={false} seriousMode={false} />);
     await user.click(screen.getByRole("button", { name: /Show answer/ }));
 
-    await user.click(screen.getByRole("button", { name: /Good/ }));
+    await user.click(await screen.findByRole("button", { name: /Good/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This card changed in another session",
     );
@@ -275,7 +311,7 @@ describe("review session", () => {
       <ReviewSession card={first} key={first.cardId} reducedMotion={false} seriousMode={false} />,
     );
     await user.click(screen.getByRole("button", { name: /Show answer/ }));
-    expect(screen.getByText("Secret answer")).toBeVisible();
+    expect(await screen.findByText("Secret answer")).toBeVisible();
 
     rerender(
       <ReviewSession card={second} key={second.cardId} reducedMotion={false} seriousMode={false} />,

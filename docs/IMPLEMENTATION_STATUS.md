@@ -1,8 +1,8 @@
 # Implementation status
 
 **Current phase:** Phase 03 — Study experience redesign  
-**Status:** Frontend redesign is complete and locally accepted; draft PR and Preview verification
-are pending  
+**Status:** Frontend redesign merged through PR #13; Learn polish is locally accepted and awaiting
+a follow-up publication path because that pull request is closed  
 **Evidence date:** 2026-07-21  
 **Next phase:** Phase 04 has not started
 
@@ -26,6 +26,17 @@ canonical mutation behavior.
   connection header, Pause and Exit, a bounded content-aware card, and stable desktop/mobile rating
   controls. Label, interval, and shortcut are separate elements; `1`–`4`, answer secrecy, canonical
   success-before-advance, retry, conflict, undo, and swipe-confirmation semantics are unchanged.
+- Corrected the final responsive rhythm with safe-area-aware 32 px large-screen, 24 px ordinary,
+  and 16 px mobile page gutters plus explicit top spacing on Study, Statistics, and Scheduling.
+  Review now uses the same gutters instead of the former 8–12 px edge clearance.
+- Replaced the oversized review slab with an 800 px bounded, 288–416 px adaptive card scene and
+  aligned its reveal/rating/action controls to the same measure. Long or media-rich cards scroll
+  inside the scene rather than forcing a huge mostly empty surface.
+- Added a click/tap or keyboard two-stage perspective flip with the published player's 460 ms total
+  motion rhythm. The persistent renderer preserves typed answers, drawings, recordings, ordering,
+  and other in-card state; the answer remains absent through the first half of the flip and enters
+  only at the edge-on midpoint. Serious mode, the saved reduced-motion preference, and the operating
+  system reduced-motion preference remove both flip and card-entry motion.
 - Reduced permanent review controls to Star, available Undo, and Edit. Bury, related-card bury,
   suspend, report, timer, autoplay, swipe preference, manual due/range/order, leech, reset, and
   rebuild remain reachable through an accessible More menu and focused dialogs with risk-appropriate
@@ -65,30 +76,43 @@ calculation, queue rule, idempotency behavior, review-log rule, or schedule-vers
 | `pnpm install --frozen-lockfile`           | Exit 0; 10 workspace projects current, lockfile unchanged under Node `24.18.0` / pnpm `11.13.0`                                                                  |
 | `pnpm format:check` / `pnpm secret:scan`   | Exit 0; formatting accepted and no credential finding                                                                                                            |
 | `pnpm lint` / `pnpm typecheck`             | Exit 0; ESLint and dependency boundaries pass; 9/9 strict TypeScript projects pass                                                                               |
-| Focused redesign tests                     | 4 files / 46 rating, review, statistics, and deck-command tests pass                                                                                             |
-| `pnpm test`                                | Exit 0; 85 files / 667 tests; coverage 74.15% statements, 64.37% branches, 72.38% functions, 77.51% lines                                                        |
-| `pnpm db:reset` / `pnpm test:db`           | Exit 0; all 49 existing migrations reset; 21 files / 889 assertions pass; concurrency proves 1 commit, 1 typed stale conflict, and 1 immutable log in 25.561 ms  |
-| SRS performance/parity                     | 10,000-card domain queue 21.250 ms; database queue 97.495 ms; Today 95.467 ms; resume 0.305 ms; Statistics 68.303 ms; all budgets and exact scheduler tests pass |
+| Focused redesign tests                     | 4 files / 47 rating, review, staged-flip, statistics, and deck-command tests pass                                                                                |
+| `pnpm test`                                | Exit 0; 85 files / 668 tests; coverage 74.15% statements, 64.37% branches, 72.38% functions, 77.51% lines                                                        |
+| `pnpm db:reset` / `pnpm test:db`           | Exit 0; all 49 existing migrations reset; 21 files / 889 assertions pass; concurrency proves 1 commit, 1 typed stale conflict, and 1 immutable log in 22.906 ms  |
+| SRS performance/parity                     | 10,000-card domain queue 12.470 ms; database queue 98.919 ms; Today 97.565 ms; resume 0.297 ms; Statistics 70.621 ms; all budgets and exact scheduler tests pass |
 | `pnpm db:types:check`                      | Exit 0; generated database types match the reset local schema                                                                                                    |
 | verification-wrapped `pnpm build`          | Exit 0; optimized Next build produces 76 route/static entries                                                                                                    |
 | verification-wrapped `pnpm build:portable` | Exit 0; OpenNext emits `.open-next/worker.js`. A direct run correctly rejected the ignored developer HTTP URL before the documented wrapper was used.            |
 | `pnpm test:e2e`                            | Exit 0; 29 pass / 19 intentional cross-project skips, including canonical desktop/mobile review and Phase 02/03 visual regressions                               |
 | `pnpm test:a11y`                           | Exit 0; 28/28 axe, keyboard, focus, theme, serious-mode, and reduced-motion checks pass                                                                          |
-| `pnpm test:lighthouse`                     | Assertions pass; scores 98/100/96/100; FCP 0.756 s, LCP 2.320 s, TBT 14 ms, CLS 0                                                                                |
-| `pnpm test:load`                           | 15/15 checks pass; 0 failed; request-duration p95 7.79 ms                                                                                                        |
-| `pnpm verify`                              | Exit 0; aggregate CI-equivalent gate reran every practical local check above                                                                                     |
+| `pnpm test:lighthouse`                     | Assertions pass; scores 98/100/96/100; FCP 0.757 s, LCP 2.310 s, TBT 3 ms, CLS 0                                                                                 |
+| `pnpm test:load`                           | 15/15 checks pass; 0 failed; request-duration p95 5.37 ms                                                                                                        |
+| `pnpm verify`                              | Exit 0; aggregate CI-equivalent gate reran every practical local check above after browser synchronization hardening                                             |
 
 Sanitized Playwright captures were inspected directly for empty/populated Study, the full Custom
 Study flow, scheduling Basics/Advanced, deck integration, prompt/answer/rating states, undo,
 zero/sparse/sufficient Statistics, content changes, serious mode, reduced motion, mobile, and 200%
-text. The in-app browser surface reported no available browser instance, so the repository's real
-Chromium desktop and Pixel 7 projects supplied the visual evidence. No screenshot, video, trace,
-identity, or browser artifact is tracked.
+text. Follow-up acceptance also measures the exact responsive gutters, 800 px / 416 px desktop and
+mobile card bounds, preserve-3d motion, staged answer secrecy, and the typed-answer state retained
+across reveal. The in-app browser surface reported no available browser instance, so the
+repository's real Chromium desktop and Pixel 7 projects supplied the visual evidence. No
+screenshot, video, trace, identity, or browser artifact is tracked.
+
+The aggregate browser run also hardened two harness-only edges it exposed: Pause acceptance now
+waits for the successful control response and completed Study navigation, and the public/Auth
+viewport loop retries only Chrome's explicit `ERR_NETWORK_IO_SUSPENDED` operating-system condition
+once. Application HTTP errors and all other navigation failures still fail immediately.
 
 ### Redesign Hosted Preview checkpoint
 
-Pending branch publication. Preview will be exercised only after the complete local acceptance
-above; Beta Supabase, Vercel Production, and `recallflash.com` remain untouched.
+PR #13 merged the original redesign and GitHub deleted its remote branch before the Learn-polish
+follow-up could be published. The original protected Vercel Preview reached `READY`; guarded
+application acceptance remained pending because the local Vercel CLI OAuth credential was rejected
+before an automation-bypass value could be retrieved. The follow-up is locally accepted but has not
+been pushed or deployed because adding it now requires a successor pull request, which would exceed
+the original one-pull-request instruction without owner direction. Deployment Protection was not
+weakened and Chrome was not used as an authentication fallback without owner approval. Beta
+Supabase, Vercel Production, and `recallflash.com` remain untouched.
 
 ## Phase 03 SRS and canonical review engine
 

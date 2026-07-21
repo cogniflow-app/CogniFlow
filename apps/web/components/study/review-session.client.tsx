@@ -186,6 +186,15 @@ function normalizedSource(value: string): CanonicalSource {
     : "today";
 }
 
+function isInteractiveReviewTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    target.closest(
+      'a,button,input,label,select,textarea,audio,video,canvas,summary,[contenteditable="true"],[role="button"],[role="slider"],[role="radio"],[role="checkbox"]',
+    ) !== null
+  );
+}
+
 export function ReviewSession({
   card,
   reducedMotion,
@@ -197,6 +206,7 @@ export function ReviewSession({
 }) {
   const router = useRouter();
   const [revealed, setRevealed] = useState(false);
+  const [flipPhase, setFlipPhase] = useState<"answer" | "prompt" | "turning">("prompt");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(
@@ -222,6 +232,7 @@ export function ReviewSession({
   const pendingCommand = useRef<PendingCommand | null>(null);
   const submittingRef = useRef(false);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
+  const revealTimer = useRef<number | null>(null);
 
   const online = useSyncExternalStore(
     subscribeToOnlineStatus,
@@ -254,6 +265,12 @@ export function ReviewSession({
   useEffect(() => {
     startedAt.current = Date.now();
   }, []);
+  useEffect(
+    () => () => {
+      if (revealTimer.current !== null) window.clearTimeout(revealTimer.current);
+    },
+    [],
+  );
   useEffect(() => {
     if (!timerVisible) return;
     const timer = window.setInterval(
@@ -264,11 +281,22 @@ export function ReviewSession({
   }, [timerVisible]);
 
   const reveal = useCallback(() => {
-    if (revealed) return;
-    setPreviewedAt(new Date());
-    setRevealed(true);
-    setAnnouncement("Answer revealed. Choose Again, Hard, Good, or Easy.");
-  }, [revealed]);
+    if (revealed || flipPhase !== "prompt") return;
+    const finishReveal = () => {
+      revealTimer.current = null;
+      setPreviewedAt(new Date());
+      setRevealed(true);
+      setFlipPhase("answer");
+      setAnnouncement("Answer revealed. Choose Again, Hard, Good, or Easy.");
+    };
+    if (reducedMotion || seriousMode) {
+      finishReveal();
+      return;
+    }
+    setFlipPhase("turning");
+    setAnnouncement("Revealing answer.");
+    revealTimer.current = window.setTimeout(finishReveal, 230);
+  }, [flipPhase, reducedMotion, revealed, seriousMode]);
 
   const grade = useCallback(
     async (rating: ReviewRating) => {
@@ -569,10 +597,11 @@ export function ReviewSession({
   }
 
   function completeSwipe(event: PointerEvent<HTMLElement>) {
-    if (!swipeEnabled || !pointerStart.current || !revealed) return;
-    const dx = event.clientX - pointerStart.current.x;
-    const dy = event.clientY - pointerStart.current.y;
+    const start = pointerStart.current;
     pointerStart.current = null;
+    if (!swipeEnabled || !start || !revealed) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 60) return;
     const rating: ReviewRating =
       Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "good" : "again") : dy < 0 ? "easy" : "hard";
@@ -700,34 +729,47 @@ export function ReviewSession({
           </div>
         )}
 
-        <main
-          className={`review-card review-card--${revealed ? "answer" : "prompt"}`}
+        <div
+          aria-label={`${revealed ? "Answer" : "Prompt"}, card ${card.position + 1} of ${card.session.total}`}
+          className="review-card-scene"
+          data-revealed={revealed}
+          onClick={(event) => {
+            if (!revealed && !isInteractiveReviewTarget(event.target)) reveal();
+          }}
+          onPointerCancel={() => {
+            pointerStart.current = null;
+          }}
           onPointerDown={(event) => {
-            if (
-              event.target instanceof HTMLElement &&
-              event.target.closest(
-                "a,button,input,select,textarea,[contenteditable='true'],[role='button']",
-              )
-            )
-              return;
+            if (isInteractiveReviewTarget(event.target)) return;
             pointerStart.current = { x: event.clientX, y: event.clientY };
           }}
           onPointerUp={completeSwipe}
+          role="group"
         >
-          <span className="review-card__side">{revealed ? "Answer" : "Prompt"}</span>
-          <div className="review-card__content">
-            <StudyCardRenderer
-              autoplayAudio={autoplayAudio}
-              key={card.cardId}
-              renderer={card.renderer}
-              revealed={revealed}
-            />
+          <div className="review-card-flipper" data-flip-phase={flipPhase} data-flipped={revealed}>
+            <article className={`review-card review-card--${revealed ? "answer" : "prompt"}`}>
+              <span className="review-card__side">{revealed ? "Answer" : "Prompt"}</span>
+              <div className="review-card__content">
+                <StudyCardRenderer
+                  autoplayAudio={autoplayAudio}
+                  key={card.cardId}
+                  renderer={card.renderer}
+                  revealed={revealed}
+                />
+              </div>
+            </article>
           </div>
-        </main>
+        </div>
 
         <section aria-label="Review controls" className="review-controls">
           {!revealed ? (
-            <Button autoFocus className="review-show-answer" onClick={reveal} size="lg">
+            <Button
+              autoFocus
+              className="review-show-answer"
+              disabled={flipPhase !== "prompt"}
+              onClick={reveal}
+              size="lg"
+            >
               Show answer <kbd>Space</kbd>
             </Button>
           ) : card.session.rescheduling ? (

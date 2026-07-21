@@ -1,5 +1,16 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
+async function gotoWithSuspendedNetworkRetry(page: Page, route: string) {
+  try {
+    await page.goto(route);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("ERR_NETWORK_IO_SUSPENDED"))
+      throw error;
+    await page.waitForTimeout(100);
+    await page.goto(route);
+  }
+}
+
 const viewportMatrix = [
   { height: 1080, width: 1920 },
   { height: 1024, width: 1536 },
@@ -406,7 +417,7 @@ test.describe("public responsive layout", () => {
 
     for (const route of publicAndAuthReflowRoutes) {
       await test.step(route, async () => {
-        await page.goto(route);
+        await gotoWithSuspendedNetworkRetry(page, route);
         if (route === "/onboarding") {
           await page.waitForURL(/\/auth\/sign-in\?returnTo=/);
         }
