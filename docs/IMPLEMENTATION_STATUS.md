@@ -76,6 +76,9 @@ interaction inspection:
   accounts through the existing service-only test boundary, then authenticate through the real
   sign-in UI. The dedicated smoke test still exercises public signup and onboarding, so the
   provider's deliberately low email allowance and the configured product limit remain intact.
+- The deck Overview now uses one semantic, responsive totals strip with deliberate number/label
+  spacing. The oversized Card-type mix panel is removed; the summary remains four columns on wide
+  screens and a compact two-by-two grid on tablet and mobile without horizontal overflow.
 
 Private, ignored screenshots were captured and directly inspected at actual pixels for empty and
 populated Library, dark/serious and mobile Library, the editor, image occlusion before/after upload,

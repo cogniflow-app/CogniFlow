@@ -213,8 +213,43 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
   await expect(page.getByText("All changes saved.")).toBeVisible();
 
   await page.goto(`/app/decks/${deckId}`);
-  await expect(page.getByRole("heading", { level: 2, name: "Card-type mix" })).toBeVisible();
+  const deckTotals = page.locator('dl[aria-label="Deck totals"]:visible');
+  await expect(deckTotals.locator(".deck-stat")).toHaveCount(4);
+  await expect(page.getByRole("heading", { level: 2, name: "Card-type mix" })).toHaveCount(0);
+  const firstTotalSpacing = await deckTotals
+    .locator(".deck-stat")
+    .first()
+    .evaluate((element) => {
+      const value = element.querySelector("dd")?.getBoundingClientRect();
+      const label = element.querySelector("dt")?.getBoundingClientRect();
+      return value && label ? label.top - value.bottom : -1;
+    });
+  expect(firstTotalSpacing).toBeGreaterThanOrEqual(3);
   await capture(page, testInfo, "deck-overview-desktop");
+
+  await page.setViewportSize({ height: 1024, width: 768 });
+  await expectNoHorizontalOverflow(page);
+  const tabletTotalRows = await deckTotals
+    .locator(".deck-stat")
+    .evaluateAll((elements) =>
+      elements.map((element) => Math.round(element.getBoundingClientRect().top)),
+    );
+  expect(tabletTotalRows[0]).toBe(tabletTotalRows[1]);
+  expect(tabletTotalRows[2]).toBeGreaterThan(tabletTotalRows[0] ?? 0);
+
+  await page.setViewportSize({ height: 844, width: 390 });
+  await expectNoHorizontalOverflow(page);
+  const mobileTotalRows = await deckTotals
+    .locator(".deck-stat")
+    .evaluateAll((elements) =>
+      elements.map((element) => Math.round(element.getBoundingClientRect().top)),
+    );
+  expect(mobileTotalRows[0]).toBe(mobileTotalRows[1]);
+  expect(mobileTotalRows[2]).toBe(mobileTotalRows[3]);
+  expect(mobileTotalRows[2]).toBeGreaterThan(mobileTotalRows[0] ?? 0);
+  await capture(page, testInfo, "deck-overview-mobile");
+
+  await page.setViewportSize({ height: 900, width: 1440 });
   await page.goto(`/app/decks/${deckId}/cards`);
   await expect(
     page.getByRole("heading", { level: 2, name: "Card entries and previews" }),
