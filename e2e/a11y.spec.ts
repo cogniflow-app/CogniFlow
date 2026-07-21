@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { provisionAndSignInLocalAuthor } from "./support/local-account";
+
 async function expectNoSeriousOrCriticalViolations(page: Page): Promise<void> {
   const result = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
@@ -69,21 +71,12 @@ async function readLongestTransitionMilliseconds(locator: Locator): Promise<numb
 }
 
 async function createA11yAuthor(page: Page): Promise<void> {
-  const suffix = crypto.randomUUID().replaceAll("-", "");
-  await page.setExtraHTTPHeaders({ "X-Forwarded-For": "198.51.100.63" });
-  await page.goto("/auth/sign-up?returnTo=%2Fapp");
-  await page.getByRole("combobox", { name: /which age range describes you/i }).click();
-  await page.getByRole("option", { name: "18 or older" }).click();
-  await page
-    .getByRole("textbox", { name: "Email address" })
-    .fill(`phase02-a11y-${suffix}@example.test`);
-  await page.getByLabel("Password").fill(`Local-only-password-${suffix}`);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).toHaveURL(/\/onboarding\?returnTo=%2Fapp$/u);
-  await page.getByRole("textbox", { name: "Display name" }).fill("Accessibility author");
-  await page.getByRole("textbox", { name: "Handle" }).fill(`a11y_${suffix.slice(0, 12)}`);
-  await page.getByRole("button", { name: "Finish account setup" }).click();
-  await expect(page).toHaveURL(/\/app$/u);
+  await provisionAndSignInLocalAuthor(page, {
+    displayName: "Accessibility author",
+    emailPrefix: "phase02-a11y",
+    handlePrefix: "a11y",
+    returnTo: "/app",
+  });
 }
 
 async function expectNoDocumentOverflow(page: Page): Promise<void> {
@@ -294,7 +287,7 @@ test("the authenticated library, deck creation, and card editor are accessible b
   await page.getByRole("textbox", { name: "Deck title" }).fill("Accessible authoring deck");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(
-    page.getByRole("heading", { level: 2, name: "Choose your first card type" }),
+    page.getByRole("heading", { level: 2, name: "Choose what to add first" }),
   ).toBeFocused();
   await expect(page.locator(".card-type-option")).toHaveCount(17);
   const typedAnswer = page.locator('[aria-describedby="card-type-typed_answer-detail"]');
@@ -310,7 +303,7 @@ test("the authenticated library, deck creation, and card editor are accessible b
     (response) =>
       response.url().endsWith("/api/content/decks") && response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Create deck" }).click();
+  await page.getByRole("button", { name: "Create deck and add cards" }).click();
   expect((await createResponse).status()).toBe(201);
   await expect(page).toHaveURL(/\/app\/decks\/[^/]+\/edit\?type=typed_answer$/u);
 
@@ -318,14 +311,18 @@ test("the authenticated library, deck creation, and card editor are accessible b
   await prompt.focus();
   await expect(prompt).toBeFocused();
   await page.keyboard.type("What does ATP stand for?");
-  await page.getByRole("textbox", { name: "Displayed answer" }).fill("Adenosine triphosphate");
-  await page
-    .getByRole("textbox", { name: "Accepted typed answers" })
-    .fill("adenosine triphosphate");
+  await page.getByRole("textbox", { name: "Correct answer" }).fill("Adenosine triphosphate");
+  await page.getByRole("textbox", { name: "Main typed answer" }).fill("adenosine triphosphate");
   await expect(page.getByText("Card 1")).toBeVisible();
   await expectNoDocumentOverflow(page);
   await expectNoSeriousOrCriticalViolations(page);
 
+  await page.getByRole("button", { name: "Back to deck" }).click();
+  const leaveDialog = page.getByRole("dialog", { name: "Discard unsaved changes?" });
+  await expect(leaveDialog).toBeVisible();
+  await expectNoSeriousOrCriticalViolations(page);
+  await leaveDialog.getByRole("button", { name: "Leave without saving" }).click();
+  await expect(page).toHaveURL(/\/app\/decks\/[^/]+$/u);
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Delete this deck?" })).toBeVisible();
   await page.getByRole("button", { name: "Delete deck" }).click();

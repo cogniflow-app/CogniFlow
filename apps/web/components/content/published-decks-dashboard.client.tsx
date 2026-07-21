@@ -8,6 +8,7 @@ import {
   ExternalLinkIcon,
   Input,
   LinkButton,
+  ProductPage,
   SearchIcon,
   SegmentedControl,
 } from "@lumen/ui";
@@ -107,7 +108,7 @@ export function PublishedDecksDashboard({
   }
 
   return (
-    <div className="library-shell published-library">
+    <ProductPage className="library-shell published-library">
       <header className="library-hero">
         <div className="library-hero__copy">
           <h1>Published</h1>
@@ -231,7 +232,7 @@ export function PublishedDecksDashboard({
       )}
 
       <Dialog
-        description="The public link will stop working. Your deck and notes stay in your library."
+        description="The public link will stop working. Your deck and cards stay in your library."
         footer={
           <>
             <Button disabled={busy} onClick={() => setPendingDeck(null)} variant="secondary">
@@ -250,6 +251,6 @@ export function PublishedDecksDashboard({
       >
         <p>You can publish it again later from deck settings.</p>
       </Dialog>
-    </div>
+    </ProductPage>
   );
 }

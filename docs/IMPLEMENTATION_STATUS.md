@@ -1,8 +1,8 @@
 # Implementation status
 
 **Current phase:** Phase 02 — content model, editor, media, and card types  
-**Status:** Complete locally; the original redesign is merged and Preview-ready, while the
-post-merge acceptance corrections await publication authorization  
+**Status:** Usability and authoring redesign complete and aggregate-verified locally; the branch
+Preview is pending  
 **Evidence date:** 2026-07-21 UTC  
 **Next phase:** Phase 03 has not started
 
@@ -10,12 +10,12 @@ This record describes implemented repository behavior and verified local and hos
 
 ## Phase 02 product UI redesign
 
-Local branch `codex/phase-02-product-ui-redesign` contains the acceptance-hardened,
-presentation- and interaction-only redesign of the existing Phase 02 surfaces. The original
-redesign was merged externally in [PR #8](https://github.com/cogniflow-app/CogniFlow/pull/8), and
-GitHub deleted its remote source branch before this final audit. The local corrections change no
-content API or database contract, authentication behavior, appearance persistence contract,
-environment variable, RLS policy, hosted database, or migration. Phase 03 remains unstarted.
+Local branch `codex/phase-02-usability-and-authoring-redesign` contains the acceptance-hardened,
+presentation- and interaction-only redesign of the existing Phase 02 surfaces. It began at clean
+`origin/main` and will be published as one draft pull request after the final aggregate gate. The
+changes add no content API or database contract, authentication behavior, appearance persistence
+contract, environment variable, RLS policy, hosted database operation, or migration. Phase 03
+remains unstarted.
 
 - Replaced the oversized authenticated welcome/dashboard with a responsive workspace shell, a
   256 px wide desktop rail, a focus-trapped mobile drawer, compact learner identity, first-class
@@ -71,9 +71,10 @@ interaction inspection:
   controls, requires horizontal swipe intent, restores the front face on navigation, and exposes
   owner-only Manage, authenticated Workspace, or anonymous Sign in actions. Copy confirmation is
   transient and stale-safe.
-- The accessibility runner uses a fresh test-only encryption namespace per run so the preceding E2E
-  suite cannot consume its persisted signup-rate bucket. The configured five-attempt product limit
-  and real signup/onboarding path remain intact.
+- Layout, authoring, and accessibility scenarios provision isolated, already-onboarded local
+  accounts through the existing service-only test boundary, then authenticate through the real
+  sign-in UI. The dedicated smoke test still exercises public signup and onboarding, so the
+  provider's deliberately low email allowance and the configured product limit remain intact.
 
 Private, ignored screenshots were captured and directly inspected at actual pixels for empty and
 populated Library, dark/serious and mobile Library, the editor, image occlusion before/after upload,
@@ -91,31 +92,25 @@ light/dark themes, serious mode, reduced motion, keyboard-only interaction, and 
 | `pnpm format:check`                   | Exit 0                                                                                  |
 | `pnpm secret:scan`                    | Exit 0; no credential finding                                                           |
 | `pnpm lint` / `pnpm typecheck`        | Exit 0; lint/dependency boundaries and 8/8 strict TypeScript projects pass              |
-| `pnpm test`                           | Exit 0; 76 files / 605 tests pass                                                       |
-| Coverage                              | 80.57% statements, 70.13% branches, 82.59% functions, and 84.27% lines                  |
+| `pnpm test`                           | Exit 0; 76 files / 617 tests pass                                                       |
+| Coverage                              | 80.52% statements, 69.94% branches, 81.77% functions, and 84.20% lines                  |
 | `pnpm db:reset` / `pnpm test:db`      | Exit 0; unchanged 33-migration chain resets and 19 files / 795 assertions pass          |
 | `pnpm db:types:check`                 | Exit 0; generated database types remain current                                         |
 | verification-wrapped production build | Exit 0; optimized Next build generates 60 route/static entries                          |
 | verification-wrapped portable build   | Exit 0; OpenNext emits the portable worker                                              |
 | `pnpm test:e2e`                       | Exit 0; 25 pass and 17 intentional cross-project skips                                  |
 | `pnpm test:a11y`                      | Exit 0; 28/28 axe, theme, motion, focus, drawer, and authenticated keyboard checks pass |
-| `pnpm test:lighthouse`                | Exit 0; scores 98/100/96/100; FCP 0.758 s, LCP 2.312 s, TBT 4 ms, and CLS 0             |
-| `pnpm test:load`                      | Exit 0; 15/15 checks, 3/3 requests, 0% failures, and request-duration p95 7.81 ms       |
-| `pnpm verify`                         | Exit 0; complete aggregate gate passed on the final redesign tree                       |
+| `pnpm test:lighthouse`                | Exit 0; scores 99/100/96/100; FCP 0.757 s, LCP 2.173 s, TBT 16 ms, and CLS 0            |
+| `pnpm test:load`                      | Exit 0; 15/15 checks, 3/3 requests, 0% failures, and request-duration p95 6.82 ms       |
+| `pnpm verify`                         | Exit 0; complete aggregate gate passed on the documented redesign tree                  |
 
 No new setup step or environment variable is required. The later-owner constraints below are
 unchanged: Phase 03 owns scheduling/review state, Phase 04 owns grading and persistent study, and
 later phases own offline sync, imports, collaboration, discovery, and games.
 
-The Vercel bot marked the original PR deployment Ready at
-`https://cogniflow-jdtl85z74-cogniflow-app-3471s-projects.vercel.app`. That URL represents the
-already-merged redesign commit, not the final local acceptance corrections. Those corrections are
-intentionally neither pushed nor deployed: publishing them now would require recreating the deleted
-branch or opening a second PR, contrary to the requested one-PR/no-self-merge boundary. Beta and
-Production were not touched. A fresh guarded `test:hosted:preview` attempt failed closed before its
-browser run because the local Vercel CLI token had expired; Preview SSO was not bypassed and no
-hosted data was mutated, so this audit does not claim a new hosted smoke result for the local
-corrections.
+The branch Preview URL and guarded hosted smoke result will be recorded after the single draft pull
+request is open. Local work has not touched Preview, Beta, or Production Supabase, and no hosted
+data has been created during this redesign audit.
 
 ## Phase 02 complete and Preview-verified
 

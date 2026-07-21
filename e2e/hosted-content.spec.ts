@@ -127,7 +127,7 @@ test("Preview supports the complete disposable Phase 02 account and content path
     (response) =>
       response.url().endsWith("/api/content/decks") && response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Create deck" }).click();
+  await page.getByRole("button", { name: "Create deck and add cards" }).click();
   const created = await createResponse;
   expect(created.status()).toBe(201);
   const createdBody = (await created.json()) as { data: { id: string } };
@@ -139,15 +139,14 @@ test("Preview supports the complete disposable Phase 02 account and content path
     .getByRole("textbox", { name: "Front / prompt" })
     .fill("What molecule carries cellular energy?");
   await page.getByRole("textbox", { name: "Back / answer" }).fill("ATP");
-  await page
-    .getByRole("textbox", { name: "Source or citation note" })
-    .fill("Hosted acceptance source");
+  await page.getByText("Advanced options").click();
+  await page.getByRole("textbox", { name: "Source (optional)" }).fill("Hosted acceptance source");
   const noteResponse = page.waitForResponse(
     (response) =>
       response.url().endsWith(`/api/content/decks/${deckId}/notes`) &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Save note" }).click();
+  await page.getByRole("button", { name: "Save card" }).click();
   const saved = await noteResponse;
   expect(saved.status()).toBe(201);
   const savedBody = (await saved.json()) as { data: { id: string } };
@@ -160,7 +159,8 @@ test("Preview supports the complete disposable Phase 02 account and content path
     "What molecule carries cellular energy?",
   );
   await expect(page.getByRole("textbox", { name: "Back / answer" })).toContainText("ATP");
-  await expect(page.getByRole("textbox", { name: "Source or citation note" })).toHaveValue(
+  await page.getByText("Advanced options").click();
+  await expect(page.getByRole("textbox", { name: "Source (optional)" })).toHaveValue(
     "Hosted acceptance source",
   );
 

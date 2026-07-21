@@ -459,13 +459,11 @@ export function MediaUploader({
         </p>
       )}
       <div className="media-uploader__actions flex flex-wrap gap-2">
-        <Button
-          disabled={!file || Boolean(attached)}
-          loading={state === "preparing"}
-          onClick={() => void upload()}
-        >
-          Upload and attach
-        </Button>
+        {!attached && (
+          <Button disabled={!file} loading={state === "preparing"} onClick={() => void upload()}>
+            Upload and attach
+          </Button>
+        )}
         {state === "uploading" && (
           <Button onClick={() => requestRef.current?.abort()} variant="secondary">
             Cancel upload

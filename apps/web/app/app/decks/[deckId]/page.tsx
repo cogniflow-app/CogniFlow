@@ -23,11 +23,11 @@ export default async function DeckOverviewPage({
       <section className="deck-stat-grid" aria-label="Deck totals">
         <div>
           <strong>{deck.noteCount}</strong>
-          <span>Notes</span>
+          <span>Card entries</span>
         </div>
         <div>
           <strong>{deck.cardCount}</strong>
-          <span>Generated cards</span>
+          <span>Study cards</span>
         </div>
         <div>
           <strong>{deck.supportedCardTypes.length}</strong>
@@ -52,7 +52,7 @@ export default async function DeckOverviewPage({
               </Badge>
             ))
           ) : (
-            <p>No notes yet.</p>
+            <p>No cards yet.</p>
           )}
         </div>
       </section>

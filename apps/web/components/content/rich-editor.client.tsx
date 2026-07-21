@@ -42,6 +42,7 @@ import {
 import { MediaUploader, type UploadedMediaAsset } from "./media-uploader.client";
 
 export interface RichEditorProps {
+  readonly compact?: boolean;
   readonly controlId?: string | undefined;
   readonly document?: RichDocument;
   readonly errorId?: string | undefined;
@@ -623,6 +624,7 @@ function insertNodeAtSelection(
 }
 
 export function RichEditor({
+  compact = false,
   controlId,
   document: initialDocument,
   errorId,
@@ -645,6 +647,7 @@ export function RichEditor({
   const [audioOpen, setAudioOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
+  const [formattingOpen, setFormattingOpen] = useState(false);
   const [pendingImage, setPendingImage] = useState<UploadedMediaAsset | null>(null);
   const [annotationImage, setAnnotationImage] = useState<UploadedMediaAsset | null>(null);
   const [imageRotation, setImageRotation] = useState<0 | 90 | 180 | 270>(0);
@@ -929,12 +932,27 @@ export function RichEditor({
   }
 
   return (
-    <div className="rich-editor">
+    <div className="rich-editor" data-compact={compact || undefined}>
       <span className="visually-hidden" id={labelId}>
         {label}
       </span>
+      {compact && (
+        <div className="rich-editor__compact-actions">
+          <Button
+            aria-controls={`${controlId}-formatting`}
+            aria-expanded={formattingOpen}
+            onClick={() => setFormattingOpen((open) => !open)}
+            size="sm"
+            variant="ghost"
+          >
+            {formattingOpen ? "Hide formatting" : "Format"}
+          </Button>
+        </div>
+      )}
       <div
+        id={`${controlId}-formatting`}
         className="rich-editor__toolbar"
+        hidden={compact && !formattingOpen}
         onMouseDownCapture={rememberSelection}
         role="toolbar"
         aria-label={`${label} formatting`}
@@ -1063,7 +1081,9 @@ export function RichEditor({
         suppressContentEditableWarning
       />
       <div className="rich-editor__footer" id={`${labelId}-help`}>
-        <span>Ctrl/⌘ K opens blocks · Markdown-style shortcuts supported by the toolbar</span>
+        {!compact && (
+          <span>Ctrl/⌘ K opens blocks · Markdown-style shortcuts supported by the toolbar</span>
+        )}
         <span aria-live="polite">
           {counts.words} words · {counts.characters} characters
         </span>

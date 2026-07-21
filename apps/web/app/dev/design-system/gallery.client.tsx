@@ -8,6 +8,7 @@ import {
   Card,
   CardFlip,
   Checkbox,
+  CompactStatus,
   ContextMenu,
   DataTable,
   DataTableBody,
@@ -23,6 +24,7 @@ import {
   EmptyState,
   ErrorState,
   FormField,
+  FormSection,
   IconButton,
   Input,
   LinkButton,
@@ -30,15 +32,18 @@ import {
   OfflineBanner,
   PermissionState,
   Popover,
+  ProductToolbar,
   Progress,
   Radio,
   Score,
   SegmentedControl,
   Select,
+  SectionHeader,
   Sheet,
   ShortcutHint,
   Skeleton,
   Streak,
+  StickyActionBar,
   Surface,
   Switch,
   SyncIndicator,
@@ -49,6 +54,7 @@ import {
   Tooltip,
   VisuallyHidden,
   useToast,
+  PlusIcon,
 } from "@lumen/ui";
 import { useMemo, useState, type FormEvent } from "react";
 
@@ -145,12 +151,15 @@ function GalleryContent() {
           <Button loading loadingLabel="Saving example">
             Save example
           </Button>
+          <Button leadingIcon={<PlusIcon />}>
+            Add cards with an intentionally long translated action label
+          </Button>
           <Tooltip content="Start a focused recall session">
             <IconButton
               label="Start focused recall"
               onClick={() => announce("Recall started", "The icon button has an accessible name.")}
             >
-              ▶
+              <PlusIcon />
             </IconButton>
           </Tooltip>
           <LinkButton href="/" variant="secondary">
@@ -161,6 +170,61 @@ function GalleryContent() {
         <LiveRegion visuallyHidden={false}>
           Representative feedback is announced politely.
         </LiveRegion>
+      </Specimen>
+
+      <Specimen title="Product composition">
+        <div className="space-y-6">
+          <SectionHeader
+            actions={
+              <Button leadingIcon={<PlusIcon />}>
+                New deck with a deliberately long localized label
+              </Button>
+            }
+            description="Shared headers wrap actions before labels or focus rings can be clipped."
+            title="Library section"
+          />
+          <ProductToolbar label="Representative product toolbar">
+            <Input aria-label="Search examples" placeholder="Search decks" type="search" />
+            <SegmentedControl
+              defaultValue="recent"
+              label="Example filters"
+              options={[
+                { label: "All", value: "all" },
+                { label: "Recent", value: "recent" },
+                { label: "Published", value: "published" },
+              ]}
+            />
+            <Button variant="ghost">Clear filters</Button>
+          </ProductToolbar>
+          <FormSection
+            description="Compact answer rows keep the decision visible and reveal secondary settings only when requested."
+            title="Repeated answer rows"
+          >
+            <div className="grid gap-2">
+              {["A", "B", "C", "D"].map((label, index) => (
+                <div className="design-answer-row" key={label}>
+                  <Badge tone={index === 1 ? "brand" : "neutral"}>{label}</Badge>
+                  <Input
+                    aria-label={`Example answer ${label}`}
+                    defaultValue={index === 1 ? "The selected correct answer" : "Answer option"}
+                  />
+                  <Button size="sm" variant="ghost">
+                    Move
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </FormSection>
+          <div className="flex flex-wrap gap-3">
+            <CompactStatus tone="progress">Saving…</CompactStatus>
+            <CompactStatus tone="success">Saved</CompactStatus>
+            <CompactStatus tone="danger">Couldn’t save</CompactStatus>
+          </div>
+          <StickyActionBar aria-label="Representative mobile action bar">
+            <Button variant="secondary">Preview</Button>
+            <Button>Save and add another</Button>
+          </StickyActionBar>
+        </div>
       </Specimen>
 
       <Specimen title="Form controls">
@@ -182,7 +246,7 @@ function GalleryContent() {
               ]}
             />
           </FormField>
-          <FormField error="Add a source before publishing this example." label="Source note">
+          <FormField error="Add a source before publishing this example." label="Source">
             <Textarea placeholder="Author, title, or course reference" />
           </FormField>
           <FormField

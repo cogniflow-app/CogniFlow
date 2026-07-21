@@ -14,6 +14,7 @@ import {
   ListIcon,
   MoreIcon,
   PlusIcon,
+  ProductPage,
   SearchIcon,
   SegmentedControl,
   Select,
@@ -56,9 +57,11 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
         </div>
         <div className="deck-tile__heading">
           <h3>
-            <a href={`/app/decks/${deck.id}`}>{deck.title}</a>
+            <a className="deck-tile__stretched-link" href={`/app/decks/${deck.id}`}>
+              {deck.title}
+            </a>
           </h3>
-          <p>{deck.descriptionPlain || "Open to add the first note."}</p>
+          <p>{deck.descriptionPlain || "Open to add the first cards."}</p>
         </div>
         <Dropdown
           label={`Actions for ${deck.title}`}
@@ -77,7 +80,12 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
               : []),
           ]}
           trigger={
-            <IconButton label={`Actions for ${deck.title}`} size="sm" variant="ghost">
+            <IconButton
+              className="deck-tile__menu"
+              label={`Actions for ${deck.title}`}
+              size="sm"
+              variant="ghost"
+            >
               <MoreIcon />
             </IconButton>
           }
@@ -85,7 +93,7 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
       </div>
       <div className="deck-tile__meta">
         <span>
-          {deck.noteCount} {deck.noteCount === 1 ? "note" : "notes"}
+          {deck.noteCount} {deck.noteCount === 1 ? "entry" : "entries"}
         </span>
         <span>
           {deck.cardCount} {deck.cardCount === 1 ? "card" : "cards"}
@@ -301,8 +309,9 @@ export function LibraryDashboard({
         : filterMode === "archived"
           ? "Archived decks"
           : "All decks";
+  const filtersActive = Boolean(query.trim() || selectedFolder || filterMode !== "recent");
   return (
-    <div className="library-shell">
+    <ProductPage className="library-shell">
       <section className="library-hero" aria-labelledby="library-heading">
         <div className="library-hero__copy">
           <h1 id="library-heading">Library</h1>
@@ -330,7 +339,7 @@ export function LibraryDashboard({
             {snapshot.counts.activeDecks} {snapshot.counts.activeDecks === 1 ? "deck" : "decks"}
           </span>
           <span>
-            {snapshot.counts.notes} {snapshot.counts.notes === 1 ? "note" : "notes"}
+            {snapshot.counts.notes} {snapshot.counts.notes === 1 ? "entry" : "entries"}
           </span>
           <span>
             {snapshot.counts.cards} {snapshot.counts.cards === 1 ? "card" : "cards"}
@@ -424,6 +433,19 @@ export function LibraryDashboard({
                   </IconButton>
                 </Tooltip>
               </div>
+              {filtersActive && (
+                <Button
+                  onClick={() => {
+                    setQuery("");
+                    setSelectedFolder(null);
+                    setFilterMode("recent");
+                  }}
+                  size="sm"
+                  variant="ghost"
+                >
+                  Clear filters
+                </Button>
+              )}
             </div>
           </div>
 
@@ -586,6 +608,6 @@ export function LibraryDashboard({
           </form>
         </Dialog>
       )}
-    </div>
+    </ProductPage>
   );
 }

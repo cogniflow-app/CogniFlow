@@ -186,9 +186,9 @@ describe("deck authoring workspace", () => {
     render(<DeckNavigation deck={{ id: activeDeck.id, role, status }} />);
 
     expect(screen.getByRole("link", { name: "Overview" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Generated cards" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Card previews" })).toBeVisible();
     expect(screen.getByRole("link", { name: "History" })).toBeVisible();
-    expect(screen.queryByRole("link", { name: "Notes" }) !== null).toBe(notes);
+    expect(screen.queryByRole("link", { name: "Cards" }) !== null).toBe(notes);
     expect(screen.queryByRole("link", { name: "Settings" }) !== null).toBe(settings);
   });
 
@@ -198,7 +198,7 @@ describe("deck authoring workspace", () => {
     const user = userEvent.setup();
     render(<BulkQuickEditor deckId={activeDeck.id} />);
 
-    expect(screen.getByRole("table", { name: "Quick note rows" })).toHaveAttribute(
+    expect(screen.getByRole("table", { name: "Quick card rows" })).toHaveAttribute(
       "aria-rowcount",
       "4",
     );
@@ -230,7 +230,7 @@ describe("deck authoring workspace", () => {
       authoringData: { kind: "basic" },
       tags: ["cells", "energy"],
     });
-    expect(await screen.findByText("1 note saved.")).toBeVisible();
+    expect(await screen.findByText("1 card saved.")).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Row 1 front" })).toHaveValue("Incomplete row");
     expect(screen.getByRole("textbox", { name: "Row 1 back" })).toHaveValue("");
     expect(screen.getAllByRole("textbox", { name: /Row \d+ front/ })).toHaveLength(3);
@@ -242,31 +242,31 @@ describe("deck authoring workspace", () => {
     const user = userEvent.setup();
     render(<NoteCardBrowser deck={deckDetail} />);
 
-    expect(screen.getByRole("heading", { name: "Notes and generated cards" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Card entries and previews" })).toBeVisible();
     expect(screen.getByRole("heading", { level: 3, name: "What is ATP?" })).toBeVisible();
-    expect(screen.getByLabelText("1 generated cards")).toHaveTextContent("What is ATP?");
-    expect(screen.getByLabelText("1 generated cards")).toHaveTextContent(
+    expect(screen.getByLabelText("1 card previews")).toHaveTextContent("What is ATP?");
+    expect(screen.getByLabelText("1 card previews")).toHaveTextContent(
       "The cell's usable energy carrier",
     );
-    expect(screen.getByLabelText("1 generated cards")).toHaveTextContent("Source: What is ATP?");
+    expect(screen.getByLabelText("1 card previews")).toHaveTextContent("Entry: What is ATP?");
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
       "href",
       `/app/decks/${deckDetail.id}/edit?note=${deckDetail.notes[0]!.id}`,
     );
-    expect(screen.queryByRole("link", { name: "Add note" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Add cards" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("checkbox", { name: "Select What is ATP?" }));
-    expect(screen.getByRole("region", { name: "Bulk note actions" })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: "Bulk card actions" })).toHaveTextContent(
       "1 selected",
     );
     await user.type(screen.getByRole("searchbox", { name: "Search within deck" }), "missing");
-    expect(screen.getByText("No notes match these filters.")).toBeVisible();
+    expect(screen.getByText("No cards match these filters.")).toBeVisible();
   });
 
   it("keeps an archived deck browser read-only even for its owner", () => {
     render(<NoteCardBrowser deck={{ ...deckDetail, status: "archived" }} />);
 
-    expect(screen.queryByRole("link", { name: "Add note" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Add cards" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Edit" })).toBeNull();
     expect(screen.queryByRole("checkbox", { name: "Select What is ATP?" })).toBeNull();
   });
@@ -297,12 +297,12 @@ describe("deck authoring workspace", () => {
       notes: [{ expectedVersion: 3, id: deckDetail.notes[0]!.id }],
       removeTags: ["cells"],
     });
-    expect(await screen.findByText("Tags updated on 1 note.")).toBeVisible();
+    expect(await screen.findByText("Tags updated on 1 card.")).toBeVisible();
 
     await user.click(screen.getByRole("checkbox", { name: "Select What is ATP?" }));
     await user.click(screen.getByRole("combobox", { name: "Move to deck" }));
     await user.click(screen.getByRole("option", { name: "Biochemistry" }));
-    await user.click(screen.getByRole("button", { name: "Move notes" }));
+    await user.click(screen.getByRole("button", { name: "Move cards" }));
 
     const moveOptions = fetchMock.mock.calls[1]?.[1] as RequestInit | undefined;
     expect(JSON.parse(String(moveOptions?.body))).toMatchObject({
@@ -310,7 +310,7 @@ describe("deck authoring workspace", () => {
       notes: [{ expectedVersion: 3, id: deckDetail.notes[0]!.id }],
       targetDeckId: target.id,
     });
-    expect(await screen.findByText("1 note moved to Biochemistry.")).toBeVisible();
+    expect(await screen.findByText("1 card moved to Biochemistry.")).toBeVisible();
     expect(navigation.refresh).toHaveBeenCalledTimes(2);
   });
 
@@ -474,11 +474,11 @@ describe("deck authoring workspace", () => {
     expect(screen.getByText("Version 1")).toBeVisible();
     await user.click(screen.getAllByRole("button", { name: "View diff" })[1]!);
     expect(screen.getByRole("dialog", { name: "Version 1" })).toBeVisible();
-    expect(screen.getByText("Notes added since this version")).toBeVisible();
-    expect(screen.getByText("Notes removed since this version")).toBeVisible();
-    expect(screen.getByText("Notes changed since this version")).toBeVisible();
+    expect(screen.getByText("Card entries added since this version")).toBeVisible();
+    expect(screen.getByText("Card entries removed since this version")).toBeVisible();
+    expect(screen.getByText("Card entries changed since this version")).toBeVisible();
     expect(screen.getByText(/Scheduling impact/i)).toBeVisible();
-    expect(screen.getByRole("list", { name: "Note content changes" })).toHaveTextContent(
+    expect(screen.getByRole("list", { name: "Card content changes" })).toHaveTextContent(
       "What is ATP?",
     );
     expect(screen.getByRole("region", { name: "Current deck" })).toHaveTextContent(

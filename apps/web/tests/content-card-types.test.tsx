@@ -90,7 +90,7 @@ vi.mock("../components/content/media-uploader.client", () => ({
             id: "0190d9f0-0000-7000-8000-000000000099",
             kind,
             mimeType: kind === "image" ? "image/png" : "audio/mpeg",
-            signedUrl: null,
+            signedUrl: kind === "image" ? "blob:mock-image" : null,
             transcript: kind === "audio" ? "Reference audio" : "",
           })
         }
@@ -246,19 +246,19 @@ const editorLandmark: Readonly<Record<CardTypeCode, string>> = {
   basic: "Front / prompt",
   basic_reversed: "Front / prompt",
   bidirectional: "Concept A",
-  cloze: "Cloze passage",
+  cloze: "Passage",
   custom: "Structured fields",
   diagram: "Diagram image",
   drawing: "Drawing response editor",
   image_occlusion: "Occlusion image",
   list_answer: "Expected list items",
-  multiple_choice: "Answer choices",
+  multiple_choice: "Answers",
   optional_reversed: "Create a second card in the reverse direction",
   ordering: "Correct order",
   pronunciation: "Text to pronounce",
-  select_all: "Answer choices",
+  select_all: "Answers",
   true_false: "Correct answer",
-  typed_answer: "Accepted typed answers",
+  typed_answer: "Accepted variations",
 };
 
 const drawingPrompt: RichDocument = {
@@ -330,10 +330,10 @@ describe("Phase 02 card-type catalog", () => {
 
     const stepTwoHeading = await screen.findByRole("heading", {
       level: 2,
-      name: "Choose your first card type",
+      name: "Choose what to add first",
     });
     expect(stepTwoHeading).toHaveFocus();
-    expect(screen.getByText("Step 2 of 2: Choose your first card type")).toHaveAttribute(
+    expect(screen.getByText("Step 2 of 2: Choose what to add first")).toHaveAttribute(
       "aria-live",
       "polite",
     );
@@ -386,7 +386,7 @@ describe("Phase 02 card-type catalog", () => {
     await user.type(screen.getByRole("textbox", { name: "Deck title" }), "World history");
     await user.click(screen.getByRole("button", { name: "Continue" }));
     await user.click(screen.getByRole("button", { name: /Cloze/i }));
-    await user.click(screen.getByRole("button", { name: "Create deck" }));
+    await user.click(screen.getByRole("button", { name: "Create deck and add cards" }));
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/content/decks",
@@ -403,9 +403,11 @@ describe.each(CARD_TYPE_DESCRIPTORS)("$label editor", ({ code, label }) => {
   it("renders its specific authoring surface and card preview", () => {
     render(<NoteEditor deckId="deck-id" initialKind={code} />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "New note" })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1, name: "Add cards" })).toBeVisible();
     expect(screen.getAllByText(label)[0]).toBeVisible();
-    expect(screen.getByRole("heading", { level: 2, name: "Cards from this note" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { level: 2, name: /Card preview|This creates/ }),
+    ).toBeVisible();
     if (code === "drawing") {
       expect(screen.getByRole("region", { name: editorLandmark[code] })).toBeVisible();
     } else {
@@ -442,7 +444,10 @@ describe("drawing reference layer authoring", () => {
               headers: { "Content-Type": "application/json" },
               status: 200,
             })
-          : new Response(null, { status: 404 }),
+          : new Response(
+              JSON.stringify({ data: { signedUrl: "blob:stored-diagram" }, status: "ok" }),
+              { headers: { "Content-Type": "application/json" }, status: 200 },
+            ),
       ),
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -454,7 +459,7 @@ describe("drawing reference layer authoring", () => {
       screen.getByRole("button", { name: "Attach Optional drawing reference image" }),
     );
     await user.click(screen.getByRole("button", { name: "Replace drawing strokes" }));
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByRole("button", { name: "Save card" }));
 
     const saveRequest = fetchMock.mock.calls.find(([, options]) => options?.method === "PATCH");
     expect(saveRequest).toBeDefined();
@@ -494,7 +499,7 @@ describe("drawing reference layer authoring", () => {
     render(<NoteEditor deckId={deckDetail.id} note={note} />);
 
     await user.click(screen.getByRole("button", { name: "Clear drawing strokes" }));
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByRole("button", { name: "Save card" }));
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
       authoringData: { drawingLayers: readonly DrawingReferenceLayer[] };
@@ -545,6 +550,7 @@ describe("typed custom fields", () => {
     await user.click(screen.getByRole("button", { name: "Attach New custom audio field" }));
     await user.click(screen.getByRole("button", { name: "Add field" }));
 
+    await user.click(screen.getByText("Card layouts and styling"));
     const frontTemplate = screen.getByRole("textbox", { name: "Front template" });
     await user.clear(frontTemplate);
     fireEvent.change(frontTemplate, {
@@ -552,7 +558,7 @@ describe("typed custom fields", () => {
         value: "{{Front}}{{#each Items}}<span>{{item}}</span>{{/each}}{{media Illustration}}",
       },
     });
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByRole("button", { name: "Save card" }));
 
     const saveRequest = fetchMock.mock.calls.find(([, options]) => options?.method === "POST");
     expect(saveRequest).toBeDefined();
@@ -620,19 +626,22 @@ describe("diagram region alternative persistence", () => {
               headers: { "Content-Type": "application/json" },
               status: 200,
             })
-          : new Response(null, { status: 404 }),
+          : new Response(
+              JSON.stringify({ data: { signedUrl: "blob:stored-diagram" }, status: "ok" }),
+              { headers: { "Content-Type": "application/json" }, status: 200 },
+            ),
       ),
     );
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<NoteEditor deckId={deckDetail.id} note={note} />);
 
-    expect(screen.getByLabelText("diagram mapped text alternative")).toHaveTextContent(
+    expect(await screen.findByLabelText("diagram mapped text alternative")).toHaveTextContent(
       "Large circular region near the lower-left edge",
     );
     await user.click(screen.getByRole("button", { name: "Update region text alternative" }));
     await user.click(screen.getByRole("button", { name: "Rename diagram group" }));
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByRole("button", { name: "Save card" }));
 
     const saveRequest = fetchMock.mock.calls.find(([, options]) => options?.method === "PATCH");
     const payload = JSON.parse(String(saveRequest?.[1]?.body)) as {
@@ -648,13 +657,117 @@ describe("diagram region alternative persistence", () => {
 });
 
 describe("live sibling preview", () => {
+  it("uses four compact single-choice answers and keeps feedback collapsed", async () => {
+    const user = userEvent.setup();
+    render(<NoteEditor deckId="deck-id" initialKind="multiple_choice" />);
+
+    expect(screen.getAllByRole("radio", { name: /Mark answer/ })).toHaveLength(4);
+    expect(screen.getAllByRole("textbox", { name: /^Answer [A-D]$/u })).toHaveLength(4);
+    expect(
+      screen.getAllByText("Add explanation or feedback")[0]!.closest("details"),
+    ).not.toHaveAttribute("open");
+
+    const radios = screen.getAllByRole("radio", { name: /Mark answer/ });
+    await user.click(radios[1]!);
+    expect(radios[0]).not.toBeChecked();
+    expect(radios[1]).toBeChecked();
+    await user.click(screen.getAllByText("Add explanation or feedback")[0]!);
+    expect(screen.getByRole("textbox", { name: "Feedback for answer A" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Move answer 2 up" })).toBeEnabled();
+  });
+
+  it("lets select-all mark more than one correct answer", async () => {
+    const user = userEvent.setup();
+    render(<NoteEditor deckId="deck-id" initialKind="select_all" />);
+
+    const choices = screen.getAllByRole("checkbox", { name: /Mark answer/ });
+    expect(choices).toHaveLength(4);
+    await user.click(choices[1]!);
+    await user.click(choices[2]!);
+    expect(choices[0]).toBeChecked();
+    expect(choices[1]).toBeChecked();
+    expect(choices[2]).toBeChecked();
+  });
+
+  it("creates a cloze blank from selected passage text without exposing numeric ranges", async () => {
+    const user = userEvent.setup();
+    render(<NoteEditor deckId="deck-id" initialKind="cloze" />);
+
+    const passage = screen.getByRole("textbox", { name: "Passage" });
+    await user.type(passage, "The cell membrane protects the cell.");
+    (passage as HTMLTextAreaElement).setSelectionRange(4, 17);
+    fireEvent.select(passage);
+    await user.click(screen.getByRole("button", { name: "Make blank" }));
+
+    expect(document.querySelector("mark")).toHaveTextContent("cell membrane");
+    expect(screen.getAllByText("Blank 1")[0]).toBeVisible();
+    expect(screen.getByRole("spinbutton", { name: "Start" })).not.toBeVisible();
+    expect(screen.getByRole("spinbutton", { name: "End" })).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Remove blank" }));
+    expect(screen.queryAllByText("Blank 1")).toHaveLength(0);
+  });
+
+  it("saves a valid card and resets the composer for the next one", async () => {
+    const createdNote = deckDetail.notes[0]!;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ data: createdNote, status: "created" }), {
+          headers: { "Content-Type": "application/json" },
+          status: 201,
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<NoteEditor deckId={deckDetail.id} initialKind="basic" />);
+
+    await user.type(screen.getByRole("textbox", { name: "Front / prompt" }), "Question");
+    await user.type(screen.getByRole("textbox", { name: "Back / answer" }), "Answer");
+    await user.click(screen.getByRole("button", { name: "Save and add another" }));
+
+    expect(await screen.findByText("Saved. Add another card.")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Front / prompt" })).toHaveAttribute(
+      "data-document",
+      expect.stringContaining('"content":[]'),
+    );
+    expect(screen.getByRole("textbox", { name: "Back / answer" })).toHaveAttribute(
+      "data-document",
+      expect.stringContaining('"content":[]'),
+    );
+    expect(navigation.replace).toHaveBeenCalledWith(`/app/decks/${deckDetail.id}/edit?type=basic`);
+  });
+
+  it("allows navigation immediately after the current draft is saved", async () => {
+    const createdNote = deckDetail.notes[0]!;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ data: createdNote, status: "created" }), {
+          headers: { "Content-Type": "application/json" },
+          status: 201,
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<NoteEditor deckId={deckDetail.id} initialKind="basic" />);
+
+    await user.type(screen.getByRole("textbox", { name: "Front / prompt" }), "Question");
+    await user.type(screen.getByRole("textbox", { name: "Back / answer" }), "Answer");
+    await user.click(screen.getByRole("button", { name: "Save card" }));
+    await screen.findByText("All changes saved.");
+    await user.click(screen.getByRole("button", { name: "View card previews" }));
+
+    expect(screen.queryByRole("dialog", { name: "Discard unsaved changes?" })).toBeNull();
+    expect(navigation.push).toHaveBeenCalledWith(`/app/decks/${deckDetail.id}/cards`);
+  });
+
   it("associates friendly save errors with the required front and back controls", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     render(<NoteEditor deckId="deck-id" initialKind="basic" />);
 
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByRole("button", { name: "Save card" }));
 
     const front = screen.getByRole("textbox", { name: "Front / prompt" });
     const back = screen.getByRole("textbox", { name: "Back / answer" });
@@ -682,9 +795,10 @@ describe("live sibling preview", () => {
     render(<NoteEditor deckId="deck-id" initialKind="custom" />);
 
     await user.type(screen.getByRole("textbox", { name: "Front" }), "What is ATP?");
+    await user.click(screen.getByText("Card layouts and styling"));
     const styling = screen.getByRole("textbox", { name: "Scoped CSS (optional)" });
     fireEvent.change(styling, { target: { value: ".card { position: fixed; }" } });
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByRole("button", { name: "Save card" }));
 
     expect(styling).toHaveAttribute("aria-invalid", "true");
     expect(
@@ -706,7 +820,7 @@ describe("live sibling preview", () => {
 
     await user.click(screen.getByRole("button", { name: "Attach Occlusion image" }));
     await user.click(screen.getByRole("button", { name: "Add invalid region" }));
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByRole("button", { name: "Save card" }));
 
     expect(screen.getByLabelText("occlusion region label error")).toHaveTextContent(
       "Add a short label for this region.",
@@ -758,7 +872,7 @@ describe("live sibling preview", () => {
       screen.getByRole("textbox", { name: "Back / answer" }),
       "A cell's energy carrier",
     );
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByRole("button", { name: "Save card" }));
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
       readonly expectedVersion: number | null;
@@ -784,9 +898,9 @@ describe("live sibling preview", () => {
 
     await user.type(screen.getByRole("textbox", { name: "Front / prompt" }), "What is ATP?");
     await user.type(screen.getByRole("textbox", { name: "Back / answer" }), "Energy carrier");
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByRole("button", { name: "Save card" }));
     expect(await screen.findByText("response lost")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByRole("button", { name: "Save card" }));
 
     const keys = fetchMock.mock.calls.map((call) => {
       const request = call[1] as RequestInit;
@@ -815,18 +929,19 @@ describe("live sibling preview", () => {
     const note = deckDetail.notes[0]!;
     render(<NoteEditor deckId={deckDetail.id} note={note} />);
 
-    const tagsInput = screen.getByRole("textbox", { name: "Tags" });
+    await user.click(screen.getByText("Advanced options"));
+    const tagsInput = screen.getByRole("textbox", { name: "Tags (optional)" });
     await user.type(tagsInput, ", mitochondria");
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByRole("button", { name: "Save card" }));
 
     expect(fetchMock.mock.calls[0]?.[1]?.body).toContain('"expectedVersion":3');
     expect(fetchMock.mock.calls[0]?.[1]?.body).toContain(`"noteId":"${note.id}"`);
     expect(
-      await screen.findByRole("dialog", { name: "This note changed elsewhere" }),
+      await screen.findByRole("dialog", { name: "This card changed elsewhere" }),
     ).toBeVisible();
     expect(screen.getByText(/Your unsaved draft is preserved in this tab/i)).toBeVisible();
     expect(screen.getByRole("button", { name: "Reload current version" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Save draft as a new note" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save draft as a new card" })).toBeVisible();
     expect(tagsInput).toHaveValue("cells, energy, mitochondria");
   });
 
@@ -847,8 +962,9 @@ describe("live sibling preview", () => {
     const note = deckDetail.notes[0]!;
     const view = render(<NoteEditor deckId={deckDetail.id} note={note} />);
 
-    await user.type(screen.getByRole("textbox", { name: "Tags" }), ", local-draft");
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByText("Advanced options"));
+    await user.type(screen.getByRole("textbox", { name: "Tags (optional)" }), ", local-draft");
+    await user.click(screen.getByRole("button", { name: "Save card" }));
     await user.click(await screen.findByRole("button", { name: "Reload current version" }));
 
     expect(navigation.refresh).toHaveBeenCalledOnce();
@@ -864,10 +980,10 @@ describe("live sibling preview", () => {
       />,
     );
 
-    expect(await screen.findByText("Version 4 loaded.")).toBeVisible();
-    expect(screen.queryByRole("dialog", { name: "This note changed elsewhere" })).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Tags" })).toHaveValue("server-copy");
-    expect(screen.getByRole("textbox", { name: "Source or citation note" })).toHaveValue(
+    expect(await screen.findByText("The current saved card is open.")).toBeVisible();
+    expect(screen.queryByRole("dialog", { name: "This card changed elsewhere" })).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Tags (optional)" })).toHaveValue("server-copy");
+    expect(screen.getByRole("textbox", { name: "Source (optional)" })).toHaveValue(
       "Server-side citation",
     );
   });
@@ -884,11 +1000,10 @@ describe("live sibling preview", () => {
     const user = userEvent.setup();
     render(<NoteEditor deckId={deckDetail.id} note={note} />);
 
-    expect(screen.getByRole("textbox", { name: "Source or citation note" })).toHaveValue(
-      note.source,
-    );
-    await user.type(screen.getByRole("textbox", { name: "Tags" }), ", reviewed");
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByText("Advanced options"));
+    expect(screen.getByRole("textbox", { name: "Source (optional)" })).toHaveValue(note.source);
+    await user.type(screen.getByRole("textbox", { name: "Tags (optional)" }), ", reviewed");
+    await user.click(screen.getByRole("button", { name: "Save card" }));
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
       readonly source: string;
@@ -907,10 +1022,11 @@ describe("live sibling preview", () => {
     const user = userEvent.setup();
     render(<NoteEditor deckId={deckDetail.id} note={note} />);
 
-    await user.type(screen.getByRole("textbox", { name: "Tags" }), ", first-change");
-    await user.click(screen.getByRole("button", { name: "Save note" }));
+    await user.click(screen.getByText("Advanced options"));
+    await user.type(screen.getByRole("textbox", { name: "Tags (optional)" }), ", first-change");
+    await user.click(screen.getByRole("button", { name: "Save card" }));
     await user.type(
-      screen.getByRole("textbox", { name: "Source or citation note" }),
+      screen.getByRole("textbox", { name: "Source (optional)" }),
       " — newer local edit",
     );
     expect(screen.getByText("Saving…")).toBeVisible();
@@ -935,9 +1051,40 @@ describe("live sibling preview", () => {
     expect(screen.getByRole("combobox", { name: "Card type" })).toBeDisabled();
     expect(
       screen.getByText(
-        "Card type can’t be changed after saving. Create a new note to use another type.",
+        "This card type is fixed after saving. Add a new card to choose another type.",
       ),
     ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Duplicate as another type" })).toBeVisible();
+  });
+
+  it("warns before a new card type discards authored content", async () => {
+    const user = userEvent.setup();
+    render(<NoteEditor deckId={deckDetail.id} initialKind="basic" />);
+
+    await user.type(screen.getByRole("textbox", { name: "Front / prompt" }), "Mitochondria");
+    await user.click(screen.getByRole("combobox", { name: "Card type" }));
+    await user.click(screen.getByRole("option", { name: "Cloze deletion" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Change card type?" });
+    expect(within(dialog).getByText(/will be cleared/i)).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Change card type" }));
+    expect(screen.getByRole("combobox", { name: "Card type" })).toHaveTextContent("Cloze deletion");
+    expect(screen.getByRole("textbox", { name: "Passage" })).toBeVisible();
+  });
+
+  it("protects authored changes before navigation", async () => {
+    const user = userEvent.setup();
+    render(<NoteEditor deckId={deckDetail.id} initialKind="basic" />);
+
+    const blankLeave = new Event("beforeunload", { cancelable: true });
+    expect(window.dispatchEvent(blankLeave)).toBe(true);
+    await user.type(screen.getByRole("textbox", { name: "Front / prompt" }), "Mitochondria");
+    const changedLeave = new Event("beforeunload", { cancelable: true });
+    expect(window.dispatchEvent(changedLeave)).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: "Back to deck" }));
+    expect(screen.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeVisible();
+    expect(navigation.push).not.toHaveBeenCalled();
   });
 
   it("requires confirmation before deleting the current optimistic note version", async () => {
@@ -952,11 +1099,11 @@ describe("live sibling preview", () => {
     const user = userEvent.setup();
     render(<NoteEditor deckId={deckDetail.id} note={note} />);
 
-    await user.click(screen.getByRole("button", { name: "Delete note" }));
+    await user.click(screen.getByRole("button", { name: "Delete card entry" }));
     expect(fetchMock).not.toHaveBeenCalled();
-    const dialog = screen.getByRole("dialog", { name: "Delete this note?" });
+    const dialog = screen.getByRole("dialog", { name: "Delete this card entry?" });
     expect(within(dialog).getByText(/unsaved changes/i)).toBeVisible();
-    await user.click(within(dialog).getByRole("button", { name: "Delete this note" }));
+    await user.click(within(dialog).getByRole("button", { name: "Delete this card" }));
 
     expect(fetchMock).toHaveBeenCalledWith(
       `/api/content/decks/${deckDetail.id}/notes/${note.id}`,

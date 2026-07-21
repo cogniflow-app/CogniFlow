@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
+import { provisionAndSignInLocalAuthor } from "./support/local-account";
+
 async function revealSiteNavigation(page: Page): Promise<void> {
   const compactToggle = page.getByRole("button", { name: "Open workspace navigation" });
   if (await compactToggle.isVisible()) {
@@ -29,24 +31,6 @@ async function expectNoSevereAxeViolations(page: Page): Promise<void> {
   expect(severe, JSON.stringify(severe, null, 2)).toEqual([]);
 }
 
-async function createAdultAccount(page: Page, projectName: string): Promise<void> {
-  const suffix = crypto.randomUUID().replaceAll("-", "");
-  const forwardedFor = projectName === "mobile-chrome" ? "198.51.100.62" : "198.51.100.61";
-  await page.setExtraHTTPHeaders({ "X-Forwarded-For": forwardedFor });
-  await page.goto("/auth/sign-up?returnTo=%2Fapp%2Fdecks%2Fnew");
-  await page.getByRole("combobox", { name: /which age range describes you/i }).click();
-  await page.getByRole("option", { name: "18 or older" }).click();
-  await page.getByRole("textbox", { name: "Email address" }).fill(`phase02-${suffix}@example.test`);
-  await page.getByLabel("Password").fill(`Local-only-password-${suffix}`);
-  await page.getByRole("button", { name: "Create account" }).click();
-
-  await expect(page).toHaveURL(/\/onboarding\?returnTo=%2Fapp%2Fdecks%2Fnew$/u);
-  await page.getByRole("textbox", { name: "Display name" }).fill("Content author");
-  await page.getByRole("textbox", { name: "Handle" }).fill(`author_${suffix.slice(0, 12)}`);
-  await page.getByRole("button", { name: "Finish account setup" }).click();
-  await expect(page).toHaveURL(/\/app\/decks\/new$/u, { timeout: 20_000 });
-}
-
 test("desktop and mobile authors can create, publish, preview, and clean up a typed-answer deck", async ({
   page,
 }, testInfo) => {
@@ -61,7 +45,12 @@ test("desktop and mobile authors can create, publish, preview, and clean up a ty
       clientRenderedScriptWarnings.push(message.text());
     }
   });
-  await createAdultAccount(page, testInfo.project.name);
+  await provisionAndSignInLocalAuthor(page, {
+    displayName: "Content author",
+    emailPrefix: `phase02-${testInfo.project.name}`,
+    handlePrefix: "author",
+    returnTo: "/app/decks/new",
+  });
 
   await expect(page.getByRole("heading", { level: 1, name: "Create a deck" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
@@ -95,7 +84,7 @@ test("desktop and mobile authors can create, publish, preview, and clean up a ty
     (response) =>
       response.url().endsWith("/api/content/decks") && response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Create deck" }).click();
+  await page.getByRole("button", { name: "Create deck and add cards" }).click();
   const created = await createResponse;
   expect(created.status()).toBe(201);
   const createdBody = (await created.json()) as { data: { id: string } };
@@ -104,22 +93,21 @@ test("desktop and mobile authors can create, publish, preview, and clean up a ty
   await expect(page).toHaveURL(new RegExp(`/app/decks/${deckId}/edit\\?type=typed_answer$`, "u"), {
     timeout: 20_000,
   });
-  await expect(page.getByRole("heading", { level: 1, name: "New note" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Add cards" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expectNoHorizontalOverflow(page);
 
   await page
     .getByRole("textbox", { name: "Prompt" })
     .fill("What molecule carries usable cellular energy?");
-  await page.getByRole("textbox", { name: "Displayed answer" }).fill("ATP");
-  await page
-    .getByRole("textbox", { name: "Accepted typed answers" })
-    .fill("ATP\nadenosine triphosphate");
-  await page.getByRole("textbox", { name: "Tags" }).fill("cells, energy");
-  await page
-    .getByRole("textbox", { name: "Source or citation note" })
-    .fill("Open biology notes, chapter 6");
-  await page.getByRole("button", { name: "Preview" }).click();
+  await page.getByRole("textbox", { name: "Correct answer" }).fill("ATP");
+  await page.getByRole("textbox", { name: "Main typed answer" }).fill("ATP");
+  await page.getByRole("button", { name: "Add accepted variation" }).click();
+  await page.getByRole("textbox", { name: "Accepted variation 1" }).fill("adenosine triphosphate");
+  await page.getByText("Advanced options").click();
+  await page.getByRole("textbox", { name: "Tags (optional)" }).fill("cells, energy");
+  await page.getByRole("textbox", { name: "Source (optional)" }).fill("Open biology, chapter 6");
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
   await expect(page.getByText("Card 1")).toBeVisible();
 
   const noteResponse = page.waitForResponse(
@@ -127,16 +115,16 @@ test("desktop and mobile authors can create, publish, preview, and clean up a ty
       response.url().endsWith(`/api/content/decks/${deckId}/notes`) &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Save note" }).click();
+  await page.getByRole("button", { name: "Save card" }).click();
   expect((await noteResponse).status()).toBe(201);
   await expect(page.getByText("All changes saved.")).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/app/decks/${deckId}/edit\\?note=`, "u"));
   await expectNoSevereAxeViolations(page);
 
-  await page.getByRole("button", { name: "Generated cards" }).click();
+  await page.getByRole("button", { name: "View card previews" }).click();
   await expect(page).toHaveURL(new RegExp(`/app/decks/${deckId}/cards$`, "u"));
   await expect(
-    page.getByRole("heading", { level: 2, name: "Notes and generated cards" }),
+    page.getByRole("heading", { level: 2, name: "Card entries and previews" }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { level: 3 })).toContainText(
     "What molecule carries usable cellular energy?",

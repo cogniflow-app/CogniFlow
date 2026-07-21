@@ -29,7 +29,7 @@ export const CARD_TYPE_DESCRIPTORS: readonly CardTypeDescriptor[] = [
   {
     code: "optional_reversed",
     description: "Optionally creates a second card in the reverse direction.",
-    editorHint: "Choose whether this individual note benefits from reverse recall.",
+    editorHint: "Choose whether this card should also be studied in reverse.",
     generatedCards: "Creates one or two cards",
     label: "Optional reversed",
     shortLabel: "Optional reverse",
@@ -45,7 +45,7 @@ export const CARD_TYPE_DESCRIPTORS: readonly CardTypeDescriptor[] = [
   {
     code: "custom",
     description: "Build a card from multiple fields and reusable layouts.",
-    editorHint: "Define fields, then compose them with the safe template language.",
+    editorHint: "Add fields here. Open layouts only when you need a custom front or back.",
     generatedCards: "Creates one card per layout",
     label: "Custom multi-field",
     shortLabel: "Custom",
@@ -61,7 +61,7 @@ export const CARD_TYPE_DESCRIPTORS: readonly CardTypeDescriptor[] = [
   {
     code: "cloze",
     description: "Hide parts of a passage and recall each numbered group.",
-    editorHint: "Mark deletions like {{c1::mitochondria}} and reuse a number to group blanks.",
+    editorHint: "Write a passage, select text, and turn the selection into a blank.",
     generatedCards: "Creates one card per blank group",
     label: "Cloze deletion",
     shortLabel: "Cloze",
@@ -76,7 +76,7 @@ export const CARD_TYPE_DESCRIPTORS: readonly CardTypeDescriptor[] = [
   },
   {
     code: "multiple_choice",
-    description: "One correct choice with authored distractors and explanations.",
+    description: "One correct choice with clear distractors and optional explanations.",
     editorHint: "Use plausible choices and explain why the correct one is right.",
     generatedCards: "Creates one card",
     label: "Multiple choice",
@@ -84,7 +84,7 @@ export const CARD_TYPE_DESCRIPTORS: readonly CardTypeDescriptor[] = [
   },
   {
     code: "select_all",
-    description: "A question with more than one correct authored choice.",
+    description: "A question with more than one correct choice.",
     editorHint: "Mark every correct choice and avoid overlapping choices.",
     generatedCards: "Creates one card",
     label: "Select all that apply",
@@ -100,15 +100,15 @@ export const CARD_TYPE_DESCRIPTORS: readonly CardTypeDescriptor[] = [
   },
   {
     code: "ordering",
-    description: "Arrange authored items into the correct sequence.",
-    editorHint: "Add at least two distinct steps and order them with buttons or drag and drop.",
+    description: "Arrange steps or ideas into the correct sequence.",
+    editorHint: "Add at least two distinct steps and put them in the correct order.",
     generatedCards: "Creates one card",
     label: "Ordering / sequencing",
     shortLabel: "Ordering",
   },
   {
     code: "list_answer",
-    description: "Recall a bounded set or ordered list of accepted items.",
+    description: "Recall a specific set or ordered list of accepted items.",
     editorHint: "Choose whether order matters and add aliases only when genuinely equivalent.",
     generatedCards: "Creates one card",
     label: "List answer",
@@ -116,10 +116,10 @@ export const CARD_TYPE_DESCRIPTORS: readonly CardTypeDescriptor[] = [
   },
   {
     code: "diagram",
-    description: "Label accessible image hotspots in either prompt direction.",
-    editorHint: "Give every hotspot a label, aliases, and a nonvisual description.",
-    generatedCards: "Creates one card per hotspot or direction",
-    label: "Diagram labels / hotspots",
+    description: "Identify labeled regions of an image in either direction.",
+    editorHint: "Give every region a label and a useful image description.",
+    generatedCards: "Creates one card per region or direction",
+    label: "Diagram labels",
     shortLabel: "Diagram",
   },
   {
