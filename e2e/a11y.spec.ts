@@ -239,6 +239,11 @@ test("the workspace Appearance popover is pointer-accessible above the mobile dr
   await expect(colorTheme).toBeFocused();
   await colorTheme.selectOption("dark");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  // Linux can retain the native select picker after a programmatic option change, where Escape
+  // belongs to the browser picker first. Focus the popover layer so this assertion exercises the
+  // nested Radix popover's Escape boundary rather than platform-specific select chrome.
+  await appearancePopover.focus();
+  await expect(appearancePopover).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(appearancePopover).toBeHidden();
   await expect(workspaceDrawer).toBeVisible();
