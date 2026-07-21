@@ -345,7 +345,8 @@ test("the authenticated library, deck creation, and card editor are accessible b
   await expectNoSeriousOrCriticalViolations(page);
   await leaveDialog.getByRole("button", { name: "Leave without saving" }).click();
   await expect(page).toHaveURL(/\/app\/decks\/[^/]+$/u);
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "More deck actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete deck…" }).click();
   await expect(page.getByRole("dialog", { name: "Delete this deck?" })).toBeVisible();
   await page.getByRole("button", { name: "Delete deck" }).click();
   await expect(page).toHaveURL(/\/app$/u);

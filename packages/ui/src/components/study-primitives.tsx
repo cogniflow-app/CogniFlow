@@ -276,3 +276,107 @@ export const StreakDisplay = forwardRef<HTMLDivElement, StreakDisplayProps>(func
 
 export const Score = ScoreDisplay;
 export const Streak = StreakDisplay;
+
+export interface StudyProgressProps extends HTMLAttributes<HTMLDivElement> {
+  current: number;
+  label?: string;
+  total: number;
+}
+
+export const StudyProgress = forwardRef<HTMLDivElement, StudyProgressProps>(function StudyProgress(
+  { className, current, label = "Study progress", total, ...props },
+  ref,
+) {
+  const safeTotal = Math.max(1, total);
+  const safeCurrent = Math.min(safeTotal, Math.max(0, current));
+  const percentage = Math.round((safeCurrent / safeTotal) * 100);
+  const remaining = Math.max(0, total - current);
+
+  return (
+    <div ref={ref} className={cn("lumen-study-progress", className)} {...props}>
+      <div className="lumen-study-progress__copy">
+        <span>{label}</span>
+        <span className="tabular-nums">
+          {safeCurrent} of {total} · {remaining} remaining
+        </span>
+      </div>
+      <ProgressPrimitive.Root
+        aria-label={label}
+        aria-valuetext={`${safeCurrent} of ${total}, ${remaining} remaining`}
+        className="lumen-study-progress__track"
+        max={safeTotal}
+        value={safeCurrent}
+      >
+        <ProgressPrimitive.Indicator
+          className="lumen-study-progress__indicator"
+          style={{ transform: `translateX(-${100 - percentage}%)` }}
+        />
+      </ProgressPrimitive.Root>
+    </div>
+  );
+});
+
+export interface ConnectionStatusProps extends HTMLAttributes<HTMLSpanElement> {
+  online: boolean;
+}
+
+export const ConnectionStatus = forwardRef<HTMLSpanElement, ConnectionStatusProps>(
+  function ConnectionStatus({ className, online, ...props }, ref) {
+    return (
+      <span
+        ref={ref}
+        className={cn("lumen-connection-status", className)}
+        data-online={online}
+        role="status"
+        {...props}
+      >
+        <span aria-hidden="true" className="lumen-connection-status__dot" />
+        {online ? "Online" : "Offline — ratings paused"}
+      </span>
+    );
+  },
+);
+
+export interface RatingButtonProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "children"
+> {
+  interval: string;
+  label: string;
+  rating: "again" | "easy" | "good" | "hard";
+  shortcut: string;
+}
+
+export const RatingButton = forwardRef<HTMLButtonElement, RatingButtonProps>(function RatingButton(
+  { className, interval, label, rating, shortcut, type = "button", ...props },
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      aria-label={`${label}, ${interval}, keyboard shortcut ${shortcut}`}
+      className={cn("lumen-rating-button", className)}
+      data-rating={rating}
+      type={type}
+      {...props}
+    >
+      <span className="lumen-rating-button__label">{label}</span>
+      <span className="lumen-rating-button__interval">{interval}</span>
+      <kbd className="lumen-rating-button__shortcut">{shortcut}</kbd>
+    </button>
+  );
+});
+
+export function RatingGroup({
+  children,
+  label = "Rate your recall",
+}: {
+  children: ReactNode;
+  label?: string;
+}) {
+  return (
+    <div aria-label={label} className="lumen-rating-group" role="group">
+      {children}
+    </div>
+  );
+}

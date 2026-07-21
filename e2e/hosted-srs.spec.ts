@@ -94,7 +94,7 @@ test("Preview commits, deduplicates, undoes, resumes, and isolates canonical SRS
   await expect(page).toHaveURL(/\/app\/study\/session\//u);
   await page.getByRole("button", { name: "Pause" }).click();
   await expect(page).toHaveURL(/\/app\/study$/u);
-  await page.getByRole("button", { name: "Resume session" }).click();
+  await page.getByRole("button", { name: "Resume" }).click();
   await expect(page.getByText("Hosted prompt 1")).toBeVisible();
 
   const first = await rateCurrentCard(page, "Again");
@@ -121,10 +121,10 @@ test("Preview commits, deduplicates, undoes, resumes, and isolates canonical SRS
   await rateCurrentCard(page, "Good");
   await expect(page.getByText("Hosted prompt 4")).toBeVisible();
   await rateCurrentCard(page, "Easy");
-  await expect(page.getByRole("heading", { level: 1, name: "Nice work." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "That’s the queue." })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByRole("heading", { level: 1, name: "Nice work." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "That’s the queue." })).toBeVisible();
   await page.getByRole("link", { name: "View statistics" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Your review picture" })).toBeVisible();
   await expect(page.getByText(deckTitle)).toBeVisible();

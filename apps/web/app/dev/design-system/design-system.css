@@ -13,6 +13,170 @@
   gap: 0.75rem;
 }
 
+.design-study-samples {
+  display: grid;
+  gap: 1rem;
+}
+
+.design-study-topbar,
+.design-study-warning,
+.design-study-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.design-study-topbar > div:first-child,
+.design-study-warning > div {
+  display: grid;
+}
+
+.design-study-topbar small,
+.design-study-warning p,
+.design-study-zero p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.design-study-topbar .lumen-study-progress {
+  display: grid;
+  flex: 1;
+  gap: 0.35rem;
+}
+
+.design-study-topbar .lumen-study-progress__copy {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.design-study-topbar .lumen-study-progress__track {
+  height: 0.35rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-sunken);
+}
+
+.design-study-topbar .lumen-study-progress__indicator {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--color-brand);
+}
+
+.design-study-topbar .lumen-connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.design-study-topbar .lumen-connection-status__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--color-success);
+}
+
+.design-study-warning {
+  justify-content: space-between;
+  border-inline-start: 0.25rem solid var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-surface));
+}
+
+.design-study-samples .lumen-rating-group {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.design-study-samples .lumen-rating-button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "label key" "interval key";
+  gap: 0.15rem 0.5rem;
+  min-height: 4rem;
+  padding: 0.65rem;
+  border: 1px solid var(--color-border);
+  border-inline-start: 0.25rem solid var(--color-brand);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: start;
+}
+
+.design-study-samples .lumen-rating-button__label {
+  grid-area: label;
+  font-weight: 800;
+}
+.design-study-samples .lumen-rating-button__interval {
+  grid-area: interval;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+.design-study-samples .lumen-rating-button__shortcut {
+  grid-area: key;
+}
+
+.design-study-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-block: 1px solid var(--color-border);
+}
+
+.design-study-metrics > div {
+  padding: 0.75rem;
+  border-inline-end: 1px solid var(--color-border);
+}
+
+.design-study-metrics dt {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+.design-study-metrics dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.design-study-filter-row label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.design-study-chart {
+  display: flex;
+  align-items: end;
+  gap: 1rem;
+  height: 10rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-sunken);
+}
+
+.design-study-chart span {
+  flex: 1;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--color-brand);
+}
+
+.design-study-zero {
+  display: grid;
+  justify-items: start;
+  gap: 0.65rem;
+  padding: 1.25rem;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+}
+
 @media (max-width: 32rem) {
   .design-answer-row {
     grid-template-columns: auto minmax(0, 1fr);
@@ -21,5 +185,16 @@
   .design-answer-row > :last-child {
     grid-column: 2;
     justify-self: start;
+  }
+
+  .design-study-topbar,
+  .design-study-warning,
+  .design-study-filter-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .design-study-samples .lumen-rating-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

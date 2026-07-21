@@ -1,12 +1,94 @@
 # Implementation status
 
-**Current phase:** Phase 03 — SRS and canonical review engine  
-**Status:** Exact HTTP replay repair is locally and Preview verified in draft PR #12; Beta and
-Production promotion await merge  
-**Evidence date:** 2026-07-22 UTC  
+**Current phase:** Phase 03 — Study experience redesign  
+**Status:** Frontend redesign is complete and locally accepted; draft PR and Preview verification
+are pending  
+**Evidence date:** 2026-07-21  
 **Next phase:** Phase 04 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
+
+## Phase 03 Study experience redesign
+
+Branch `codex/phase-03-study-experience-redesign` began from clean `origin/main` at `c4bf53d2`. A
+pre-existing whitespace-only prompt edit was preserved separately and is not part of the branch.
+The ignored local environment file was not read or changed. The redesign changes frontend
+presentation and read-only completion projection only; it adds no migration, API contract,
+authorization rule, authentication behavior, environment variable, scheduler calculation, or
+canonical mutation behavior.
+
+### Completed redesign scope
+
+- Rebuilt Study around one Today action, a compact resumable-session banner, concise deck rows,
+  common practice shortcuts, recent filters, and a five-step Custom Study dialog. Deck-targeted
+  Study links now scope Today and session creation to the selected deck.
+- Added a dedicated review focus shell with no persistent workspace rail, a compact scope/progress/
+  connection header, Pause and Exit, a bounded content-aware card, and stable desktop/mobile rating
+  controls. Label, interval, and shortcut are separate elements; `1`–`4`, answer secrecy, canonical
+  success-before-advance, retry, conflict, undo, and swipe-confirmation semantics are unchanged.
+- Reduced permanent review controls to Star, available Undo, and Edit. Bury, related-card bury,
+  suspend, report, timer, autoplay, swipe preference, manual due/range/order, leech, reset, and
+  rebuild remain reachable through an accessible More menu and focused dialogs with risk-appropriate
+  confirmation.
+- Rebuilt Statistics as data-aware zero, sparse, and sufficient-history experiences with Overview,
+  Activity, Memory, and Decks views; real date/deck filters; learner-facing terminology; visible
+  charts; screen-reader summaries; and disclosed table alternatives. No sample metric is rendered.
+- Reorganized Scheduling into Basics, Daily limits, Order, Advanced, Decks, and Maintenance. The
+  Basics view recommends FSRS, expresses desired retention as an accessible percentage slider/input,
+  and previews workload; migration and bulk controls remain explicit and confirmed.
+- Repaired deck integration with Add cards, contextual Study, an authorized More menu, five semantic
+  totals, compact type chips, and collapsed Quick Add. Roles with no command do not receive an empty
+  menu. Public/shared schedule privacy is unchanged.
+- Extended the development-only design-system gallery with Study progress, connectivity, ratings,
+  focus toolbar, warnings, metrics, filters, charts/table disclosure, zero state, wizard, and dialog/
+  sheet patterns. Production continues to return not-found for that route.
+- Replaced the Phase 03 override cascade with a single `@layer components` architecture scoped to
+  Study, Review, Statistics, Scheduling, and deck roots. It consumes existing product tokens,
+  introduces no global `kbd`/table/label/details rule, and uses no `!important`. The focus shell
+  explicitly isolates the legacy unlayered workspace grid at the component boundary.
+
+The complete before/after state matrix, independent defects, CSS root cause, evidence labels,
+viewports, themes, modes, and implementation boundaries are documented in
+[PRODUCT_UX_AUDIT.md](./PRODUCT_UX_AUDIT.md#phase-03-study-experience-redesign-audit).
+
+### Redesign migrations and configuration
+
+No migration was added or edited. The 49-migration chain is byte-for-byte outside this diff and
+resets from empty. Generated database types remain current. No environment variable, provider
+metadata, lockfile, dependency, RLS policy, API route contract, Supabase Auth behavior, FSRS/SM-2
+calculation, queue rule, idempotency behavior, review-log rule, or schedule-version rule changed.
+
+### Local redesign acceptance
+
+| Command or evidence                        | Result                                                                                                                                                           |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`           | Exit 0; 10 workspace projects current, lockfile unchanged under Node `24.18.0` / pnpm `11.13.0`                                                                  |
+| `pnpm format:check` / `pnpm secret:scan`   | Exit 0; formatting accepted and no credential finding                                                                                                            |
+| `pnpm lint` / `pnpm typecheck`             | Exit 0; ESLint and dependency boundaries pass; 9/9 strict TypeScript projects pass                                                                               |
+| Focused redesign tests                     | 4 files / 46 rating, review, statistics, and deck-command tests pass                                                                                             |
+| `pnpm test`                                | Exit 0; 85 files / 667 tests; coverage 74.15% statements, 64.37% branches, 72.38% functions, 77.51% lines                                                        |
+| `pnpm db:reset` / `pnpm test:db`           | Exit 0; all 49 existing migrations reset; 21 files / 889 assertions pass; concurrency proves 1 commit, 1 typed stale conflict, and 1 immutable log in 25.561 ms  |
+| SRS performance/parity                     | 10,000-card domain queue 21.250 ms; database queue 97.495 ms; Today 95.467 ms; resume 0.305 ms; Statistics 68.303 ms; all budgets and exact scheduler tests pass |
+| `pnpm db:types:check`                      | Exit 0; generated database types match the reset local schema                                                                                                    |
+| verification-wrapped `pnpm build`          | Exit 0; optimized Next build produces 76 route/static entries                                                                                                    |
+| verification-wrapped `pnpm build:portable` | Exit 0; OpenNext emits `.open-next/worker.js`. A direct run correctly rejected the ignored developer HTTP URL before the documented wrapper was used.            |
+| `pnpm test:e2e`                            | Exit 0; 29 pass / 19 intentional cross-project skips, including canonical desktop/mobile review and Phase 02/03 visual regressions                               |
+| `pnpm test:a11y`                           | Exit 0; 28/28 axe, keyboard, focus, theme, serious-mode, and reduced-motion checks pass                                                                          |
+| `pnpm test:lighthouse`                     | Assertions pass; scores 98/100/96/100; FCP 0.756 s, LCP 2.320 s, TBT 14 ms, CLS 0                                                                                |
+| `pnpm test:load`                           | 15/15 checks pass; 0 failed; request-duration p95 7.79 ms                                                                                                        |
+| `pnpm verify`                              | Exit 0; aggregate CI-equivalent gate reran every practical local check above                                                                                     |
+
+Sanitized Playwright captures were inspected directly for empty/populated Study, the full Custom
+Study flow, scheduling Basics/Advanced, deck integration, prompt/answer/rating states, undo,
+zero/sparse/sufficient Statistics, content changes, serious mode, reduced motion, mobile, and 200%
+text. The in-app browser surface reported no available browser instance, so the repository's real
+Chromium desktop and Pixel 7 projects supplied the visual evidence. No screenshot, video, trace,
+identity, or browser artifact is tracked.
+
+### Redesign Hosted Preview checkpoint
+
+Pending branch publication. Preview will be exercised only after the complete local acceptance
+above; Beta Supabase, Vercel Production, and `recallflash.com` remain untouched.
 
 ## Phase 03 SRS and canonical review engine
 

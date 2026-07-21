@@ -6,7 +6,12 @@ import { readStudyDashboard } from "@/lib/server/study-repository";
 
 export const metadata: Metadata = { title: "Study" };
 
-export default async function StudyPage() {
+export default async function StudyPage({
+  searchParams,
+}: {
+  readonly searchParams: Promise<{ readonly deck?: string }>;
+}) {
+  const { deck: initialDeckId } = await searchParams;
   const account = await requireAccountContext({ returnTo: "/app/study" });
   const learnerSettings = account.activeLearner.settings;
   const timezone =
@@ -29,6 +34,7 @@ export default async function StudyPage() {
   );
   return (
     <StudyDashboard
+      initialDeckId={initialDeckId}
       learnerName={account.activeLearner.displayName ?? account.activeLearner.pseudonym}
       snapshot={snapshot}
     />

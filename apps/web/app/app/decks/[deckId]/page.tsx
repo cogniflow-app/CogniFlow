@@ -35,38 +35,49 @@ export default async function DeckOverviewPage({
   const study = dashboard.decks.find((item) => item.deckId === deck.id);
   const canEdit = deck.status === "active" && ["owner", "manager", "editor"].includes(deck.role);
   return (
-    <div className="grid gap-5">
-      <div className="deck-study-action">
+    <div className="deck-overview">
+      <section className="deck-overview__summary" aria-labelledby="deck-summary-heading">
         <div>
-          <p className="eyebrow">Long-term memory</p>
-          <h2>{(study?.due ?? 0) + (study?.learning ?? 0) + (study?.new ?? 0)} cards available</h2>
+          <p className="eyebrow">At a glance</p>
+          <h2 id="deck-summary-heading">{deck.title}</h2>
           <p>
-            Real counts for the active learner profile. Public preview never changes this schedule.
+            {(study?.due ?? 0) + (study?.learning ?? 0) + (study?.new ?? 0)} cards ready to study.
           </p>
         </div>
-        <a className="button" href={`/app/study?deck=${deck.id}`}>
-          Study this deck
-        </a>
-      </div>
-      <dl className="deck-stat-grid" aria-label="Deck totals">
-        <div className="deck-stat">
-          <dt>New</dt>
-          <dd>{study?.new ?? deck.cardCount}</dd>
+        <dl className="deck-stat-grid" aria-label="Deck totals">
+          <div className="deck-stat">
+            <dt>Card entries</dt>
+            <dd>{deck.noteCount}</dd>
+          </div>
+          <div className="deck-stat">
+            <dt>Study cards</dt>
+            <dd>{deck.cardCount}</dd>
+          </div>
+          <div className="deck-stat">
+            <dt>Due</dt>
+            <dd>{study?.due ?? 0}</dd>
+          </div>
+          <div className="deck-stat">
+            <dt>New</dt>
+            <dd>{study?.new ?? deck.cardCount}</dd>
+          </div>
+          <div className="deck-stat">
+            <dt>Learning</dt>
+            <dd>{study?.learning ?? 0}</dd>
+          </div>
+        </dl>
+        <div className="deck-type-chips" aria-label="Card types in this deck">
+          {deck.supportedCardTypes.map((type) => (
+            <span key={type}>{type.replaceAll("_", " ")}</span>
+          ))}
         </div>
-        <div className="deck-stat">
-          <dt>Learning</dt>
-          <dd>{study?.learning ?? 0}</dd>
-        </div>
-        <div className="deck-stat">
-          <dt>Due</dt>
-          <dd>{study?.due ?? 0}</dd>
-        </div>
-        <div className="deck-stat">
-          <dt>Active cards</dt>
-          <dd>{study?.total ?? deck.cardCount}</dd>
-        </div>
-      </dl>
-      {canEdit && <BulkQuickEditor deckId={deck.id} />}
+      </section>
+      {canEdit && (
+        <details className="deck-quick-add">
+          <summary>Quick add basic cards</summary>
+          <BulkQuickEditor deckId={deck.id} />
+        </details>
+      )}
     </div>
   );
 }

@@ -6,7 +6,16 @@ import {
   previewRatings,
   type ReviewRating,
 } from "@lumen/srs";
-import { Button } from "@lumen/ui";
+import {
+  Button,
+  ConnectionStatus,
+  Dialog,
+  Dropdown,
+  LinkButton,
+  RatingButton,
+  RatingGroup,
+  StudyProgress,
+} from "@lumen/ui";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import {
@@ -20,7 +29,7 @@ import {
 } from "react";
 
 import { StudyCardRenderer } from "@/components/content/study-card-renderer.client";
-import type { ReviewCardView } from "@/lib/study/models";
+import type { ReviewCardView, StudySessionSummary } from "@/lib/study/models";
 
 const ratingMeta = [
   { key: "again", label: "Again", shortcut: "1" },
@@ -32,6 +41,112 @@ const ratingMeta = [
 const autoplayAudioKey = "lumen.study.autoplayAudio";
 const autoplayAudioEvent = "lumen:study-autoplay-audio";
 const unrevealedPreviewDate = new Date(0);
+
+export function StudySessionCompletion({
+  summary,
+  todayRemaining,
+}: {
+  readonly summary: StudySessionSummary | null;
+  readonly todayRemaining: number;
+}) {
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const minutes = summary?.durationMs ? Math.max(1, Math.round(summary.durationMs / 60_000)) : 0;
+  const unavailable = !summary || summary.completed < summary.total;
+
+  async function undoLastReview() {
+    if (!summary?.lastReviewId || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    const response = await fetch("/api/study/reviews/undo", {
+      body: JSON.stringify({
+        idempotencyKey: crypto.randomUUID(),
+        reviewLogId: summary.lastReviewId,
+        undoEventId: crypto.randomUUID(),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as {
+        readonly error?: { readonly message?: string };
+      };
+      setError(payload.error?.message ?? "The last review could not be undone.");
+      setSubmitting(false);
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <section aria-labelledby="complete-heading" className="study-complete">
+      <span aria-hidden="true" className="study-complete__mark">
+        {unavailable ? "!" : "✓"}
+      </span>
+      <p className="eyebrow">{unavailable ? "Session unavailable" : "Session complete"}</p>
+      <h1 id="complete-heading">
+        {unavailable ? "This session can’t continue." : "That’s the queue."}
+      </h1>
+      <p>
+        {unavailable
+          ? "A card was removed or deck access changed. Reviews already submitted are still safe."
+          : summary.rescheduling === false
+            ? "You finished a practice session. Long-term scheduling was not changed."
+            : "Your ratings are saved and the next review dates are ready."}
+      </p>
+      {summary && !unavailable && (
+        <dl className="study-complete__summary">
+          <div>
+            <dt>Cards</dt>
+            <dd>{summary.completed || summary.total}</dd>
+          </div>
+          <div>
+            <dt>Time</dt>
+            <dd>{minutes} min</dd>
+          </div>
+          <div>
+            <dt>Again</dt>
+            <dd>{summary.ratings.again}</dd>
+          </div>
+          <div>
+            <dt>Hard</dt>
+            <dd>{summary.ratings.hard}</dd>
+          </div>
+          <div>
+            <dt>Good</dt>
+            <dd>{summary.ratings.good}</dd>
+          </div>
+          <div>
+            <dt>Easy</dt>
+            <dd>{summary.ratings.easy}</dd>
+          </div>
+          <div>
+            <dt>Today remaining</dt>
+            <dd>{todayRemaining}</dd>
+          </div>
+        </dl>
+      )}
+      {error && <p role="alert">{error}</p>}
+      <div className="study-complete__actions">
+        <LinkButton href="/app/study">Return to Study</LinkButton>
+        {!unavailable && summary?.lastReviewId && (
+          <Button loading={submitting} onClick={() => void undoLastReview()} variant="secondary">
+            Undo last review
+          </Button>
+        )}
+        {!unavailable && summary?.deckId && (
+          <LinkButton href={`/app/study?deck=${summary.deckId}`} variant="secondary">
+            Study more
+          </LinkButton>
+        )}
+        <LinkButton href="/app/stats" variant="secondary">
+          View statistics
+        </LinkButton>
+      </div>
+    </section>
+  );
+}
 
 function subscribeToOnlineStatus(onStoreChange: () => void) {
   window.addEventListener("online", onStoreChange);
@@ -97,6 +212,7 @@ export function ReviewSession({
   const [rangeEnd, setRangeEnd] = useState("");
   const [dueOrder, setDueOrder] = useState(1);
   const [confirmation, setConfirmation] = useState<"forget" | "rebuild" | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState<"due" | "order" | "reschedule" | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<
     "accessibility" | "incorrect" | "other" | "outdated" | "unclear" | "unsafe"
@@ -203,7 +319,12 @@ export function ReviewSession({
         setAnnouncement(`${rating} saved. Loading the next card.`);
         router.refresh();
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "The review could not be saved.");
+        const message = caught instanceof Error ? caught.message : "The review could not be saved.";
+        setError(
+          /conflict|schedule|version/i.test(message)
+            ? "This card changed in another session. Reload before rating it again."
+            : message,
+        );
         setAnnouncement("The review was not saved. Retry when ready.");
       } finally {
         submittingRef.current = false;
@@ -293,7 +414,10 @@ export function ReviewSession({
       method: "POST",
     });
     if (!response.ok) setError("That schedule control could not be applied.");
-    else router.refresh();
+    else {
+      setAdvancedOpen(null);
+      router.refresh();
+    }
     setSubmitting(false);
   }
 
@@ -380,6 +504,7 @@ export function ReviewSession({
     if (!response.ok) setError("The schedule changed or the operation could not be applied.");
     else {
       setConfirmation(null);
+      setAdvancedOpen(null);
       setAnnouncement(`${operation.replace("_", " ")} completed and audited.`);
       router.refresh();
     }
@@ -465,252 +590,358 @@ export function ReviewSession({
         .filter(Boolean)
         .join(" ")}
     >
-      <header className="review-session__header">
-        <div>
-          <a href="/app/study">Study</a>
-          <span aria-hidden="true"> / </span>
-          <strong>{card.deckTitle}</strong>
-        </div>
-        <div className="review-session__status">
-          <span>
-            {card.session.completed + 1} of {card.session.total}
-          </span>
-          <span>
-            {card.session.total - card.session.completed} remaining · {scheduleStateLabel}
-          </span>
-          <span>{online ? "Online · retry protected" : "Offline · grading paused"}</span>
-        </div>
-      </header>
-      <div aria-live="polite" className="visually-hidden">
-        {announcement}
-      </div>
-      {card.contentMismatch && (
-        <section aria-label="Content change decision" className="review-warning">
-          <p>
-            This card’s meaning or answer changed after it was scheduled. Relearn is the
-            conservative default; only Preserve when the edit did not affect your memory.
-          </p>
-          <div className="review-warning__actions">
-            <Button disabled={submitting} onClick={() => void contentDecision("relearn")} size="sm">
-              Relearn
-            </Button>
-            <Button
-              disabled={submitting}
-              onClick={() => void contentDecision("preserve")}
-              size="sm"
-              variant="secondary"
-            >
-              Preserve schedule
-            </Button>
-            <Button
-              disabled={submitting}
-              onClick={() => void contentDecision("reset")}
-              size="sm"
-              variant="danger"
-            >
-              Reset
-            </Button>
-          </div>
-        </section>
-      )}
-      {!card.session.rescheduling && (
-        <p className="review-preview-notice">
-          Preview session — ratings are disabled and long-term scheduling will not change.
-        </p>
-      )}
-      <main
-        className={`review-card review-card--${revealed ? "answer" : "prompt"}`}
-        onPointerDown={(event) => {
-          if (
-            event.target instanceof HTMLElement &&
-            event.target.closest(
-              "a,button,input,select,textarea,[contenteditable='true'],[role='button']",
-            )
-          )
-            return;
-          pointerStart.current = { x: event.clientX, y: event.clientY };
-        }}
-        onPointerUp={completeSwipe}
-      >
-        <span className="review-card__side">
-          {revealed ? "Answer" : "Prompt"} · {scheduleStateLabel}
-        </span>
-        <div className="review-card__content">
-          <StudyCardRenderer
-            autoplayAudio={autoplayAudio}
-            key={card.cardId}
-            renderer={card.renderer}
-            revealed={revealed}
-          />
-        </div>
-      </main>
-      <section aria-label="Review controls" className="review-controls">
-        {!revealed ? (
-          <Button autoFocus onClick={reveal} size="lg">
-            Show answer <kbd>Space</kbd>
-          </Button>
-        ) : card.session.rescheduling ? (
-          <div className="review-ratings">
-            {ratingMeta.map((rating) => (
-              <Button
-                className={`review-rating review-rating--${rating.key}`}
-                disabled={submitting || !online}
-                key={rating.key}
-                onClick={() => void grade(rating.key)}
-                variant="secondary"
-              >
-                <span>{rating.label}</span>
-                <small>{previews?.[rating.key].intervalLabel ?? "Previewing…"}</small>
-                <kbd>{rating.shortcut}</kbd>
+      <header className="review-session__topbar">
+        <div className="review-session__identity">
+          <Dropdown
+            align="start"
+            items={[
+              {
+                label: "Study dashboard",
+                onSelect: () => router.push("/app/study" as Route),
+              },
+              {
+                label: "Open this deck",
+                onSelect: () => router.push(`/app/decks/${card.deckId}` as Route),
+              },
+              {
+                label: "Statistics",
+                onSelect: () => router.push("/app/stats" as Route),
+              },
+              {
+                label: "Scheduling settings",
+                onSelect: () => router.push("/app/settings/scheduling" as Route),
+              },
+            ]}
+            label="Open study navigation"
+            trigger={
+              <Button size="sm" variant="ghost">
+                Menu
               </Button>
-            ))}
-          </div>
-        ) : (
-          <Button disabled={submitting} onClick={() => void sessionControl("preview_next")}>
-            Next preview
-          </Button>
-        )}
-        {swipeSelection && (
-          <div className="swipe-confirm" role="status">
-            <span>{swipeSelection} selected. Swipe never grades automatically.</span>
-            <Button disabled={submitting} onClick={() => void grade(swipeSelection)} size="sm">
-              Confirm {swipeSelection}
-            </Button>
-            <Button onClick={() => setSwipeSelection(null)} size="sm" variant="ghost">
-              Cancel
-            </Button>
-          </div>
-        )}
-        {error && (
-          <p className="form-message form-message--error" role="alert">
-            {error}
-          </p>
-        )}
-      </section>
-      <footer className="review-toolbar">
-        <Button onClick={() => setTimerVisible((value) => !value)} size="sm" variant="ghost">
-          {timerVisible ? `${elapsedSeconds}s` : "Show timer"}
-        </Button>
-        <label>
-          <input
-            checked={swipeEnabled}
-            onChange={(event) => setSwipeEnabled(event.target.checked)}
-            type="checkbox"
-          />{" "}
-          Swipe selection
-        </label>
-        <label>
-          <input
-            checked={autoplayAudio}
-            onChange={(event) => {
-              const enabled = event.target.checked;
-              window.localStorage.setItem(autoplayAudioKey, String(enabled));
-              window.dispatchEvent(new Event(autoplayAudioEvent));
-            }}
-            type="checkbox"
-          />{" "}
-          Autoplay card audio
-        </label>
-        <Button
-          disabled={submitting}
-          onClick={() => void sessionControl("pause")}
-          size="sm"
-          variant="ghost"
-        >
-          Pause
-        </Button>
-        <a href={`/app/decks/${card.deckId}/edit?note=${card.noteId}`}>Edit card</a>
-        <Button
-          disabled={submitting}
-          onClick={() => void control(card.starred ? "unstar" : "star")}
-          size="sm"
-          variant="ghost"
-        >
-          {card.starred ? "Unstar" : "Star"}
-        </Button>
-        <Button
-          disabled={submitting}
-          onClick={() => void control("bury")}
-          size="sm"
-          variant="ghost"
-        >
-          Bury
-        </Button>
-        <Button disabled={submitting} onClick={() => void burySiblings()} size="sm" variant="ghost">
-          Bury siblings
-        </Button>
-        <Button
-          disabled={submitting}
-          onClick={() => void control("suspend")}
-          size="sm"
-          variant="ghost"
-        >
-          Suspend
-        </Button>
-        {card.lastReviewId && (
-          <Button disabled={submitting} onClick={() => void undo()} size="sm" variant="ghost">
-            Undo last
-          </Button>
-        )}
-      </footer>
-      <details className="review-advanced">
-        <summary>Advanced schedule controls</summary>
-        <p>
-          These actions change canonical scheduling and create a private audit event. They do not
-          rewrite review history.
-        </p>
-        <label>
-          Manual due date
-          <input
-            onChange={(event) => setManualDue(event.target.value)}
-            type="datetime-local"
-            value={manualDue}
-          />
-        </label>
-        <Button
-          disabled={submitting || !manualDue}
-          onClick={setDueDate}
-          size="sm"
-          variant="secondary"
-        >
-          Set due date
-        </Button>
-        <div className="review-range-control">
-          <label>
-            Reschedule from
-            <input
-              onChange={(event) => setRangeStart(event.target.value)}
-              type="date"
-              value={rangeStart}
-            />
-          </label>
-          <label>
-            Through
-            <input
-              onChange={(event) => setRangeEnd(event.target.value)}
-              type="date"
-              value={rangeEnd}
-            />
-          </label>
-          <Button
-            disabled={
-              submitting ||
-              card.scheduleVersion === 0 ||
-              !rangeStart ||
-              !rangeEnd ||
-              rangeStart > rangeEnd
             }
-            onClick={() => void replaceSchedule("reschedule")}
+          />
+          <div>
+            <strong>{card.deckTitle}</strong>
+            <span>{scheduleStateLabel} card</span>
+          </div>
+        </div>
+        <StudyProgress
+          className="review-session__progress"
+          current={card.session.completed}
+          total={card.session.total}
+        />
+        <div className="review-session__top-actions">
+          <ConnectionStatus online={online} />
+          {timerVisible && (
+            <span aria-label={`Elapsed time: ${elapsedSeconds} seconds`} className="review-timer">
+              {elapsedSeconds}s
+            </span>
+          )}
+          <Button
+            disabled={submitting}
+            onClick={() => void sessionControl("pause")}
             size="sm"
             variant="secondary"
           >
-            Reschedule in range
+            Pause
           </Button>
+          <a className="review-session__exit" href="/app/study">
+            Exit
+          </a>
         </div>
-        {schedule.state === "new" && (
-          <div className="review-range-control">
+      </header>
+
+      <div aria-live="polite" className="visually-hidden">
+        {announcement}
+      </div>
+
+      <div className="review-session__body">
+        {card.contentMismatch && (
+          <section aria-label="Content change decision" className="review-warning">
+            <div>
+              <strong>This card changed since it was scheduled</strong>
+              <p>
+                Relearn is recommended when the meaning or answer changed. Your review history is
+                preserved whichever option you choose.
+              </p>
+            </div>
+            <div className="review-warning__actions">
+              <Button
+                disabled={submitting}
+                onClick={() => void contentDecision("relearn")}
+                size="sm"
+              >
+                Relearn (recommended)
+              </Button>
+              <Button
+                disabled={submitting}
+                onClick={() => void contentDecision("preserve")}
+                size="sm"
+                variant="secondary"
+              >
+                Keep schedule
+              </Button>
+              <Button
+                disabled={submitting}
+                onClick={() => void contentDecision("reset")}
+                size="sm"
+                variant="danger"
+              >
+                Start over
+              </Button>
+              <a href="/app/settings/scheduling">Learn how scheduling works</a>
+            </div>
+          </section>
+        )}
+
+        {!card.session.rescheduling && (
+          <div className="review-preview-notice" role="status">
+            <strong>Preview mode</strong>
+            <span>Ratings are off and long-term scheduling will not change.</span>
+          </div>
+        )}
+
+        <main
+          className={`review-card review-card--${revealed ? "answer" : "prompt"}`}
+          onPointerDown={(event) => {
+            if (
+              event.target instanceof HTMLElement &&
+              event.target.closest(
+                "a,button,input,select,textarea,[contenteditable='true'],[role='button']",
+              )
+            )
+              return;
+            pointerStart.current = { x: event.clientX, y: event.clientY };
+          }}
+          onPointerUp={completeSwipe}
+        >
+          <span className="review-card__side">{revealed ? "Answer" : "Prompt"}</span>
+          <div className="review-card__content">
+            <StudyCardRenderer
+              autoplayAudio={autoplayAudio}
+              key={card.cardId}
+              renderer={card.renderer}
+              revealed={revealed}
+            />
+          </div>
+        </main>
+
+        <section aria-label="Review controls" className="review-controls">
+          {!revealed ? (
+            <Button autoFocus className="review-show-answer" onClick={reveal} size="lg">
+              Show answer <kbd>Space</kbd>
+            </Button>
+          ) : card.session.rescheduling ? (
+            <RatingGroup>
+              {ratingMeta.map((rating) => (
+                <RatingButton
+                  disabled={submitting || !online}
+                  interval={previews?.[rating.key].intervalLabel ?? "Previewing…"}
+                  key={rating.key}
+                  label={rating.label}
+                  onClick={() => void grade(rating.key)}
+                  rating={rating.key}
+                  shortcut={rating.shortcut}
+                />
+              ))}
+            </RatingGroup>
+          ) : (
+            <Button disabled={submitting} onClick={() => void sessionControl("preview_next")}>
+              Next preview
+            </Button>
+          )}
+
+          {!online && (
+            <div className="review-connection-message" role="status">
+              Your card stays here while offline. Reconnect to submit the same rating safely.
+            </div>
+          )}
+          {swipeSelection && (
+            <div className="swipe-confirm" role="status">
+              <span>{swipeSelection} selected. Swipe never grades automatically.</span>
+              <Button disabled={submitting} onClick={() => void grade(swipeSelection)} size="sm">
+                Confirm {swipeSelection}
+              </Button>
+              <Button onClick={() => setSwipeSelection(null)} size="sm" variant="ghost">
+                Cancel
+              </Button>
+            </div>
+          )}
+          {error && (
+            <div className="form-message form-message--error review-error" role="alert">
+              <span>{error}</span>
+              {/another session/i.test(error) && (
+                <Button onClick={() => router.refresh()} size="sm" variant="secondary">
+                  Reload card
+                </Button>
+              )}
+            </div>
+          )}
+        </section>
+
+        <footer className="review-toolbar" aria-label="Card actions">
+          <div className="review-toolbar__primary">
+            <Button
+              disabled={submitting}
+              onClick={() => void control(card.starred ? "unstar" : "star")}
+              size="sm"
+              variant="ghost"
+            >
+              {card.starred ? "Unstar" : "Star"}
+            </Button>
+            {card.lastReviewId && (
+              <Button disabled={submitting} onClick={() => void undo()} size="sm" variant="ghost">
+                Undo last
+              </Button>
+            )}
+            <a href={`/app/decks/${card.deckId}/edit?note=${card.noteId}`}>Edit card</a>
+          </div>
+          <Dropdown
+            items={[
+              { type: "label", label: "Card actions" },
+              {
+                label: "Bury until tomorrow",
+                disabled: submitting,
+                onSelect: () => void control("bury"),
+              },
+              {
+                label: "Bury related cards",
+                disabled: submitting,
+                onSelect: () => void burySiblings(),
+              },
+              {
+                label: "Suspend card",
+                disabled: submitting,
+                onSelect: () => void control("suspend"),
+              },
+              {
+                label: "Mark as difficult",
+                disabled: submitting,
+                onSelect: () => void control("mark_leech"),
+              },
+              { type: "separator" },
+              { type: "label", label: "Scheduling" },
+              {
+                label: "Set due date…",
+                disabled: submitting,
+                onSelect: () => setAdvancedOpen("due"),
+              },
+              {
+                label: "Reschedule in a range…",
+                disabled: submitting || card.scheduleVersion === 0,
+                onSelect: () => setAdvancedOpen("reschedule"),
+              },
+              ...(schedule.state === "new"
+                ? [
+                    {
+                      label: "Set new-card order…",
+                      disabled: submitting,
+                      onSelect: () => setAdvancedOpen("order"),
+                    },
+                  ]
+                : []),
+              {
+                label: "Reset to New…",
+                disabled: submitting || card.scheduleVersion === 0,
+                onSelect: () => setConfirmation("forget"),
+                destructive: true,
+              },
+              {
+                label: "Rebuild from history…",
+                disabled: submitting || card.scheduleVersion === 0,
+                onSelect: () => setConfirmation("rebuild"),
+              },
+              { type: "separator" },
+              {
+                type: "checkbox",
+                checked: timerVisible,
+                label: "Show timer",
+                onCheckedChange: setTimerVisible,
+              },
+              {
+                type: "checkbox",
+                checked: swipeEnabled,
+                label: "Swipe selection",
+                onCheckedChange: setSwipeEnabled,
+              },
+              {
+                type: "checkbox",
+                checked: autoplayAudio,
+                label: "Autoplay card audio",
+                onCheckedChange: (enabled) => {
+                  window.localStorage.setItem(autoplayAudioKey, String(enabled));
+                  window.dispatchEvent(new Event(autoplayAudioEvent));
+                },
+              },
+              { type: "separator" },
+              { label: "Report content…", onSelect: () => setReportOpen(true) },
+            ]}
+            label="More card and study options"
+            trigger={
+              <Button size="sm" variant="secondary">
+                More
+              </Button>
+            }
+          />
+        </footer>
+      </div>
+
+      <Dialog
+        description="This changes the card’s scheduling state and creates a private audit event. Review history is not rewritten."
+        onOpenChange={(open) => !open && setAdvancedOpen(null)}
+        open={advancedOpen !== null}
+        title={
+          advancedOpen === "due"
+            ? "Set due date"
+            : advancedOpen === "order"
+              ? "Set new-card order"
+              : "Reschedule card"
+        }
+      >
+        {advancedOpen === "due" && (
+          <div className="review-dialog-form">
             <label>
-              New-card due order
+              Due date and time
+              <input
+                onChange={(event) => setManualDue(event.target.value)}
+                type="datetime-local"
+                value={manualDue}
+              />
+            </label>
+            <Button disabled={submitting || !manualDue} onClick={setDueDate}>
+              Set due date
+            </Button>
+          </div>
+        )}
+        {advancedOpen === "reschedule" && (
+          <div className="review-dialog-form">
+            <label>
+              Earliest date
+              <input
+                onChange={(event) => setRangeStart(event.target.value)}
+                type="date"
+                value={rangeStart}
+              />
+            </label>
+            <label>
+              Latest date
+              <input
+                onChange={(event) => setRangeEnd(event.target.value)}
+                type="date"
+                value={rangeEnd}
+              />
+            </label>
+            <Button
+              disabled={submitting || !rangeStart || !rangeEnd || rangeStart > rangeEnd}
+              onClick={() => void replaceSchedule("reschedule")}
+            >
+              Reschedule card
+            </Button>
+          </div>
+        )}
+        {advancedOpen === "order" && (
+          <div className="review-dialog-form">
+            <label>
+              New-card position
               <input
                 min="0"
                 onChange={(event) => setDueOrder(event.target.valueAsNumber)}
@@ -721,98 +952,76 @@ export function ReviewSession({
             <Button
               disabled={submitting || !Number.isInteger(dueOrder) || dueOrder < 0}
               onClick={() => void control("due_order", { order: dueOrder })}
-              size="sm"
-              variant="secondary"
             >
-              Set due order
+              Save position
             </Button>
           </div>
         )}
-        <Button
-          disabled={submitting}
-          onClick={() => void control("mark_leech")}
-          size="sm"
-          variant="ghost"
-        >
-          Mark as leech
-        </Button>
-        {confirmation ? (
-          <div className="review-confirmation" role="alert">
-            <span>
-              {confirmation === "forget"
-                ? "Reset this card to New? Review history remains intact."
-                : "Rebuild this card by replaying its non-undone review history?"}
-            </span>
-            <Button
-              disabled={submitting || card.scheduleVersion === 0}
-              onClick={() => void replaceSchedule(confirmation)}
-              size="sm"
-              variant="danger"
-            >
-              Confirm {confirmation}
-            </Button>
-            <Button onClick={() => setConfirmation(null)} size="sm" variant="ghost">
+      </Dialog>
+
+      <Dialog
+        description={
+          confirmation === "forget"
+            ? "The card returns to New. Existing review history remains available for audit and statistics."
+            : "The schedule is recalculated from non-undone review history."
+        }
+        footer={
+          <>
+            <Button onClick={() => setConfirmation(null)} variant="ghost">
               Cancel
             </Button>
-          </div>
-        ) : (
-          <div>
             <Button
               disabled={submitting || card.scheduleVersion === 0}
-              onClick={() => setConfirmation("forget")}
-              size="sm"
-              variant="ghost"
+              onClick={() => confirmation && void replaceSchedule(confirmation)}
+              variant="danger"
             >
-              Forget / reset
+              {confirmation === "forget" ? "Reset card" : "Rebuild schedule"}
             </Button>
-            <Button
-              disabled={submitting || card.scheduleVersion === 0}
-              onClick={() => setConfirmation("rebuild")}
-              size="sm"
-              variant="ghost"
-            >
-              Rebuild from history
-            </Button>
-          </div>
-        )}
-      </details>
-      <details
-        className="review-report"
-        onToggle={(event) => setReportOpen(event.currentTarget.open)}
-        open={reportOpen}
+          </>
+        }
+        onOpenChange={(open) => !open && setConfirmation(null)}
+        open={confirmation !== null}
+        title={confirmation === "forget" ? "Reset this card to New?" : "Rebuild this schedule?"}
       >
-        <summary>Report content</summary>
-        <label>
-          Reason
-          <select
-            onChange={(event) => setReportReason(event.target.value as typeof reportReason)}
-            value={reportReason}
-          >
-            <option value="incorrect">Incorrect answer</option>
-            <option value="outdated">Outdated</option>
-            <option value="unclear">Unclear</option>
-            <option value="unsafe">Unsafe or inappropriate</option>
-            <option value="accessibility">Accessibility issue</option>
-            <option value="other">Other</option>
-          </select>
-        </label>
-        <label>
-          Details (optional)
-          <textarea
-            maxLength={1000}
-            onChange={(event) => setReportDetails(event.target.value)}
-            value={reportDetails}
-          />
-        </label>
-        <Button
-          disabled={submitting}
-          onClick={() => void reportContent()}
-          size="sm"
-          variant="secondary"
-        >
-          Submit private report
-        </Button>
-      </details>
+        <p className="review-dialog-note">
+          This operation is recorded and cannot be hidden from the audit trail.
+        </p>
+      </Dialog>
+
+      <Dialog
+        description="Reports are private and do not identify you to other learners."
+        onOpenChange={setReportOpen}
+        open={reportOpen}
+        title="Report card content"
+      >
+        <div className="review-dialog-form">
+          <label>
+            Reason
+            <select
+              onChange={(event) => setReportReason(event.target.value as typeof reportReason)}
+              value={reportReason}
+            >
+              <option value="incorrect">Incorrect answer</option>
+              <option value="outdated">Outdated</option>
+              <option value="unclear">Unclear</option>
+              <option value="unsafe">Unsafe or inappropriate</option>
+              <option value="accessibility">Accessibility issue</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>
+            Details (optional)
+            <textarea
+              maxLength={1000}
+              onChange={(event) => setReportDetails(event.target.value)}
+              value={reportDetails}
+            />
+          </label>
+          <Button disabled={submitting} onClick={() => void reportContent()}>
+            Submit private report
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

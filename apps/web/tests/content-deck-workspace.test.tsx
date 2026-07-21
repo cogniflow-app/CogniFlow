@@ -31,6 +31,10 @@ function mutationResponse(data: unknown = activeDeck): Response {
   });
 }
 
+async function openDeckCommandMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "More deck actions" }));
+}
+
 describe("deck authoring workspace", () => {
   beforeEach(() => {
     navigation.push.mockReset();
@@ -52,10 +56,12 @@ describe("deck authoring workspace", () => {
     const user = userEvent.setup();
     render(<DeckCommandBar deck={activeDeck} />);
 
-    const title = screen.getByRole("textbox", { name: "Deck title" });
+    await openDeckCommandMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Rename deck…" }));
+    const title = screen.getByRole("textbox", { name: "Deck name" });
     await user.clear(title);
     await user.type(title, "Molecular cell biology");
-    await user.click(screen.getByRole("button", { name: "Rename" }));
+    await user.click(screen.getByRole("button", { name: "Save name" }));
 
     expect(fetchMock).toHaveBeenCalledWith(
       `/api/content/decks/${activeDeck.id}`,
@@ -78,9 +84,11 @@ describe("deck authoring workspace", () => {
     const user = userEvent.setup();
     render(<DeckCommandBar deck={activeDeck} />);
 
-    await user.click(screen.getByRole("button", { name: "Duplicate" }));
+    await openDeckCommandMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Duplicate deck" }));
     expect(await screen.findByText("response lost")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Duplicate" }));
+    await openDeckCommandMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Duplicate deck" }));
 
     const keys = fetchMock.mock.calls.map((call) => {
       const request = call[1] as RequestInit;
@@ -108,56 +116,66 @@ describe("deck authoring workspace", () => {
     const user = userEvent.setup();
     const view = render(<DeckCommandBar deck={activeDeck} />);
 
-    await user.click(screen.getByRole("button", { name: "Archive" }));
+    await openDeckCommandMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Archive deck" }));
 
     expect(await screen.findByText(/now at version 9/i)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Reload current deck" }));
     expect(navigation.refresh).toHaveBeenCalledOnce();
 
     view.rerender(<DeckCommandBar deck={{ ...activeDeck, title: "Server title", version: 9 }} />);
-    expect(screen.getByRole("textbox", { name: "Deck title" })).toHaveValue("Server title");
+    await openDeckCommandMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Rename deck…" }));
+    expect(screen.getByRole("textbox", { name: "Deck name" })).toHaveValue("Server title");
     expect(screen.queryByRole("button", { name: "Reload current deck" })).toBeNull();
   });
 
   it.each([
     {
-      absent: ["Restore"],
+      absent: ["Restore deck"],
       deck: activeDeck,
-      present: ["Rename", "Duplicate", "Archive", "Delete"],
+      present: ["Rename deck…", "Duplicate deck", "Archive deck", "Delete deck…"],
     },
     {
-      absent: ["Duplicate", "Archive", "Restore", "Delete"],
+      absent: ["Duplicate deck", "Archive deck", "Restore deck", "Delete deck…"],
       deck: { ...activeDeck, role: "manager" as const },
-      present: ["Rename"],
+      present: ["Rename deck…"],
     },
     {
-      absent: ["Duplicate", "Archive", "Restore", "Delete"],
+      absent: ["Duplicate deck", "Archive deck", "Restore deck", "Delete deck…"],
       deck: { ...activeDeck, role: "editor" as const },
-      present: ["Rename"],
+      present: ["Rename deck…"],
     },
     {
-      absent: ["Rename", "Duplicate", "Archive", "Restore", "Delete"],
+      absent: ["Rename deck…", "Duplicate deck", "Archive deck", "Restore deck", "Delete deck…"],
       deck: { ...activeDeck, role: "viewer" as const },
       present: [],
     },
     {
-      absent: ["Rename", "Archive"],
+      absent: ["Rename deck…", "Archive deck"],
       deck: { ...activeDeck, status: "archived" as const },
-      present: ["Duplicate", "Restore", "Delete"],
+      present: ["Duplicate deck", "Restore deck", "Delete deck…"],
     },
     {
-      absent: ["Rename", "Duplicate", "Archive", "Restore", "Delete"],
+      absent: ["Rename deck…", "Duplicate deck", "Archive deck", "Restore deck", "Delete deck…"],
       deck: { ...activeDeck, role: "manager" as const, status: "archived" as const },
       present: [],
     },
   ])(
     "shows only RPC-authorized commands for $deck.role/$deck.status",
-    ({ absent, deck, present }) => {
+    async ({ absent, deck, present }) => {
+      const user = userEvent.setup();
       render(<DeckCommandBar deck={deck} />);
+      if (present.length === 0) {
+        expect(screen.queryByRole("button", { name: "More deck actions" })).toBeNull();
+        return;
+      }
+      await openDeckCommandMenu(user);
 
       for (const label of present)
-        expect(screen.getByRole("button", { name: label })).toBeVisible();
-      for (const label of absent) expect(screen.queryByRole("button", { name: label })).toBeNull();
+        expect(screen.getByRole("menuitem", { name: label })).toBeVisible();
+      for (const label of absent)
+        expect(screen.queryByRole("menuitem", { name: label })).toBeNull();
     },
   );
 
@@ -165,7 +183,8 @@ describe("deck authoring workspace", () => {
     const user = userEvent.setup();
     render(<DeckCommandBar deck={activeDeck} />);
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await openDeckCommandMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Delete deck…" }));
 
     expect(screen.getByRole("dialog", { name: "Delete this deck?" })).toHaveTextContent(
       /not restorable here/i,
@@ -364,7 +383,8 @@ describe("deck authoring workspace", () => {
 
     await user.click(screen.getByRole("button", { name: "Unpublish" }));
     await screen.findByText("Deck unpublished.");
-    await user.click(screen.getByRole("button", { name: /^Delete$/u }));
+    await openDeckCommandMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Delete deck…" }));
     await user.click(screen.getByRole("button", { name: "Delete deck" }));
 
     expect(fetchMock).toHaveBeenCalledTimes(2);

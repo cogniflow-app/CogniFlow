@@ -73,6 +73,22 @@ async function startDeckSession(page: Page, title: string) {
   await expect(page).toHaveURL(/\/app\/study\/session\//u);
 }
 
+async function startReviewAheadForDeck(page: Page, title: string) {
+  await page.goto("/app/study");
+  await page.getByRole("button", { name: "Build a session" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: /Selected decks/u }).click();
+  await dialog.getByRole("checkbox", { name: title }).check();
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await dialog.getByRole("button", { name: "Review ahead" }).click();
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await dialog.getByRole("button", { name: /Update my schedule/u }).click();
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await dialog.getByRole("button", { name: "Start session" }).click();
+  await expect(page).toHaveURL(/\/app\/study\/session\//u);
+}
+
 async function rate(page: Page, rating: "Good") {
   await page.getByRole("button", { name: /Show answer/u }).click();
   const response = page.waitForResponse(
@@ -99,14 +115,21 @@ test("Phase 03 Study surfaces remain calm, responsive, and visually complete", a
   });
 
   await expect(page.getByRole("heading", { level: 1, name: /Ready when you are/u })).toBeVisible();
-  await expect(page.getByText(/Add cards in Library/u)).toBeVisible();
+  await expect(page.getByText(/Nothing is scheduled right now/u)).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, "study-empty");
+  await page.goto("/app/stats");
+  await expect(
+    page.getByRole("heading", { name: "Your first review will start the picture" }),
+  ).toBeVisible();
+  await capture(page, testInfo, "statistics-zero-state");
 
   const title = `Visual SRS ${testInfo.project.name}`;
   const { deckId, noteIds } = await createDeckWithCards(page, title);
   await page.goto(`/app/decks/${deckId}`);
-  await expect(page.getByRole("link", { name: "Study this deck" })).toBeVisible();
+  await expect(
+    page.locator("#main-content").getByRole("link", { name: "Study", exact: true }),
+  ).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, "deck-study-entry");
 
@@ -114,8 +137,8 @@ test("Phase 03 Study surfaces remain calm, responsive, and visually complete", a
   await expect(page.locator(".study-deck-row").filter({ hasText: title })).toContainText("2");
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, "study-populated");
-  await page.getByText("Custom study", { exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Build a filtered session" })).toBeVisible();
+  await page.getByRole("button", { name: "Build a session" }).click();
+  await expect(page.getByRole("heading", { name: "What do you want to study?" })).toBeVisible();
   await capture(page, testInfo, "custom-study");
 
   if (testInfo.project.name === "chromium-desktop") {
@@ -123,7 +146,7 @@ test("Phase 03 Study surfaces remain calm, responsive, and visually complete", a
     await expect(page.getByRole("heading", { level: 1, name: "Memory settings" })).toBeVisible();
     await expect(page.getByLabel("Maximum interval (days)")).not.toBeVisible();
     await capture(page, testInfo, "scheduling-settings");
-    await page.getByText("Advanced scheduling options", { exact: true }).click();
+    await page.getByRole("tab", { name: "Advanced" }).click();
     await expect(page.getByLabel("Maximum interval (days)")).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await capture(page, testInfo, "scheduling-settings-advanced");
@@ -131,8 +154,8 @@ test("Phase 03 Study surfaces remain calm, responsive, and visually complete", a
 
   await startDeckSession(page, title);
   await page.getByRole("button", { name: "Pause" }).click();
-  await expect(page.getByRole("heading", { name: "Continue where you left off" })).toBeVisible();
-  await page.getByRole("button", { name: "Resume session" }).click();
+  await expect(page.getByRole("heading", { name: "Continue your session" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume" }).click();
   await expect(page.getByText("Visual prompt 1")).toBeVisible();
   await expect(page.getByText("Visual answer 1")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
@@ -173,18 +196,33 @@ test("Phase 03 Study surfaces remain calm, responsive, and visually complete", a
   await rate(page, "Good");
   await expect(page.getByText("Visual prompt 2")).toBeVisible();
   await rate(page, "Good");
-  await expect(page.getByRole("heading", { level: 1, name: "Nice work." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "That’s the queue." })).toBeVisible();
+  await expect(page.getByText("Again").locator("..")).toContainText("0");
+  await expect(page.getByText("Good").locator("..")).toContainText("2");
+  await expect(page.getByText("Today remaining")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Undo last review" })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await capture(page, testInfo, "session-completion");
 
   await page.goto("/app/stats");
   await expect(page.getByRole("heading", { level: 1, name: "Your review picture" })).toBeVisible();
   await capture(page, testInfo, "study-statistics");
-  const history = page.getByText("Recent review timeline");
-  await history.click();
-  await page.locator(".stats-card-timelines details summary").first().click();
-  await expect(page.getByRole("link", { name: "edit card" }).first()).toBeVisible();
+  await page.getByRole("tab", { name: "Activity" }).click();
+  await page.getByText("Recent review timeline").click();
+  await expect(page.getByRole("link", { name: "Edit card" }).first()).toBeVisible();
   await capture(page, testInfo, "card-history");
 
   if (testInfo.project.name === "chromium-desktop") {
+    const statisticsDeck = "Statistics history sample";
+    await createDeckWithCards(page, statisticsDeck);
+    await startDeckSession(page, statisticsDeck);
+    await rate(page, "Good");
+    await rate(page, "Good");
+    await page.goto("/app/stats");
+    await expect(page.getByRole("tab", { name: "Memory" })).toBeVisible();
+    await page.getByRole("tab", { name: "Memory" }).click();
+    await capture(page, testInfo, "statistics-sufficient-history");
+
     for (let index = 0; index < noteIds.length; index += 1) {
       await page.goto(`/app/decks/${deckId}/edit?note=${noteIds[index]}`);
       const answer = page.getByRole("textbox", { name: "Back / answer" });
@@ -192,9 +230,7 @@ test("Phase 03 Study surfaces remain calm, responsive, and visually complete", a
       await page.getByRole("button", { name: "Save card" }).click();
       await expect(page.getByText("All changes saved.")).toBeVisible();
     }
-    await page.goto("/app/study");
-    await page.getByText("Custom study", { exact: true }).click();
-    await page.getByRole("button", { name: "Review ahead (reschedules)" }).click();
+    await startReviewAheadForDeck(page, title);
     await expect(page.getByLabel("Content change decision")).toBeVisible();
     await page.getByRole("button", { name: /Show answer/u }).click();
     await capture(page, testInfo, "content-change-decision");

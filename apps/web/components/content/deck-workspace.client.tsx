@@ -8,6 +8,7 @@ import {
   Button,
   Checkbox,
   Dialog,
+  Dropdown,
   FormField,
   Input,
   IconButton,
@@ -65,6 +66,7 @@ function DeckCommandBarSnapshot({ deck }: { readonly deck: DeckSummary }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const [conflict, setConflict] = useState<ContentApiRequestError | null>(null);
   const pendingMutations = useRef(new PendingContentMutations());
   const isOwner = deck.role === "owner";
@@ -75,6 +77,7 @@ function DeckCommandBarSnapshot({ deck }: { readonly deck: DeckSummary }) {
   const canArchive = isOwner && deck.status === "active";
   const canRestore = isOwner && deck.status === "archived";
   const canDelete = isOwner && deck.status !== "deleted";
+  const hasCommands = canEdit || canDuplicate || canArchive || canRestore || canDelete;
 
   useEffect(() => {
     const synchronizeVersion = (event: Event) => {
@@ -124,68 +127,94 @@ function DeckCommandBarSnapshot({ deck }: { readonly deck: DeckSummary }) {
     }
   }
 
+  if (!hasCommands) return null;
+
   return (
-    <section className="deck-command-bar" aria-label="Deck commands">
-      {canEdit && (
-        <form
-          className="deck-title-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void command("update", { title });
-          }}
-        >
-          <label htmlFor="deck-title">Deck title</label>
-          <Input
-            id="deck-title"
-            maxLength={180}
-            onChange={(event) => setTitle(event.target.value)}
-            value={title}
-          />
-          <Button
-            disabled={busy || title.trim() === deck.title}
-            loading={busy}
-            size="sm"
-            type="submit"
-          >
-            Rename
-          </Button>
-        </form>
-      )}
-      <div className="deck-command-actions">
-        {canDuplicate && (
-          <Button
-            disabled={busy}
-            onClick={() => void command("duplicate", { title: `${title} copy` })}
-            variant="secondary"
-          >
-            Duplicate
-          </Button>
-        )}
-        {canRestore && (
-          <Button disabled={busy} onClick={() => void command("restore")} variant="secondary">
-            Restore
-          </Button>
-        )}
-        {canArchive && (
-          <Button disabled={busy} onClick={() => void command("archive")} variant="secondary">
-            Archive
-          </Button>
-        )}
-        {canDelete && (
-          <Button disabled={busy} onClick={() => setDeleteOpen(true)} variant="danger">
-            Delete
-          </Button>
-        )}
-      </div>
+    <div className="deck-command-bar" aria-label="Deck commands">
+      <Dropdown
+        items={[
+          ...(canEdit
+            ? [
+                { label: "Rename deck…", disabled: busy, onSelect: () => setRenameOpen(true) },
+                {
+                  label: "Edit deck details",
+                  onSelect: () => router.push(`/app/decks/${deck.id}/settings` as Route),
+                },
+              ]
+            : []),
+          ...(canDuplicate
+            ? [
+                {
+                  label: "Duplicate deck",
+                  disabled: busy,
+                  onSelect: () => void command("duplicate", { title: `${title} copy` }),
+                },
+              ]
+            : []),
+          ...(canRestore
+            ? [{ label: "Restore deck", disabled: busy, onSelect: () => void command("restore") }]
+            : []),
+          ...(canArchive || canDelete ? [{ type: "separator" as const }] : []),
+          ...(canArchive
+            ? [{ label: "Archive deck", disabled: busy, onSelect: () => void command("archive") }]
+            : []),
+          ...(canDelete
+            ? [
+                {
+                  label: "Delete deck…",
+                  destructive: true,
+                  disabled: busy,
+                  onSelect: () => setDeleteOpen(true),
+                },
+              ]
+            : []),
+        ]}
+        label="More deck actions"
+      />
       {message && (
-        <p aria-live="polite" className="deck-command-message">
+        <span aria-live="polite" className="deck-command-message">
           {message}
-        </p>
+        </span>
       )}
       {conflict && (
         <Button onClick={() => router.refresh()} size="sm" variant="secondary">
           Reload current deck
         </Button>
+      )}
+      {canEdit && (
+        <Dialog
+          description="The new name appears everywhere this deck is shown."
+          footer={
+            <>
+              <Button onClick={() => setRenameOpen(false)} variant="ghost">
+                Cancel
+              </Button>
+              <Button
+                disabled={busy || !title.trim() || title.trim() === deck.title}
+                loading={busy}
+                onClick={() => {
+                  setRenameOpen(false);
+                  void command("update", { title: title.trim() });
+                }}
+              >
+                Save name
+              </Button>
+            </>
+          }
+          onOpenChange={setRenameOpen}
+          open={renameOpen}
+          title="Rename deck"
+        >
+          <label className="deck-rename-field" htmlFor="deck-title">
+            Deck name
+            <Input
+              id="deck-title"
+              maxLength={180}
+              onChange={(event) => setTitle(event.target.value)}
+              value={title}
+            />
+          </label>
+        </Dialog>
       )}
       {canDelete && (
         <Dialog
@@ -217,7 +246,7 @@ function DeckCommandBarSnapshot({ deck }: { readonly deck: DeckSummary }) {
           </p>
         </Dialog>
       )}
-    </section>
+    </div>
   );
 }
 

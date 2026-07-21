@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { StatisticsDashboard } from "../components/study/statistics-dashboard";
@@ -35,14 +36,18 @@ describe("private study statistics", () => {
   it("renders truthful empty alternatives without sample history", () => {
     render(<StatisticsDashboard stats={empty} />);
 
-    expect(screen.getAllByText("Not enough data")).toHaveLength(2);
-    expect(screen.getByText("No reviews yet.")).toBeInTheDocument();
     expect(
-      screen.getByText("Your calendar will fill in after the first canonical review."),
+      screen.getByRole("heading", { name: "Your first review will start the picture" }),
     ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Start studying" })).toHaveAttribute(
+      "href",
+      "/app/study",
+    );
+    expect(screen.queryByRole("table")).toBeNull();
   });
 
-  it("provides accessible tables and a per-card canonical timeline", () => {
+  it("provides accessible charts, tables, filters, and a canonical timeline", async () => {
+    const user = userEvent.setup();
     render(
       <StatisticsDashboard
         stats={{
@@ -55,7 +60,7 @@ describe("private study statistics", () => {
           heatmap: [{ count: 1, day: "2026-07-21", durationMs: 2_000 }],
           ratingCounts: { again: 0, easy: 0, good: 1, hard: 0 },
           recallRate: 1,
-          reviewCount: 1,
+          reviewCount: 10,
           reviewTimeMs: 2_000,
           tagBreakdown: [{ name: "cell", reviews: 1, timeMs: 2_000 }],
           timeline: [
@@ -72,15 +77,14 @@ describe("private study statistics", () => {
       />,
     );
 
-    expect(screen.getByRole("table", { name: "Cards in each scheduling state" })).toBeVisible();
-    expect(
-      screen.getByRole("table", { name: "Cards currently forecast by due day" }),
-    ).toBeVisible();
+    expect(screen.getByRole("img", { name: "Cards by learning state" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "Forecasted cards by due date" })).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Activity" }));
     const history = screen.getByText("Recent review timeline").closest("details");
     if (!history) throw new Error("Review timeline is missing.");
-    history.open = true;
-    expect(within(history).getByText(/Cell energy · 1 recent review/u)).toBeVisible();
-    expect(within(history).getByRole("link", { name: "edit card" })).toHaveAttribute(
+    await user.click(within(history).getByText("Recent review timeline"));
+    expect(within(history).getByText("Cell energy")).toBeVisible();
+    expect(within(history).getByRole("link", { name: "Edit card" })).toHaveAttribute(
       "href",
       "/app/decks/deck-1/edit?note=note-1",
     );
