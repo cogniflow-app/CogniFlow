@@ -578,3 +578,43 @@ The historical bootstrap changed only hosted Phase 01 infrastructure, guarded op
 and documentation; its statement that content was not yet implemented is historical evidence, not
 the current Phase 02 branch status. No Phase 03 scheduling, later study mode, or game scope is
 introduced by the Phase 02 promotion.
+
+## Phase 03 Preview checkpoint procedure
+
+Phase 03 adds 14 migrations, `20260721000000_srs_schema.sql` through
+`20260721013000_srs_read_authorization_performance.sql`. They may be applied only after the
+complete local gate, from a committed clean migration directory, using:
+
+```bash
+pnpm db:deploy:preview
+pnpm db:verify:preview
+```
+
+Do not run `db:deploy:beta`, deploy seed data, or change Production. After the matching branch's
+Vercel Preview is Ready and `/api/health` proves the Preview project reference, run the protected
+baseline smoke and the Phase 03 disposable acceptance wrapper. That wrapper must keep the Supabase
+server key in the guarded parent process, pass no provider credential to Playwright, provision only
+reserved-address adult identities, exercise isolated New/reveal/four-rating/persistence/duplicate/
+undo/resume/statistics/isolation cases, and always invoke the existing account-deletion cleanup.
+It must assert Auth removal, withdrawn publication, empty recursive Storage inventory, and privacy-
+minimized retained scheduling/content evidence. Rerun `pnpm db:verify:preview` after cleanup.
+
+Record the exact deployment URL, test count, UTC time, migration parity, cleanup proof, and final
+verification in `IMPLEMENTATION_STATUS.md`. There is no Phase 03 environment variable or worker
+deployment. Beta Supabase, Production Supabase, `recallflash.com`, SMTP, OAuth, and child gates must
+remain unchanged.
+
+### Phase 03 checkpoint on 2026-07-22 UTC
+
+Vercel Preview deployment `dpl_DQnShsWaYsa8SHfhf95YCZ3Pw28K` reached Ready at
+`https://cogniflow-rjnr672pz-cogniflow-app-3471s-projects.vercel.app`, and the protected hosted smoke
+passed 11/11 checks. The guarded `pnpm db:deploy:preview` command then stopped at the initial
+fixed-project link because the current Supabase CLI identity lacks access to Preview project
+`cfwddajyjbueggpzfomh`. It performed no migration read, dry run, or write.
+
+An owner must reauthenticate the Supabase CLI to an account that can list that exact project, then
+resume with `pnpm db:deploy:preview`, `pnpm db:verify:preview`,
+`pnpm test:hosted:preview:srs --url <exact-ready-url>`, and the final
+`pnpm db:verify:preview`. Do not pass an access token through chat, add it to `.env.local`, bypass
+the fixed-project guard, or substitute Beta/Production. The disposable SRS acceptance and cleanup
+have not run while this authorization blocker remains.

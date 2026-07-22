@@ -57,6 +57,7 @@ describe("mutation request security", () => {
   });
 
   it("ignores client-forged forwarding headers outside a trusted deployment edge", async () => {
+    vi.stubEnv("DEPLOYMENT_PROFILE", "local");
     const first = await createRateLimitSubject(
       mutationRequest({ "x-forwarded-for": "203.0.113.8" }),
       "auth.sign_in",
@@ -66,5 +67,18 @@ describe("mutation request security", () => {
       "auth.sign_in",
     );
     expect(first).toBe(second);
+  });
+
+  it("isolates reserved network fixtures inside the explicit test deployment profile", async () => {
+    vi.stubEnv("DEPLOYMENT_PROFILE", "test");
+    const first = await createRateLimitSubject(
+      mutationRequest({ "x-forwarded-for": "192.0.2.8" }),
+      "auth.sign_in",
+    );
+    const second = await createRateLimitSubject(
+      mutationRequest({ "x-forwarded-for": "192.0.2.9" }),
+      "auth.sign_in",
+    );
+    expect(first).not.toBe(second);
   });
 });

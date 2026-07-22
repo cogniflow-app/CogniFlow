@@ -56,11 +56,12 @@ export async function createRateLimitSubject(
   accountId?: string,
 ): Promise<string> {
   const environment = getServerEnvironment();
-  const address = environment.vercelRuntime
-    ? (firstForwardedAddress(request.headers.get("x-forwarded-for")) ?? "unavailable")
-    : environment.deploymentProfile === "cloudflare" && request.headers.has("cf-ray")
-      ? (firstForwardedAddress(request.headers.get("cf-connecting-ip")) ?? "unavailable")
-      : "unavailable";
+  const address =
+    environment.vercelRuntime || environment.deploymentProfile === "test"
+      ? (firstForwardedAddress(request.headers.get("x-forwarded-for")) ?? "unavailable")
+      : environment.deploymentProfile === "cloudflare" && request.headers.has("cf-ray")
+        ? (firstForwardedAddress(request.headers.get("cf-connecting-ip")) ?? "unavailable")
+        : "unavailable";
   const subject = accountId ? `account:${accountId}` : `network:${address}`;
   return hmacSha256Hex(`${scope}\u0000${subject}`, environment.appEncryptionKey);
 }

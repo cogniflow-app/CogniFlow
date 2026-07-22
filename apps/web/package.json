@@ -20,6 +20,7 @@
     "@lumen/config": "workspace:*",
     "@lumen/database": "workspace:*",
     "@lumen/domain": "workspace:*",
+    "@lumen/srs": "workspace:*",
     "@lumen/ui": "workspace:*",
     "next": "16.2.10",
     "react": "19.2.7",

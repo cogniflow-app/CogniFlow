@@ -312,6 +312,29 @@ describe("typed study-card renderer", () => {
     expect(screen.getByText("Not correct")).toBeVisible();
   });
 
+  it("keeps a typed response through reveal and compares it without grading the card", async () => {
+    const user = userEvent.setup();
+    const renderer = rendererFor({
+      acceptedAnswers: ["Mitochondrion"],
+      answer: rich("Mitochondrion"),
+      caseSensitive: false,
+      kind: "typed_answer",
+      language: "en",
+      prompt: rich("Which organelle produces most ATP?"),
+      schemaVersion: CARD_SCHEMA_VERSION,
+    });
+    const view = render(<StudyCardRenderer renderer={renderer} revealed={false} />);
+    const answer = screen.getByRole("textbox", { name: "Typed answer" });
+    await user.type(answer, " mitochondrion ");
+
+    view.rerender(<StudyCardRenderer renderer={renderer} revealed />);
+
+    expect(screen.getByText("Matches an accepted answer")).toBeVisible();
+    expect(screen.getByText("mitochondrion", { exact: true })).toBeVisible();
+    expect(screen.getByText(/still choose the SRS rating/i)).toBeVisible();
+    expect(answer).toBeDisabled();
+  });
+
   it("offers keyboard-addressable reordering and reveals the canonical sequence", async () => {
     const user = userEvent.setup();
     const renderer = rendererFor({

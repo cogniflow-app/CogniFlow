@@ -931,10 +931,12 @@ function PronunciationSurface({
 }
 
 function AudioPromptSurface({
+  autoplay,
   media,
   renderer,
   revealed,
 }: {
+  readonly autoplay: boolean;
   readonly media: ReadonlyMap<string, RendererMediaSource>;
   readonly renderer: Extract<StudyRendererContract, { kind: "audio_prompt" }>;
   readonly revealed: boolean;
@@ -947,6 +949,12 @@ function AudioPromptSurface({
     audioRef.current.defaultPlaybackRate = renderer.playbackSpeed;
     audioRef.current.playbackRate = renderer.playbackSpeed;
   }, [renderer.playbackSpeed, source]);
+  useEffect(() => {
+    if (!autoplay || !source || !audioRef.current) return;
+    void audioRef.current.play().catch(() => {
+      // Autoplay may be blocked until the learner interacts with the page. Controls stay visible.
+    });
+  }, [autoplay, source]);
   return (
     <>
       {source && <audio ref={audioRef} aria-label="Audio prompt" controls src={source.signedUrl} />}
@@ -968,14 +976,68 @@ function AudioPromptSurface({
   );
 }
 
+function TypedAnswerSurface({
+  media,
+  renderer,
+  revealed,
+  typedAnswerLabel,
+}: {
+  readonly media: ReadonlyMap<string, RendererMediaSource>;
+  readonly renderer: Extract<StudyRendererContract, { kind: "typed_answer" }>;
+  readonly revealed: boolean;
+  readonly typedAnswerLabel: string;
+}) {
+  const [response, setResponse] = useState("");
+  const normalize = (value: string) => {
+    const trimmed = value.normalize("NFKC").trim().replace(/\s+/g, " ");
+    return renderer.caseSensitive ? trimmed : trimmed.toLocaleLowerCase(renderer.language);
+  };
+  const matches =
+    response.trim().length > 0 &&
+    renderer.acceptedAnswers.some((answer) => normalize(answer) === normalize(response));
+
+  return (
+    <>
+      <RichDocumentView document={renderer.prompt} media={media} />
+      <Input
+        aria-label={typedAnswerLabel}
+        autoComplete="off"
+        disabled={revealed}
+        lang={renderer.language}
+        onChange={(event) => setResponse(event.target.value)}
+        value={response}
+      />
+      {revealed && (
+        <div aria-live="polite" className="study-typed-comparison">
+          <p>
+            <strong>{matches ? "Matches an accepted answer" : "Compare your response"}</strong>
+          </p>
+          <p>
+            Your response: <span lang={renderer.language}>{response.trim() || "No response"}</span>
+          </p>
+          <RichDocumentView document={renderer.answer} media={media} />
+          <small>
+            This comparison is a recall aid. You still choose the SRS rating that reflects your
+            recall.
+          </small>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function StudyCardRenderer({
+  autoplayAudio = false,
   media: providedMedia = EMPTY_RENDERER_MEDIA,
   renderer,
   revealed,
+  typedAnswerLabel = "Typed answer",
 }: {
+  readonly autoplayAudio?: boolean;
   readonly media?: readonly RendererMediaSource[];
   readonly renderer: StudyRendererContract;
   readonly revealed: boolean;
+  readonly typedAnswerLabel?: string;
 }) {
   const media = useRendererMedia(renderer, providedMedia);
   switch (renderer.kind) {
@@ -990,11 +1052,12 @@ export function StudyCardRenderer({
       return <CustomTemplateSurface media={media} renderer={renderer} revealed={revealed} />;
     case "typed_answer":
       return (
-        <>
-          <RichDocumentView document={renderer.prompt} media={media} />
-          {!revealed && <Input aria-label="Typed answer preview" lang={renderer.language} />}
-          {revealed && <RichDocumentView document={renderer.answer} media={media} />}
-        </>
+        <TypedAnswerSurface
+          media={media}
+          renderer={renderer}
+          revealed={revealed}
+          typedAnswerLabel={typedAnswerLabel}
+        />
       );
     case "cloze": {
       if (revealed) return <RichDocumentView document={renderer.document} media={media} />;
@@ -1102,7 +1165,14 @@ export function StudyCardRenderer({
         />
       );
     case "audio_prompt":
-      return <AudioPromptSurface media={media} renderer={renderer} revealed={revealed} />;
+      return (
+        <AudioPromptSurface
+          autoplay={autoplayAudio}
+          media={media}
+          renderer={renderer}
+          revealed={revealed}
+        />
+      );
     case "pronunciation":
       return <PronunciationSurface media={media} renderer={renderer} revealed={revealed} />;
     case "drawing":

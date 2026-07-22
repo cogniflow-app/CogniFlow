@@ -464,3 +464,24 @@ Do not paste secrets or personal data into public issues, AI prompts, chat, or t
 Until then, child-capable code paths remain disabled in every production runtime regardless of engineering completeness, consent-verifier response, or hosting profile. Local/test coverage is not activation evidence.
 
 Provider dashboards, SMTP credentials, OAuth applications, consent-provider credentials, production secrets, worker schedules, and deployment promotion are owner/operator-only actions. A source pull request may implement and test adapters, but it must not enable, deploy, or claim live verification for those external systems without explicit owner control and recorded evidence.
+
+## Phase 03 scheduling and review controls
+
+Canonical schedules, logs, sessions, filters, counters, operations, and statistics belong to a
+learner profile, not the authored deck owner. Public and anonymous routes receive no schedule data;
+shared-content owners cannot inspect or reset another learner's history. The browser submits review
+intent only. An authenticated server calculates with the pinned scheduler, and fixed-search-path
+service RPCs repeat learner/content/session authorization, lock/compare canonical state, and commit
+all effects atomically. Browser roles cannot execute these RPCs and the service role has no direct
+SRS table grant.
+
+Review UUID idempotency is bound to the complete command. Timestamps, durations, cutoffs, device
+IDs, ratings, sources, states, versions, and transition payloads are schema- and database-bounded;
+the browser cannot inject an after-state. Review logs/preset versions are trigger-enforced
+append-only. Undo and account deletion preserve minimized compensating/audit evidence. Queue reads
+exclude unauthorized, inactive, deleted, suspended, and buried cards, and authorization is checked
+again at mutation time. Fixed-search-path set-returning helpers derive the current registered
+session's viewable deck, note, and card IDs once per read; they retain the same owner/member,
+deck-status, learner-access, and revoked-device fail-closed rules while avoiding a security-definer
+authorization call per queue row. No analytics integration receives card answers or review
+history, and no new environment secret or direct database credential is introduced.

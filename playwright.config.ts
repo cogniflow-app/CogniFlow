@@ -10,8 +10,16 @@ export default defineConfig({
   reporter: process.env.CI ? [["line"], ["html", { open: "never" }]] : "list",
   retries: process.env.CI ? 2 : 0,
   testDir: "./e2e",
-  testIgnore: ["**/a11y.spec.ts", "**/hosted.spec.ts", "**/hosted-content.spec.ts"],
+  testIgnore: [
+    "**/a11y.spec.ts",
+    "**/hosted.spec.ts",
+    "**/hosted-content.spec.ts",
+    "**/hosted-srs.spec.ts",
+  ],
   timeout: 30_000,
+  // Local Supabase Auth and PostgREST are a single disposable integration target.
+  // Serial workers prevent independent account fixtures from exhausting that target.
+  workers: 1,
   use: {
     baseURL,
     screenshot: "only-on-failure",

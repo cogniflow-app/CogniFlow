@@ -297,6 +297,108 @@ export type Database = {
           },
         ];
       };
+      card_schedules: {
+        Row: {
+          algorithm: Database["public"]["Enums"]["srs_algorithm"];
+          buried_until: string | null;
+          card_id: string;
+          content_version: number;
+          created_at: string;
+          difficulty: number | null;
+          due: string;
+          due_order: number | null;
+          elapsed_days: number;
+          lapses: number;
+          last_reviewed_at: string | null;
+          learner_profile_id: string;
+          learning_step: number;
+          leech: boolean;
+          legacy_ease_factor: number | null;
+          preset_version: number;
+          reps: number;
+          scheduled_days: number;
+          scheduler_version: string;
+          stability: number | null;
+          starred: boolean;
+          state: Database["public"]["Enums"]["srs_state"];
+          suspended: boolean;
+          suspended_at: string | null;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          algorithm: Database["public"]["Enums"]["srs_algorithm"];
+          buried_until?: string | null;
+          card_id: string;
+          content_version: number;
+          created_at?: string;
+          difficulty?: number | null;
+          due: string;
+          due_order?: number | null;
+          elapsed_days?: number;
+          lapses?: number;
+          last_reviewed_at?: string | null;
+          learner_profile_id: string;
+          learning_step?: number;
+          leech?: boolean;
+          legacy_ease_factor?: number | null;
+          preset_version: number;
+          reps?: number;
+          scheduled_days?: number;
+          scheduler_version: string;
+          stability?: number | null;
+          starred?: boolean;
+          state?: Database["public"]["Enums"]["srs_state"];
+          suspended?: boolean;
+          suspended_at?: string | null;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          algorithm?: Database["public"]["Enums"]["srs_algorithm"];
+          buried_until?: string | null;
+          card_id?: string;
+          content_version?: number;
+          created_at?: string;
+          difficulty?: number | null;
+          due?: string;
+          due_order?: number | null;
+          elapsed_days?: number;
+          lapses?: number;
+          last_reviewed_at?: string | null;
+          learner_profile_id?: string;
+          learning_step?: number;
+          leech?: boolean;
+          legacy_ease_factor?: number | null;
+          preset_version?: number;
+          reps?: number;
+          scheduled_days?: number;
+          scheduler_version?: string;
+          stability?: number | null;
+          starred?: boolean;
+          state?: Database["public"]["Enums"]["srs_state"];
+          suspended?: boolean;
+          suspended_at?: string | null;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "card_schedules_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "card_schedules_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       card_templates: {
         Row: {
           answer_field_key: string | null;
@@ -606,6 +708,108 @@ export type Database = {
           },
         ];
       };
+      content_change_schedule_decisions: {
+        Row: {
+          affected_schedule_count: number;
+          choice: Database["public"]["Enums"]["content_change_resolution"];
+          content_change_impact_id: string;
+          decided_at: string;
+          decided_by_account_id: string;
+          idempotency_key: string;
+          learner_profile_id: string;
+        };
+        Insert: {
+          affected_schedule_count: number;
+          choice: Database["public"]["Enums"]["content_change_resolution"];
+          content_change_impact_id: string;
+          decided_at?: string;
+          decided_by_account_id: string;
+          idempotency_key: string;
+          learner_profile_id: string;
+        };
+        Update: {
+          affected_schedule_count?: number;
+          choice?: Database["public"]["Enums"]["content_change_resolution"];
+          content_change_impact_id?: string;
+          decided_at?: string;
+          decided_by_account_id?: string;
+          idempotency_key?: string;
+          learner_profile_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "content_change_schedule_decisions_content_change_impact_id_fkey";
+            columns: ["content_change_impact_id"];
+            isOneToOne: false;
+            referencedRelation: "content_change_impacts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "content_change_schedule_decisions_decided_by_account_id_fkey";
+            columns: ["decided_by_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "content_change_schedule_decisions_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      daily_study_counters: {
+        Row: {
+          again_count: number;
+          easy_count: number;
+          good_count: number;
+          hard_count: number;
+          learner_profile_id: string;
+          learning_reviewed: number;
+          new_reviewed: number;
+          review_reviewed: number;
+          study_day: string;
+          total_duration_ms: number;
+          updated_at: string;
+        };
+        Insert: {
+          again_count?: number;
+          easy_count?: number;
+          good_count?: number;
+          hard_count?: number;
+          learner_profile_id: string;
+          learning_reviewed?: number;
+          new_reviewed?: number;
+          review_reviewed?: number;
+          study_day: string;
+          total_duration_ms?: number;
+          updated_at?: string;
+        };
+        Update: {
+          again_count?: number;
+          easy_count?: number;
+          good_count?: number;
+          hard_count?: number;
+          learner_profile_id?: string;
+          learning_reviewed?: number;
+          new_reviewed?: number;
+          review_reviewed?: number;
+          study_day?: string;
+          total_duration_ms?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "daily_study_counters_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       data_export_jobs: {
         Row: {
           account_id: string;
@@ -783,6 +987,55 @@ export type Database = {
           visibility?: Database["public"]["Enums"]["deck_visibility"];
         };
         Relationships: [];
+      };
+      deck_srs_settings: {
+        Row: {
+          created_at: string;
+          deck_id: string;
+          learner_profile_id: string;
+          preset_id: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          deck_id: string;
+          learner_profile_id: string;
+          preset_id: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          created_at?: string;
+          deck_id?: string;
+          learner_profile_id?: string;
+          preset_id?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "deck_srs_settings_deck_id_fkey";
+            columns: ["deck_id"];
+            isOneToOne: false;
+            referencedRelation: "decks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "deck_srs_settings_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "deck_srs_settings_preset_id_fkey";
+            columns: ["preset_id"];
+            isOneToOne: false;
+            referencedRelation: "srs_presets";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       deck_versions: {
         Row: {
@@ -2512,6 +2765,337 @@ export type Database = {
           },
         ];
       };
+      review_logs: {
+        Row: {
+          actor_account_id: string;
+          card_id: string;
+          command_hash: string;
+          content_version: number;
+          created_at: string;
+          deck_id: string;
+          device_id: string | null;
+          duration_ms: number;
+          id: string;
+          idempotency_key: string;
+          learner_profile_id: string;
+          preset_id: string;
+          preset_version: number;
+          rating: Database["public"]["Enums"]["review_rating"];
+          reviewed_at: string;
+          schedule_after: Json;
+          schedule_before: Json;
+          schedule_version_after: number;
+          schedule_version_before: number;
+          scheduler_version: string;
+          source: Database["public"]["Enums"]["review_source"];
+          study_day: string;
+          study_day_start: number;
+          study_session_id: string | null;
+          timezone: string;
+        };
+        Insert: {
+          actor_account_id: string;
+          card_id: string;
+          command_hash: string;
+          content_version: number;
+          created_at?: string;
+          deck_id: string;
+          device_id?: string | null;
+          duration_ms: number;
+          id: string;
+          idempotency_key: string;
+          learner_profile_id: string;
+          preset_id: string;
+          preset_version: number;
+          rating: Database["public"]["Enums"]["review_rating"];
+          reviewed_at: string;
+          schedule_after: Json;
+          schedule_before: Json;
+          schedule_version_after: number;
+          schedule_version_before: number;
+          scheduler_version: string;
+          source: Database["public"]["Enums"]["review_source"];
+          study_day: string;
+          study_day_start: number;
+          study_session_id?: string | null;
+          timezone: string;
+        };
+        Update: {
+          actor_account_id?: string;
+          card_id?: string;
+          command_hash?: string;
+          content_version?: number;
+          created_at?: string;
+          deck_id?: string;
+          device_id?: string | null;
+          duration_ms?: number;
+          id?: string;
+          idempotency_key?: string;
+          learner_profile_id?: string;
+          preset_id?: string;
+          preset_version?: number;
+          rating?: Database["public"]["Enums"]["review_rating"];
+          reviewed_at?: string;
+          schedule_after?: Json;
+          schedule_before?: Json;
+          schedule_version_after?: number;
+          schedule_version_before?: number;
+          scheduler_version?: string;
+          source?: Database["public"]["Enums"]["review_source"];
+          study_day?: string;
+          study_day_start?: number;
+          study_session_id?: string | null;
+          timezone?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "review_logs_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "review_logs_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "review_logs_deck_id_fkey";
+            columns: ["deck_id"];
+            isOneToOne: false;
+            referencedRelation: "decks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "review_logs_device_id_fkey";
+            columns: ["device_id"];
+            isOneToOne: false;
+            referencedRelation: "devices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "review_logs_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "review_logs_preset_id_fkey";
+            columns: ["preset_id"];
+            isOneToOne: false;
+            referencedRelation: "srs_presets";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "review_logs_study_session_id_fkey";
+            columns: ["study_session_id"];
+            isOneToOne: false;
+            referencedRelation: "study_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      review_undo_events: {
+        Row: {
+          actor_account_id: string;
+          created_at: string;
+          device_id: string | null;
+          id: string;
+          idempotency_key: string;
+          learner_profile_id: string;
+          reason: string | null;
+          restored_schedule: Json;
+          review_log_id: string;
+          schedule_version_after: number;
+          schedule_version_before: number;
+        };
+        Insert: {
+          actor_account_id: string;
+          created_at?: string;
+          device_id?: string | null;
+          id: string;
+          idempotency_key: string;
+          learner_profile_id: string;
+          reason?: string | null;
+          restored_schedule: Json;
+          review_log_id: string;
+          schedule_version_after: number;
+          schedule_version_before: number;
+        };
+        Update: {
+          actor_account_id?: string;
+          created_at?: string;
+          device_id?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          learner_profile_id?: string;
+          reason?: string | null;
+          restored_schedule?: Json;
+          review_log_id?: string;
+          schedule_version_after?: number;
+          schedule_version_before?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "review_undo_events_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "review_undo_events_device_id_fkey";
+            columns: ["device_id"];
+            isOneToOne: false;
+            referencedRelation: "devices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "review_undo_events_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "review_undo_events_review_log_id_fkey";
+            columns: ["review_log_id"];
+            isOneToOne: false;
+            referencedRelation: "review_logs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      schedule_operation_events: {
+        Row: {
+          actor_account_id: string;
+          affected_count: number;
+          after_state: Json;
+          before_state: Json;
+          card_id: string | null;
+          created_at: string;
+          device_id: string | null;
+          id: string;
+          idempotency_key: string;
+          learner_profile_id: string;
+          operation: Database["public"]["Enums"]["schedule_operation_kind"];
+        };
+        Insert: {
+          actor_account_id: string;
+          affected_count: number;
+          after_state: Json;
+          before_state: Json;
+          card_id?: string | null;
+          created_at?: string;
+          device_id?: string | null;
+          id: string;
+          idempotency_key: string;
+          learner_profile_id: string;
+          operation: Database["public"]["Enums"]["schedule_operation_kind"];
+        };
+        Update: {
+          actor_account_id?: string;
+          affected_count?: number;
+          after_state?: Json;
+          before_state?: Json;
+          card_id?: string | null;
+          created_at?: string;
+          device_id?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          learner_profile_id?: string;
+          operation?: Database["public"]["Enums"]["schedule_operation_kind"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "schedule_operation_events_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "schedule_operation_events_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "schedule_operation_events_device_id_fkey";
+            columns: ["device_id"];
+            isOneToOne: false;
+            referencedRelation: "devices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "schedule_operation_events_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      schedule_snapshots: {
+        Row: {
+          card_id: string;
+          created_at: string;
+          id: string;
+          learner_profile_id: string;
+          reason: string;
+          review_log_id: string | null;
+          schedule: Json;
+          schedule_version: number;
+        };
+        Insert: {
+          card_id: string;
+          created_at?: string;
+          id?: string;
+          learner_profile_id: string;
+          reason: string;
+          review_log_id?: string | null;
+          schedule: Json;
+          schedule_version: number;
+        };
+        Update: {
+          card_id?: string;
+          created_at?: string;
+          id?: string;
+          learner_profile_id?: string;
+          reason?: string;
+          review_log_id?: string | null;
+          schedule?: Json;
+          schedule_version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "schedule_snapshots_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "schedule_snapshots_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "schedule_snapshots_review_log_id_fkey";
+            columns: ["review_log_id"];
+            isOneToOne: false;
+            referencedRelation: "review_logs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       source_references: {
         Row: {
           author: string | null;
@@ -2561,6 +3145,540 @@ export type Database = {
             columns: ["note_id"];
             isOneToOne: false;
             referencedRelation: "notes";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      srs_optimization_jobs: {
+        Row: {
+          confirmed_at: string | null;
+          created_at: string;
+          error_code: string | null;
+          id: string;
+          idempotency_key: string;
+          input_schema_version: string;
+          learner_profile_id: string;
+          preset_id: string;
+          previous_parameters: Json;
+          proposed_parameters: Json | null;
+          result_summary: Json | null;
+          rolled_back_at: string | null;
+          source_review_count: number;
+          status: Database["public"]["Enums"]["srs_optimization_status"];
+          updated_at: string;
+        };
+        Insert: {
+          confirmed_at?: string | null;
+          created_at?: string;
+          error_code?: string | null;
+          id: string;
+          idempotency_key: string;
+          input_schema_version?: string;
+          learner_profile_id: string;
+          preset_id: string;
+          previous_parameters: Json;
+          proposed_parameters?: Json | null;
+          result_summary?: Json | null;
+          rolled_back_at?: string | null;
+          source_review_count: number;
+          status?: Database["public"]["Enums"]["srs_optimization_status"];
+          updated_at?: string;
+        };
+        Update: {
+          confirmed_at?: string | null;
+          created_at?: string;
+          error_code?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          input_schema_version?: string;
+          learner_profile_id?: string;
+          preset_id?: string;
+          previous_parameters?: Json;
+          proposed_parameters?: Json | null;
+          result_summary?: Json | null;
+          rolled_back_at?: string | null;
+          source_review_count?: number;
+          status?: Database["public"]["Enums"]["srs_optimization_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "srs_optimization_jobs_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "srs_optimization_jobs_preset_id_fkey";
+            columns: ["preset_id"];
+            isOneToOne: false;
+            referencedRelation: "srs_presets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      srs_preset_versions: {
+        Row: {
+          created_at: string;
+          learner_profile_id: string;
+          preset_id: string;
+          snapshot: Json;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          learner_profile_id: string;
+          preset_id: string;
+          snapshot: Json;
+          version: number;
+        };
+        Update: {
+          created_at?: string;
+          learner_profile_id?: string;
+          preset_id?: string;
+          snapshot?: Json;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "srs_preset_versions_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "srs_preset_versions_preset_id_fkey";
+            columns: ["preset_id"];
+            isOneToOne: false;
+            referencedRelation: "srs_presets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      srs_presets: {
+        Row: {
+          algorithm: Database["public"]["Enums"]["srs_algorithm"];
+          bury_siblings: boolean;
+          created_at: string;
+          deleted_at: string | null;
+          fsrs_weights: Json | null;
+          fuzz_enabled: boolean;
+          id: string;
+          is_default: boolean;
+          learner_profile_id: string;
+          learning_steps_minutes: number[];
+          leech_action: Database["public"]["Enums"]["srs_leech_action"];
+          leech_threshold: number;
+          maximum_interval_days: number;
+          name: string;
+          new_card_order: Database["public"]["Enums"]["new_card_order"];
+          new_cards_per_day: number;
+          new_review_mix: Database["public"]["Enums"]["new_review_mix"];
+          relearning_steps_minutes: number[];
+          requested_retention: number;
+          review_order: Database["public"]["Enums"]["review_card_order"];
+          reviews_per_day: number;
+          short_term_enabled: boolean;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          algorithm?: Database["public"]["Enums"]["srs_algorithm"];
+          bury_siblings?: boolean;
+          created_at?: string;
+          deleted_at?: string | null;
+          fsrs_weights?: Json | null;
+          fuzz_enabled?: boolean;
+          id?: string;
+          is_default?: boolean;
+          learner_profile_id: string;
+          learning_steps_minutes?: number[];
+          leech_action?: Database["public"]["Enums"]["srs_leech_action"];
+          leech_threshold?: number;
+          maximum_interval_days?: number;
+          name: string;
+          new_card_order?: Database["public"]["Enums"]["new_card_order"];
+          new_cards_per_day?: number;
+          new_review_mix?: Database["public"]["Enums"]["new_review_mix"];
+          relearning_steps_minutes?: number[];
+          requested_retention?: number;
+          review_order?: Database["public"]["Enums"]["review_card_order"];
+          reviews_per_day?: number;
+          short_term_enabled?: boolean;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          algorithm?: Database["public"]["Enums"]["srs_algorithm"];
+          bury_siblings?: boolean;
+          created_at?: string;
+          deleted_at?: string | null;
+          fsrs_weights?: Json | null;
+          fuzz_enabled?: boolean;
+          id?: string;
+          is_default?: boolean;
+          learner_profile_id?: string;
+          learning_steps_minutes?: number[];
+          leech_action?: Database["public"]["Enums"]["srs_leech_action"];
+          leech_threshold?: number;
+          maximum_interval_days?: number;
+          name?: string;
+          new_card_order?: Database["public"]["Enums"]["new_card_order"];
+          new_cards_per_day?: number;
+          new_review_mix?: Database["public"]["Enums"]["new_review_mix"];
+          relearning_steps_minutes?: number[];
+          requested_retention?: number;
+          review_order?: Database["public"]["Enums"]["review_card_order"];
+          reviews_per_day?: number;
+          short_term_enabled?: boolean;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "srs_presets_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      study_content_reports: {
+        Row: {
+          card_id: string;
+          content_version: number;
+          created_at: string;
+          deck_id: string;
+          details: string | null;
+          device_id: string | null;
+          id: string;
+          idempotency_key: string;
+          learner_profile_id: string;
+          reason: Database["public"]["Enums"]["study_content_report_reason"];
+          reporter_account_id: string;
+        };
+        Insert: {
+          card_id: string;
+          content_version: number;
+          created_at?: string;
+          deck_id: string;
+          details?: string | null;
+          device_id?: string | null;
+          id: string;
+          idempotency_key: string;
+          learner_profile_id: string;
+          reason: Database["public"]["Enums"]["study_content_report_reason"];
+          reporter_account_id: string;
+        };
+        Update: {
+          card_id?: string;
+          content_version?: number;
+          created_at?: string;
+          deck_id?: string;
+          details?: string | null;
+          device_id?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          learner_profile_id?: string;
+          reason?: Database["public"]["Enums"]["study_content_report_reason"];
+          reporter_account_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "study_content_reports_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_content_reports_deck_id_fkey";
+            columns: ["deck_id"];
+            isOneToOne: false;
+            referencedRelation: "decks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_content_reports_device_id_fkey";
+            columns: ["device_id"];
+            isOneToOne: false;
+            referencedRelation: "devices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_content_reports_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_content_reports_reporter_account_id_fkey";
+            columns: ["reporter_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      study_filters: {
+        Row: {
+          created_at: string;
+          definition: Json;
+          deleted_at: string | null;
+          id: string;
+          learner_profile_id: string;
+          mode: Database["public"]["Enums"]["study_session_mode"];
+          name: string;
+          rescheduling: boolean;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          definition?: Json;
+          deleted_at?: string | null;
+          id?: string;
+          learner_profile_id: string;
+          mode: Database["public"]["Enums"]["study_session_mode"];
+          name: string;
+          rescheduling?: boolean;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          created_at?: string;
+          definition?: Json;
+          deleted_at?: string | null;
+          id?: string;
+          learner_profile_id?: string;
+          mode?: Database["public"]["Enums"]["study_session_mode"];
+          name?: string;
+          rescheduling?: boolean;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "study_filters_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      study_session_events: {
+        Row: {
+          action: string;
+          actor_account_id: string;
+          card_id: string | null;
+          created_at: string;
+          id: string;
+          learner_profile_id: string;
+          study_session_id: string;
+        };
+        Insert: {
+          action: string;
+          actor_account_id: string;
+          card_id?: string | null;
+          created_at?: string;
+          id: string;
+          learner_profile_id: string;
+          study_session_id: string;
+        };
+        Update: {
+          action?: string;
+          actor_account_id?: string;
+          card_id?: string | null;
+          created_at?: string;
+          id?: string;
+          learner_profile_id?: string;
+          study_session_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "study_session_events_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_session_events_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_session_events_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_session_events_study_session_id_fkey";
+            columns: ["study_session_id"];
+            isOneToOne: false;
+            referencedRelation: "study_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      study_session_items: {
+        Row: {
+          card_id: string;
+          completed_at: string | null;
+          position: number;
+          review_log_id: string | null;
+          schedule_version_at_enqueue: number;
+          shown_at: string | null;
+          state_at_enqueue: Database["public"]["Enums"]["srs_state"];
+          status: Database["public"]["Enums"]["study_session_item_status"];
+          study_session_id: string;
+        };
+        Insert: {
+          card_id: string;
+          completed_at?: string | null;
+          position: number;
+          review_log_id?: string | null;
+          schedule_version_at_enqueue: number;
+          shown_at?: string | null;
+          state_at_enqueue: Database["public"]["Enums"]["srs_state"];
+          status?: Database["public"]["Enums"]["study_session_item_status"];
+          study_session_id: string;
+        };
+        Update: {
+          card_id?: string;
+          completed_at?: string | null;
+          position?: number;
+          review_log_id?: string | null;
+          schedule_version_at_enqueue?: number;
+          shown_at?: string | null;
+          state_at_enqueue?: Database["public"]["Enums"]["srs_state"];
+          status?: Database["public"]["Enums"]["study_session_item_status"];
+          study_session_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "study_session_items_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_session_items_review_log_fk";
+            columns: ["review_log_id"];
+            isOneToOne: false;
+            referencedRelation: "review_logs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_session_items_study_session_id_fkey";
+            columns: ["study_session_id"];
+            isOneToOne: false;
+            referencedRelation: "study_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      study_sessions: {
+        Row: {
+          actor_account_id: string;
+          completed_at: string | null;
+          completed_items: number;
+          deck_id: string | null;
+          filter_id: string | null;
+          id: string;
+          last_activity_at: string;
+          learner_profile_id: string;
+          mode: Database["public"]["Enums"]["study_session_mode"];
+          queue_seed: string;
+          rescheduling: boolean;
+          source: Database["public"]["Enums"]["review_source"];
+          started_at: string;
+          status: Database["public"]["Enums"]["study_session_status"];
+          study_day: string;
+          study_day_start: number;
+          timezone: string;
+          total_items: number;
+          version: number;
+        };
+        Insert: {
+          actor_account_id: string;
+          completed_at?: string | null;
+          completed_items?: number;
+          deck_id?: string | null;
+          filter_id?: string | null;
+          id: string;
+          last_activity_at?: string;
+          learner_profile_id: string;
+          mode: Database["public"]["Enums"]["study_session_mode"];
+          queue_seed: string;
+          rescheduling: boolean;
+          source: Database["public"]["Enums"]["review_source"];
+          started_at?: string;
+          status?: Database["public"]["Enums"]["study_session_status"];
+          study_day: string;
+          study_day_start: number;
+          timezone: string;
+          total_items?: number;
+          version?: number;
+        };
+        Update: {
+          actor_account_id?: string;
+          completed_at?: string | null;
+          completed_items?: number;
+          deck_id?: string | null;
+          filter_id?: string | null;
+          id?: string;
+          last_activity_at?: string;
+          learner_profile_id?: string;
+          mode?: Database["public"]["Enums"]["study_session_mode"];
+          queue_seed?: string;
+          rescheduling?: boolean;
+          source?: Database["public"]["Enums"]["review_source"];
+          started_at?: string;
+          status?: Database["public"]["Enums"]["study_session_status"];
+          study_day?: string;
+          study_day_start?: number;
+          timezone?: string;
+          total_items?: number;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "study_sessions_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_sessions_deck_id_fkey";
+            columns: ["deck_id"];
+            isOneToOne: false;
+            referencedRelation: "decks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_sessions_filter_id_fkey";
+            columns: ["filter_id"];
+            isOneToOne: false;
+            referencedRelation: "study_filters";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "study_sessions_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -2788,6 +3906,68 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      admin_apply_content_change_schedule_decision: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_card_id: string;
+          p_choice: Database["public"]["Enums"]["content_change_resolution"];
+          p_device_id: string;
+          p_expected_schedule_version: number;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_operation_event_id: string;
+          p_profile_session_id: string;
+          p_schedule_after: Json;
+          p_scheduler_version: string;
+        };
+        Returns: Json;
+      };
+      admin_apply_srs_preset_to_decks: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_deck_ids: string[];
+          p_device_id: string;
+          p_learner_profile_id: string;
+          p_preset_id: string;
+          p_profile_session_id: string;
+        };
+        Returns: Json;
+      };
+      admin_bulk_srs_schedule_control: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_deck_ids: string[];
+          p_device_id: string;
+          p_effective_at: string;
+          p_expected_count: number;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_operation: Database["public"]["Enums"]["schedule_operation_kind"];
+          p_operation_event_id: string;
+          p_preview: boolean;
+          p_profile_session_id: string;
+          p_value: Json;
+        };
+        Returns: Json;
+      };
+      admin_bury_srs_siblings: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_buried_until: string;
+          p_card_id: string;
+          p_device_id: string;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_operation_event_id: string;
+          p_profile_session_id: string;
+          p_scheduler_version: string;
+        };
+        Returns: Json;
+      };
       admin_cancel_account_deletion: {
         Args: {
           p_actor_account_id: string;
@@ -2805,6 +3985,49 @@ export type Database = {
           storage_bucket: string;
           storage_path: string;
         }[];
+      };
+      admin_commit_srs_algorithm_migration: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_deck_ids: string[];
+          p_device_id: string;
+          p_expected_count: number;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_operation_event_id: string;
+          p_profile_session_id: string;
+          p_target_preset_id: string;
+          p_transitions: Json;
+        };
+        Returns: Json;
+      };
+      admin_commit_srs_review: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_card_id: string;
+          p_command_hash: string;
+          p_current_schedule_version: number;
+          p_device_id: string;
+          p_duration_ms: number;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_preset_id: string;
+          p_preset_version: number;
+          p_profile_session_id: string;
+          p_rating: Database["public"]["Enums"]["review_rating"];
+          p_review_id: string;
+          p_reviewed_at: string;
+          p_schedule_after: Json;
+          p_schedule_before: Json;
+          p_scheduler_version: string;
+          p_source: Database["public"]["Enums"]["review_source"];
+          p_study_day_start: number;
+          p_study_session_id: string;
+          p_timezone: string;
+        };
+        Returns: Json;
       };
       admin_complete_current_account_onboarding: {
         Args: {
@@ -2883,6 +4106,20 @@ export type Database = {
           remaining: number;
           retry_after_seconds: number;
         }[];
+      };
+      admin_control_study_session: {
+        Args: {
+          p_action: string;
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_card_id?: string;
+          p_device_id: string;
+          p_event_id: string;
+          p_learner_profile_id: string;
+          p_profile_session_id: string;
+          p_study_session_id: string;
+        };
+        Returns: Json;
       };
       admin_create_child_learner: {
         Args: {
@@ -2985,6 +4222,51 @@ export type Database = {
         };
         Returns: string;
       };
+      admin_create_study_session: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_deck_id: string;
+          p_device_id: string;
+          p_filter_id: string;
+          p_items: Json;
+          p_learner_profile_id: string;
+          p_mode: Database["public"]["Enums"]["study_session_mode"];
+          p_profile_session_id: string;
+          p_queue_seed: string;
+          p_rescheduling: boolean;
+          p_source: Database["public"]["Enums"]["review_source"];
+          p_started_at: string;
+          p_study_day_start: number;
+          p_study_session_id: string;
+          p_timezone: string;
+        };
+        Returns: Json;
+      };
+      admin_delete_srs_preset: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_expected_version: number;
+          p_learner_profile_id: string;
+          p_preset_id: string;
+          p_profile_session_id: string;
+        };
+        Returns: Json;
+      };
+      admin_delete_study_filter: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_expected_version: number;
+          p_filter_id: string;
+          p_learner_profile_id: string;
+          p_profile_session_id: string;
+        };
+        Returns: Json;
+      };
       admin_ensure_account: {
         Args: { p_actor_account_id: string };
         Returns: string;
@@ -3060,6 +4342,30 @@ export type Database = {
           storage_bucket: string;
           storage_path: string;
         }[];
+      };
+      admin_get_srs_algorithm_migration_context: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_deck_ids: string[];
+          p_device_id: string;
+          p_learner_profile_id: string;
+          p_profile_session_id: string;
+          p_target_preset_id: string;
+        };
+        Returns: Json;
+      };
+      admin_get_srs_review_context: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_card_id: string;
+          p_device_id: string;
+          p_learner_profile_id: string;
+          p_profile_session_id: string;
+          p_study_session_id: string;
+        };
+        Returns: Json;
       };
       admin_grant_learner_access: {
         Args: {
@@ -3166,6 +4472,18 @@ export type Database = {
         };
         Returns: string;
       };
+      admin_preview_srs_algorithm_migration: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_deck_ids: string[];
+          p_device_id: string;
+          p_learner_profile_id: string;
+          p_profile_session_id: string;
+          p_target_preset_id: string;
+        };
+        Returns: Json;
+      };
       admin_process_account_deletion: {
         Args: { p_deletion_job_id: string; p_idempotency_key: string };
         Returns: string;
@@ -3260,6 +4578,40 @@ export type Database = {
         Args: { p_actor_account_id: string; p_idempotency_key: string };
         Returns: boolean;
       };
+      admin_replace_srs_schedule: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_card_id: string;
+          p_device_id: string;
+          p_expected_schedule_version: number;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_operation: Database["public"]["Enums"]["schedule_operation_kind"];
+          p_operation_event_id: string;
+          p_preset_id: string;
+          p_preset_version: number;
+          p_profile_session_id: string;
+          p_schedule_after: Json;
+          p_scheduler_version: string;
+        };
+        Returns: Json;
+      };
+      admin_report_study_content: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_card_id: string;
+          p_details: string;
+          p_device_id: string;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_profile_session_id: string;
+          p_reason: Database["public"]["Enums"]["study_content_report_reason"];
+          p_report_id: string;
+        };
+        Returns: Json;
+      };
       admin_request_account_deletion: {
         Args: {
           p_actor_account_id: string;
@@ -3320,6 +4672,34 @@ export type Database = {
         };
         Returns: boolean;
       };
+      admin_save_srs_preset: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_configuration: Json;
+          p_device_id: string;
+          p_expected_version: number;
+          p_learner_profile_id: string;
+          p_name: string;
+          p_preset_id: string;
+          p_profile_session_id: string;
+        };
+        Returns: Json;
+      };
+      admin_save_study_filter: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_definition: Json;
+          p_device_id: string;
+          p_expected_version: number;
+          p_filter_id: string;
+          p_learner_profile_id: string;
+          p_name: string;
+          p_profile_session_id: string;
+        };
+        Returns: Json;
+      };
       admin_set_learner_profile_credentials: {
         Args: {
           p_actor_account_id: string;
@@ -3329,6 +4709,55 @@ export type Database = {
           p_pin: string;
         };
         Returns: boolean;
+      };
+      admin_set_srs_schedule_control:
+        | {
+            Args: {
+              p_actor_account_id: string;
+              p_auth_session_id: string;
+              p_card_id: string;
+              p_device_id: string;
+              p_effective_at: string;
+              p_idempotency_key: string;
+              p_learner_profile_id: string;
+              p_operation: Database["public"]["Enums"]["schedule_operation_kind"];
+              p_operation_event_id: string;
+              p_profile_session_id: string;
+              p_value: Json;
+            };
+            Returns: Json;
+          }
+        | {
+            Args: {
+              p_actor_account_id: string;
+              p_auth_session_id: string;
+              p_card_id: string;
+              p_device_id: string;
+              p_effective_at: string;
+              p_idempotency_key: string;
+              p_learner_profile_id: string;
+              p_operation: Database["public"]["Enums"]["schedule_operation_kind"];
+              p_operation_event_id: string;
+              p_profile_session_id: string;
+              p_scheduler_version: string;
+              p_study_session_id: string;
+              p_value: Json;
+            };
+            Returns: Json;
+          };
+      admin_undo_srs_review: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_profile_session_id: string;
+          p_reason?: string;
+          p_review_log_id: string;
+          p_undo_event_id: string;
+        };
+        Returns: Json;
       };
       admin_update_current_privacy_preferences: {
         Args: {
@@ -4801,11 +6230,63 @@ export type Database = {
         | "pronunciation"
         | "drawing_layer";
       media_status: "pending" | "ready" | "quarantined" | "deleting" | "deleted";
+      new_card_order: "created" | "due" | "random";
+      new_review_mix: "before" | "after" | "interleave";
       note_field_type: "rich_text" | "plain_text" | "boolean" | "number" | "list" | "media";
       occlusion_mode: "hide_one_reveal_others" | "hide_all_reveal_one";
       privacy_request_type: "access" | "export" | "deletion" | "correction";
       reauthentication_purpose: "account_deletion" | "security_change";
       request_status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+      review_card_order: "due" | "relative_overdueness" | "retrievability" | "random";
+      review_rating: "again" | "hard" | "good" | "easy";
+      review_source:
+        "today" | "deck" | "folder" | "filtered" | "review_ahead" | "cram" | "import" | "rebuild";
+      schedule_operation_kind:
+        | "suspend"
+        | "unsuspend"
+        | "star"
+        | "unstar"
+        | "bury"
+        | "bury_siblings"
+        | "forget"
+        | "manual_due"
+        | "reschedule"
+        | "due_order"
+        | "mark_leech"
+        | "content_preserve"
+        | "content_relearn"
+        | "content_reset"
+        | "rebuild"
+        | "algorithm_migration";
+      srs_algorithm: "fsrs" | "sm2";
+      srs_leech_action: "tag" | "suspend";
+      srs_optimization_status:
+        | "queued"
+        | "running"
+        | "preview_ready"
+        | "confirmed"
+        | "rolled_back"
+        | "failed"
+        | "cancelled";
+      srs_state: "new" | "learning" | "review" | "relearning";
+      study_content_report_reason:
+        "incorrect" | "outdated" | "unclear" | "unsafe" | "accessibility" | "other";
+      study_session_item_status: "pending" | "shown" | "reviewed" | "skipped";
+      study_session_mode:
+        | "today"
+        | "deck"
+        | "folder"
+        | "new_only"
+        | "due_only"
+        | "forgotten_today"
+        | "leeches"
+        | "starred"
+        | "tag_query"
+        | "review_ahead"
+        | "cram"
+        | "interval_range"
+        | "card_state";
+      study_session_status: "active" | "paused" | "completed" | "abandoned";
       theme_preference: "system" | "light" | "dark";
     };
     CompositeTypes: {
@@ -5013,11 +6494,80 @@ export const Constants = {
         "drawing_layer",
       ],
       media_status: ["pending", "ready", "quarantined", "deleting", "deleted"],
+      new_card_order: ["created", "due", "random"],
+      new_review_mix: ["before", "after", "interleave"],
       note_field_type: ["rich_text", "plain_text", "boolean", "number", "list", "media"],
       occlusion_mode: ["hide_one_reveal_others", "hide_all_reveal_one"],
       privacy_request_type: ["access", "export", "deletion", "correction"],
       reauthentication_purpose: ["account_deletion", "security_change"],
       request_status: ["queued", "processing", "completed", "failed", "cancelled"],
+      review_card_order: ["due", "relative_overdueness", "retrievability", "random"],
+      review_rating: ["again", "hard", "good", "easy"],
+      review_source: [
+        "today",
+        "deck",
+        "folder",
+        "filtered",
+        "review_ahead",
+        "cram",
+        "import",
+        "rebuild",
+      ],
+      schedule_operation_kind: [
+        "suspend",
+        "unsuspend",
+        "star",
+        "unstar",
+        "bury",
+        "bury_siblings",
+        "forget",
+        "manual_due",
+        "reschedule",
+        "due_order",
+        "mark_leech",
+        "content_preserve",
+        "content_relearn",
+        "content_reset",
+        "rebuild",
+        "algorithm_migration",
+      ],
+      srs_algorithm: ["fsrs", "sm2"],
+      srs_leech_action: ["tag", "suspend"],
+      srs_optimization_status: [
+        "queued",
+        "running",
+        "preview_ready",
+        "confirmed",
+        "rolled_back",
+        "failed",
+        "cancelled",
+      ],
+      srs_state: ["new", "learning", "review", "relearning"],
+      study_content_report_reason: [
+        "incorrect",
+        "outdated",
+        "unclear",
+        "unsafe",
+        "accessibility",
+        "other",
+      ],
+      study_session_item_status: ["pending", "shown", "reviewed", "skipped"],
+      study_session_mode: [
+        "today",
+        "deck",
+        "folder",
+        "new_only",
+        "due_only",
+        "forgotten_today",
+        "leeches",
+        "starred",
+        "tag_query",
+        "review_ahead",
+        "cram",
+        "interval_range",
+        "card_state",
+      ],
+      study_session_status: ["active", "paused", "completed", "abandoned"],
       theme_preference: ["system", "light", "dark"],
     },
   },

@@ -1,6 +1,6 @@
 # Testing and verification
 
-**Scope:** Phase 00 harness, Phase 01 identity/privacy, Phase 02 content authoring, and hosted checks  
+**Scope:** Phase 00 harness, Phase 01 identity/privacy, Phase 02 content authoring, Phase 03 scheduling/review, and hosted checks  
 **Evidence:** Exact measured results belong in [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md), not this guide.
 
 ## Test layers
@@ -22,6 +22,7 @@
 | Hosted database  | `pnpm db:verify:preview` / `pnpm db:verify:beta`           | Remote migration/grant/RLS/schema/storage/type parity without seed or reset                                   | Authenticated Supabase CLI and explicit operator authority                        |
 | Hosted smoke     | `pnpm test:hosted:preview` / `pnpm test:hosted:production` | Non-mutating public/auth/redirect/neutral-response/header/no-index behavior                                   | Deployed HTTPS URL, Chromium, fresh Vercel auth, and one existing project bypass  |
 | Hosted content   | `pnpm test:hosted:preview:content`                         | Guarded disposable Auth/dashboard/appearance/basic-card/publication flow plus enforced cleanup                | Exact Preview, authenticated Supabase CLI, fresh Vercel auth, and existing bypass |
+| Hosted SRS       | `pnpm test:hosted:preview:srs`                             | Guarded disposable reveal/four-rating/idempotency/undo/resume/statistics/isolation flow plus enforced cleanup | Exact Preview, authenticated Supabase CLI, fresh Vercel auth, and existing bypass |
 
 `pnpm verify` runs the practical local aggregate, including local database reset/tests, database-type drift check, both production builds, browser and accessibility checks, Lighthouse budgets, and the k6 smoke test. It therefore requires Docker/Supabase, Chromium, and k6. The wrapper supplies deterministic, visibly inert configuration values without creating an environment file. Browser/a11y wrappers read the already-running local Supabase URL and generated keys into the child process without printing or writing them. Normal `pnpm build` and deployment builds remain strict and require real configuration. CI invokes the layers explicitly so cleanup and failure-artifact steps are reliable.
 
@@ -456,3 +457,34 @@ For every command, record in `IMPLEMENTATION_STATUS.md`:
 - important measured budgets;
 - whether an adapter was only build-tested or live-verified;
 - any environmental limitation, without presenting an unrun check as passing.
+
+## Phase 03 scheduling verification
+
+`packages/srs/tests` covers exact upstream FSRS fixtures for every rating, state transitions,
+short-term/relearning steps, retention and maximum interval, fuzz/no-fuzz, memory values, rollback,
+forget, replay/rebuild/migration, genuine SM-2, optimizer gating, property bounds, time zones/DST,
+study-day cutoffs, all queue modes, deterministic resume, and typical/10,000-card budgets.
+
+`supabase/tests/150_srs_schema_and_rpc.test.sql` covers schema, RLS, exact grants/search paths, lazy
+creation, complete-command idempotency, stale versions, append-only evidence, compensation,
+rebuild/replay, profile isolation, public/deck-owner denial, inactive content, session limits,
+sibling/leech/manual/bulk/content/filter/migration/deletion behavior. Test 155 measures 10,000-card
+queue, Today, resume, and statistics query plans. Its actor has a registered Auth-session device,
+the bulk fixture is analyzed before measurement, and a visibility assertion proves the timings are
+for all 10,000 authorized rows rather than a fast RLS-denial path. `scripts/test-srs-concurrency.mjs`
+uses two real database connections and requires exactly one commit, one typed stale conflict, one
+log, and a sub-500 ms canonical mutation.
+
+Web unit tests cover trusted route calculation, malicious transition rejection, answer DOM
+separation, keyboard/typed/safe-swipe behavior, duplicate-submit coalescing, preview-only behavior,
+truthful accessible statistics, and deterministic repository pagination. `e2e/srs-review.spec.ts`
+provisions isolated local learners and exercises pause/resume, lazy controls, reveal, typed answer,
+keyboard review, canonical persistence, statistics, mobile Chromium, and axe. The aggregate
+`pnpm verify` remains the final local gate and resets the database before pgTAP.
+
+`e2e/phase-three-layout.spec.ts` is the visual and responsive acceptance layer for Study, deck
+entry, custom queues, scheduling disclosure, review states, undo, statistics/history, content
+decisions, serious mode, reduced motion, 320 px mobile, and 200% text. It waits for route-specific
+stable content before measuring layout or capturing private diagnostic screenshots. The hosted
+counterpart is `e2e/hosted-srs.spec.ts`, and it may run only through the guarded wrapper described
+in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md).

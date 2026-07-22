@@ -137,6 +137,9 @@ importers:
       '@lumen/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@lumen/srs':
+        specifier: workspace:*
+        version: link:../../packages/srs
       '@lumen/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -229,6 +232,19 @@ importers:
         version: link:../test-utils
 
   packages/domain: {}
+
+  packages/srs:
+    dependencies:
+      ts-fsrs:
+        specifier: 5.4.1
+        version: 5.4.1
+      zod:
+        specifier: 4.3.6
+        version: 4.3.6
+    devDependencies:
+      fast-check:
+        specifier: 4.9.0
+        version: 4.9.0
 
   packages/test-utils:
     dependencies:
@@ -5997,6 +6013,10 @@ packages:
     peerDependencies:
       typescript: '>=4.8.4'
 
+  ts-fsrs@5.4.1:
+    resolution: {integrity: sha512-mOp9+oexJexBTkwjg/jQI1aSUQRLIAvbimeKHLSmVdNJPwObugFNKmZkoggH5d6kZ0uaWLboP1Al1DnXAfIb9w==}
+    engines: {node: '>=20.0.0'}
+
   ts-tqdm@0.8.6:
     resolution: {integrity: sha512-3X3M1PZcHtgQbnwizL+xU8CAgbYbeLHrrDwL9xxcZZrV5J+e7loJm1XrXozHjSkl44J0Zg0SgA8rXbh83kCkcQ==}
 
@@ -6454,6 +6474,9 @@ packages:
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
+  zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
 
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
@@ -12759,6 +12782,8 @@ snapshots:
     dependencies:
       typescript: 6.0.3
 
+  ts-fsrs@5.4.1: {}
+
   ts-tqdm@0.8.6: {}
 
   tsconfig-paths@3.15.0:
@@ -13253,5 +13278,7 @@ snapshots:
       zod: 4.4.3
 
   zod@3.25.76: {}
+
+  zod@4.3.6: {}
 
   zod@4.4.3: {}

@@ -1,0 +1,216 @@
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
+
+import { provisionAndSignInLocalAuthor } from "./support/local-account";
+
+async function capture(page: Page, testInfo: TestInfo, name: string) {
+  await expect(page.locator('main[aria-label="Loading page"]')).toHaveCount(0);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await page.screenshot({
+    animations: "disabled",
+    fullPage: true,
+    path: testInfo.outputPath(`${name}.png`),
+  });
+}
+
+async function expectNoHorizontalOverflow(page: Page) {
+  const sizes = await page.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    offenders: Array.from(document.querySelectorAll<HTMLElement>("body *"))
+      .map((element) => {
+        const box = element.getBoundingClientRect();
+        return {
+          className: element.className,
+          left: box.left,
+          right: box.right,
+          tag: element.tagName,
+        };
+      })
+      .filter((box) => box.left < -1 || box.right > document.documentElement.clientWidth + 1)
+      .slice(0, 8),
+    scroll: document.documentElement.scrollWidth,
+  }));
+  expect(
+    sizes.scroll,
+    `Horizontal overflow: ${JSON.stringify(sizes.offenders)}`,
+  ).toBeLessThanOrEqual(sizes.client + 1);
+}
+
+async function createDeckWithCards(page: Page, title: string) {
+  await page.goto("/app/decks/new");
+  await page.getByRole("textbox", { name: "Deck title" }).fill(title);
+  await page.getByRole("button", { name: "Continue" }).click();
+  const deckResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/content/decks") && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Create deck and add cards" }).click();
+  const deckId = ((await (await deckResponse).json()) as { data: { id: string } }).data.id;
+  const noteIds: string[] = [];
+  for (let index = 0; index < 2; index += 1) {
+    await page.getByRole("textbox", { name: "Front / prompt" }).fill(`Visual prompt ${index + 1}`);
+    await page.getByRole("textbox", { name: "Back / answer" }).fill(`Visual answer ${index + 1}`);
+    const noteResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/content/decks/${deckId}/notes`) &&
+        response.request().method() === "POST",
+    );
+    await page
+      .getByRole("button", { name: index === 0 ? "Save and add another" : "Save card" })
+      .click();
+    const body = (await (await noteResponse).json()) as { data: { id: string } };
+    noteIds.push(body.data.id);
+  }
+  return { deckId, noteIds };
+}
+
+async function startDeckSession(page: Page, title: string) {
+  await page.goto("/app/study");
+  const row = page.locator(".study-deck-row").filter({ hasText: title });
+  await row.getByRole("button", { name: "Study" }).click();
+  await expect(page).toHaveURL(/\/app\/study\/session\//u);
+}
+
+async function rate(page: Page, rating: "Good") {
+  await page.getByRole("button", { name: /Show answer/u }).click();
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.url().endsWith("/api/study/reviews") && candidate.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: new RegExp(rating, "u") }).click();
+  expect((await response).status()).toBe(200);
+}
+
+test("Phase 03 Study surfaces remain calm, responsive, and visually complete", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name === "reduced-motion",
+    "The desktop run switches the real media preference and captures the reduced-motion surface.",
+  );
+  test.setTimeout(150_000);
+  await provisionAndSignInLocalAuthor(page, {
+    displayName: "Visual review learner",
+    emailPrefix: `phase03-visual-${testInfo.project.name}`,
+    handlePrefix: "srsvisual",
+    returnTo: "/app/study",
+  });
+
+  await expect(page.getByRole("heading", { level: 1, name: /Ready when you are/u })).toBeVisible();
+  await expect(page.getByText(/Add cards in Library/u)).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await capture(page, testInfo, "study-empty");
+
+  const title = `Visual SRS ${testInfo.project.name}`;
+  const { deckId, noteIds } = await createDeckWithCards(page, title);
+  await page.goto(`/app/decks/${deckId}`);
+  await expect(page.getByRole("link", { name: "Study this deck" })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await capture(page, testInfo, "deck-study-entry");
+
+  await page.goto("/app/study");
+  await expect(page.locator(".study-deck-row").filter({ hasText: title })).toContainText("2");
+  await expectNoHorizontalOverflow(page);
+  await capture(page, testInfo, "study-populated");
+  await page.getByText("Custom study", { exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Build a filtered session" })).toBeVisible();
+  await capture(page, testInfo, "custom-study");
+
+  if (testInfo.project.name === "chromium-desktop") {
+    await page.goto("/app/settings/scheduling");
+    await expect(page.getByRole("heading", { level: 1, name: "Memory settings" })).toBeVisible();
+    await expect(page.getByLabel("Maximum interval (days)")).not.toBeVisible();
+    await capture(page, testInfo, "scheduling-settings");
+    await page.getByText("Advanced scheduling options", { exact: true }).click();
+    await expect(page.getByLabel("Maximum interval (days)")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await capture(page, testInfo, "scheduling-settings-advanced");
+  }
+
+  await startDeckSession(page, title);
+  await page.getByRole("button", { name: "Pause" }).click();
+  await expect(page.getByRole("heading", { name: "Continue where you left off" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume session" }).click();
+  await expect(page.getByText("Visual prompt 1")).toBeVisible();
+  await expect(page.getByText("Visual answer 1")).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+  await capture(page, testInfo, "review-prompt");
+  await page.getByRole("button", { name: /Show answer/u }).click();
+  await expect(page.getByText("Visual answer 1")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Again/u })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Hard/u })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Good/u })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Easy/u })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await capture(page, testInfo, "review-answer-ratings");
+  if (testInfo.project.name === "chromium-desktop") {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(page.locator("html")).toHaveAttribute("data-motion", "reduce");
+    await capture(page, testInfo, "review-reduced-motion");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+  }
+
+  const firstReview = page.waitForResponse(
+    (candidate) =>
+      candidate.url().endsWith("/api/study/reviews") && candidate.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: /Good/u }).click();
+  expect((await firstReview).status()).toBe(200);
+  await expect(page.getByText("Visual prompt 2")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Undo last" })).toBeVisible();
+  await capture(page, testInfo, "review-undo-available");
+  const undo = page.waitForResponse(
+    (candidate) =>
+      candidate.url().endsWith("/api/study/reviews/undo") &&
+      candidate.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Undo last" }).click();
+  expect((await undo).status()).toBe(200);
+  await expect(page.getByText("Visual prompt 1")).toBeVisible();
+  await capture(page, testInfo, "review-after-undo");
+  await rate(page, "Good");
+  await expect(page.getByText("Visual prompt 2")).toBeVisible();
+  await rate(page, "Good");
+  await expect(page.getByRole("heading", { level: 1, name: "Nice work." })).toBeVisible();
+
+  await page.goto("/app/stats");
+  await expect(page.getByRole("heading", { level: 1, name: "Your review picture" })).toBeVisible();
+  await capture(page, testInfo, "study-statistics");
+  const history = page.getByText("Recent review timeline");
+  await history.click();
+  await page.locator(".stats-card-timelines details summary").first().click();
+  await expect(page.getByRole("link", { name: "edit card" }).first()).toBeVisible();
+  await capture(page, testInfo, "card-history");
+
+  if (testInfo.project.name === "chromium-desktop") {
+    for (let index = 0; index < noteIds.length; index += 1) {
+      await page.goto(`/app/decks/${deckId}/edit?note=${noteIds[index]}`);
+      const answer = page.getByRole("textbox", { name: "Back / answer" });
+      await answer.fill(`Changed visual answer ${index + 1}`);
+      await page.getByRole("button", { name: "Save card" }).click();
+      await expect(page.getByText("All changes saved.")).toBeVisible();
+    }
+    await page.goto("/app/study");
+    await page.getByText("Custom study", { exact: true }).click();
+    await page.getByRole("button", { name: "Review ahead (reschedules)" }).click();
+    await expect(page.getByLabel("Content change decision")).toBeVisible();
+    await page.getByRole("button", { name: /Show answer/u }).click();
+    await capture(page, testInfo, "content-change-decision");
+
+    const appearanceWrite = await page.request.patch("/api/settings/appearance", {
+      data: { reduceMotion: false, seriousMode: true, theme: "system" },
+      headers: { Origin: new URL(page.url()).origin, "X-Lumen-CSRF": "1" },
+    });
+    expect(appearanceWrite.status()).toBe(200);
+    await page.reload();
+    await expect(page.locator(".review-session--serious")).toBeVisible();
+    await capture(page, testInfo, "review-serious-mode");
+  }
+
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
+  await expectNoHorizontalOverflow(page);
+});
