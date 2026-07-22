@@ -1,8 +1,8 @@
 # Implementation status
 
 **Current phase:** Phase 03 — Study experience redesign  
-**Status:** Frontend redesign merged through PR #13; Learn polish is locally accepted and awaiting
-a follow-up publication path because that pull request is closed  
+**Status:** Frontend redesign merged through PR #13; Learn polish is locally accepted and published
+for review in draft PR #14  
 **Evidence date:** 2026-07-21  
 **Next phase:** Phase 04 has not started
 
@@ -106,13 +106,12 @@ once. Application HTTP errors and all other navigation failures still fail immed
 ### Redesign Hosted Preview checkpoint
 
 PR #13 merged the original redesign and GitHub deleted its remote branch before the Learn-polish
-follow-up could be published. The original protected Vercel Preview reached `READY`; guarded
-application acceptance remained pending because the local Vercel CLI OAuth credential was rejected
-before an automation-bypass value could be retrieved. The follow-up is locally accepted but has not
-been pushed or deployed because adding it now requires a successor pull request, which would exceed
-the original one-pull-request instruction without owner direction. Deployment Protection was not
-weakened and Chrome was not used as an authentication fallback without owner approval. Beta
-Supabase, Vercel Production, and `recallflash.com` remain untouched.
+follow-up could be published. The follow-up is now published separately in draft PR #14 after owner
+direction. The original protected Vercel Preview reached `READY`; guarded application acceptance
+remained pending because the local Vercel CLI OAuth credential was rejected before an
+automation-bypass value could be retrieved. Deployment Protection was not weakened and Chrome was
+not used as an authentication fallback without owner approval. Beta Supabase, Vercel Production,
+and `recallflash.com` remain untouched.
 
 ## Phase 03 SRS and canonical review engine
 
