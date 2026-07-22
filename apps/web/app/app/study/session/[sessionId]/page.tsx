@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 
-import { ReviewSession } from "@/components/study/review-session.client";
+import { ReviewSession, StudySessionCompletion } from "@/components/study/review-session.client";
 import { requireAccountContext } from "@/lib/server/account-context";
-import { readReviewCard } from "@/lib/server/study-repository";
+import {
+  readReviewCard,
+  readStudyDashboard,
+  readStudySessionSummary,
+} from "@/lib/server/study-repository";
 
 export const metadata: Metadata = { title: "Review session" };
 
@@ -15,23 +19,28 @@ export default async function ReviewSessionPage({
   const account = await requireAccountContext({ returnTo: `/app/study/session/${sessionId}` });
   const card = await readReviewCard(sessionId, account.profile.id, account.activeLearner.id);
   if (!card) {
+    const learnerSettings = account.activeLearner.settings;
+    const timezone =
+      account.activeLearner.kind === "self"
+        ? account.profile.timezone
+        : typeof learnerSettings.timezone === "string"
+          ? learnerSettings.timezone
+          : "UTC";
+    const studyDayStart =
+      account.activeLearner.kind === "self"
+        ? account.profile.studyDayStart
+        : typeof learnerSettings.studyDayStart === "number"
+          ? learnerSettings.studyDayStart
+          : 240;
+    const [summary, dashboard] = await Promise.all([
+      readStudySessionSummary(sessionId, account.activeLearner.id),
+      readStudyDashboard(account.profile.id, account.activeLearner.id, timezone, studyDayStart),
+    ]);
     return (
-      <section aria-labelledby="complete-heading" className="study-complete">
-        <p className="eyebrow">Session complete</p>
-        <h1 id="complete-heading">Nice work.</h1>
-        <p>
-          There are no more cards in this queue. Your canonical reviews and time are reflected in
-          Statistics.
-        </p>
-        <div>
-          <a className="button" href="/app/study">
-            Back to Study
-          </a>
-          <a className="button button--secondary" href="/app/stats">
-            View statistics
-          </a>
-        </div>
-      </section>
+      <StudySessionCompletion
+        summary={summary}
+        todayRemaining={dashboard.due + dashboard.learning + dashboard.new}
+      />
     );
   }
   return (

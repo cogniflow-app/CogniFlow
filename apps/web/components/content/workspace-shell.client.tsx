@@ -1,6 +1,7 @@
 "use client";
 
 import { IconButton, MenuIcon, Sheet } from "@lumen/ui";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
@@ -65,6 +66,21 @@ function WorkspaceRailContent({
 
 export function WorkspaceShell(props: WorkspaceShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const pathname = usePathname();
+  const focusMode = pathname.startsWith("/app/study/session/");
+
+  if (focusMode) {
+    return (
+      <div
+        className="workspace-frame study-focus-frame"
+        style={{ display: "block", gridTemplateColumns: "minmax(0, 1fr)" }}
+      >
+        <main className="workspace-main study-focus-main" id="main-content" tabIndex={-1}>
+          {props.children}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="workspace-frame">

@@ -9,6 +9,7 @@ import {
   CardFlip,
   Checkbox,
   CompactStatus,
+  ConnectionStatus,
   ContextMenu,
   DataTable,
   DataTableBody,
@@ -35,6 +36,8 @@ import {
   ProductToolbar,
   Progress,
   Radio,
+  RatingButton,
+  RatingGroup,
   Score,
   SegmentedControl,
   Select,
@@ -44,6 +47,7 @@ import {
   Skeleton,
   Streak,
   StickyActionBar,
+  StudyProgress,
   Surface,
   Switch,
   SyncIndicator,
@@ -487,6 +491,124 @@ function GalleryContent() {
               Score and streak are presentation primitives only; neither changes accuracy, mastery,
               or scheduling state.
             </p>
+          </div>
+        </div>
+      </Specimen>
+
+      <Specimen title="Study experience patterns">
+        <div className="design-study-samples">
+          <section className="design-study-topbar" aria-label="Compact study toolbar example">
+            <div>
+              <strong>Biology fundamentals</strong>
+              <small>Review card</small>
+            </div>
+            <StudyProgress current={12} total={30} />
+            <ConnectionStatus online />
+            <Button size="sm" variant="secondary">
+              Pause
+            </Button>
+          </section>
+          <div className="design-study-warning" role="status">
+            <div>
+              <strong>This card changed since it was scheduled</strong>
+              <p>Relearn is recommended when the meaning or answer changed.</p>
+            </div>
+            <Button size="sm">Relearn</Button>
+          </div>
+          <RatingGroup>
+            {(
+              [
+                ["again", "Again", "1 min", "1"],
+                ["hard", "Hard", "6 min", "2"],
+                ["good", "Good", "2 days", "3"],
+                ["easy", "Easy", "5 days", "4"],
+              ] as const
+            ).map(([rating, label, interval, shortcut]) => (
+              <RatingButton
+                interval={interval}
+                key={rating}
+                label={label}
+                onClick={() =>
+                  announce(`${label} selected`, "Gallery ratings do not change scheduling data.")
+                }
+                rating={rating}
+                shortcut={shortcut}
+              />
+            ))}
+          </RatingGroup>
+          <dl className="design-study-metrics">
+            <div>
+              <dt>Due now</dt>
+              <dd>18</dd>
+            </div>
+            <div>
+              <dt>Study time</dt>
+              <dd>24 min</dd>
+            </div>
+            <div>
+              <dt>Recalled</dt>
+              <dd>86%</dd>
+            </div>
+          </dl>
+          <div className="design-study-filter-row">
+            <label>
+              Date range
+              <Select
+                aria-label="Example date range"
+                defaultValue="30"
+                options={[
+                  { label: "Last 30 days", value: "30" },
+                  { label: "All activity", value: "all" },
+                ]}
+              />
+            </label>
+            <label>
+              Deck
+              <Select
+                aria-label="Example deck filter"
+                defaultValue="all"
+                options={[
+                  { label: "All decks", value: "all" },
+                  { label: "Biology", value: "biology" },
+                ]}
+              />
+            </label>
+            <Badge tone="info">Last 30 days · all decks</Badge>
+          </div>
+          <div className="design-study-chart" aria-label="Example recall rating chart" role="img">
+            {[28, 42, 86, 58].map((value, index) => (
+              <span
+                key={value}
+                style={{ height: `${value}%` }}
+                title={`${["Again", "Hard", "Good", "Easy"][index]}: ${value}`}
+              />
+            ))}
+          </div>
+          <div className="design-study-zero">
+            <strong>Your first review will start the picture</strong>
+            <p>Zero states explain what will appear here and offer one useful next action.</p>
+            <Button size="sm">Start studying</Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Dialog
+              title="Set due date"
+              description="One advanced study operation per dialog."
+              trigger={<Button variant="secondary">Open study modal</Button>}
+            >
+              <FormField label="Due date">
+                <Input type="datetime-local" />
+              </FormField>
+            </Dialog>
+            <Sheet
+              title="Custom study"
+              description="A focused mobile-friendly wizard surface."
+              side="bottom"
+              trigger={<Button variant="secondary">Open study sheet</Button>}
+            >
+              <p className="m-0 text-[var(--color-text-muted)]">
+                Choose scope, cards, scheduling behavior, order, and then review the session.
+              </p>
+            </Sheet>
           </div>
         </div>
       </Specimen>

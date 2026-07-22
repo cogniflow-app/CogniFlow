@@ -5,9 +5,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CardFlip,
+  ConnectionStatus,
   DataTableSortButton,
+  RatingButton,
+  RatingGroup,
   ScoreDisplay,
   StreakDisplay,
+  StudyProgress,
   TimerProgress,
   formatDuration,
 } from "../src";
@@ -100,5 +104,37 @@ describe("study and game primitives", () => {
   it("formats durations without negative values", () => {
     expect(formatDuration(65_000)).toBe("1:05");
     expect(formatDuration(-1)).toBe("0:00");
+  });
+
+  it("announces study progress and connection state without relying on color", () => {
+    render(
+      <>
+        <StudyProgress current={3} total={10} />
+        <ConnectionStatus online={false} />
+      </>,
+    );
+
+    expect(screen.getByRole("progressbar", { name: "Study progress" })).toHaveAttribute(
+      "aria-valuetext",
+      "3 of 10, 7 remaining",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Offline — ratings paused");
+  });
+
+  it("keeps rating labels, intervals, and shortcuts as distinct accessible content", async () => {
+    const user = userEvent.setup();
+    const onRate = vi.fn();
+    render(
+      <RatingGroup>
+        <RatingButton interval="2 days" label="Good" onClick={onRate} rating="good" shortcut="3" />
+      </RatingGroup>,
+    );
+
+    const rating = screen.getByRole("button", {
+      name: "Good, 2 days, keyboard shortcut 3",
+    });
+    expect(screen.getByRole("group", { name: "Rate your recall" })).toContainElement(rating);
+    await user.click(rating);
+    expect(onRate).toHaveBeenCalledOnce();
   });
 });

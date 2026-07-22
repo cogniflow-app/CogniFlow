@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
-import { LinkButton, PlusIcon, ProductPage } from "@lumen/ui";
+import { LinkButton, PlayIcon, PlusIcon, ProductPage } from "@lumen/ui";
 
 import { DeckCommandBar } from "@/components/content/deck-workspace.client";
 import { DeckNavigation } from "@/components/content/deck-navigation.client";
@@ -32,17 +32,28 @@ export default async function DeckLayout({
           </div>
           {deck.descriptionPlain && <p>{deck.descriptionPlain}</p>}
         </div>
-        {canEdit && (
-          <LinkButton
-            className="product-primary-action"
-            href={`/app/decks/${deck.id}/edit`}
-            leadingIcon={<PlusIcon />}
-          >
-            Add cards
-          </LinkButton>
-        )}
+        <div className="deck-titlebar__actions">
+          {deck.cardCount > 0 && deck.status === "active" && (
+            <LinkButton
+              href={`/app/study?deck=${deck.id}`}
+              leadingIcon={<PlayIcon />}
+              variant="secondary"
+            >
+              Study
+            </LinkButton>
+          )}
+          {canEdit && (
+            <LinkButton
+              className="product-primary-action"
+              href={`/app/decks/${deck.id}/edit`}
+              leadingIcon={<PlusIcon />}
+            >
+              Add cards
+            </LinkButton>
+          )}
+          <DeckCommandBar key={`${deck.id}:${String(deck.version)}`} deck={deck} />
+        </div>
       </header>
-      <DeckCommandBar key={`${deck.id}:${String(deck.version)}`} deck={deck} />
       <DeckNavigation deck={deck} />
       {children}
     </ProductPage>

@@ -204,7 +204,8 @@ test("desktop and mobile authors can create, publish, preview, and clean up a ty
   expect(privatePublicPage.status()).toBe(404);
   expect(privateEmbedPage.status()).toBe(404);
 
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "More deck actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete deck…" }).click();
   await expect(page.getByRole("dialog", { name: "Delete this deck?" })).toBeVisible();
   const deleteResponse = page.waitForResponse(
     (response) =>

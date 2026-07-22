@@ -55,8 +55,8 @@ test("desktop and mobile learners complete a keyboard review through the canonic
   await expect(page.getByText("What molecule carries cellular energy?")).toBeVisible();
   await page.getByRole("button", { name: "Pause" }).click();
   await expect(page).toHaveURL(/\/app\/study$/u);
-  await expect(page.getByRole("heading", { name: "Continue where you left off" })).toBeVisible();
-  await page.getByRole("button", { name: "Resume session" }).click();
+  await expect(page.getByRole("heading", { name: "Continue your session" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume" }).click();
   await expect(page).toHaveURL(/\/app\/study\/session\//u);
   await expect(page.getByText("What molecule carries cellular energy?")).toBeVisible();
   await expect(page.getByText("ATP", { exact: true })).toHaveCount(0);
@@ -82,7 +82,11 @@ test("desktop and mobile learners complete a keyboard review through the canonic
   );
   await page.keyboard.press("3");
   expect((await reviewResponse).status()).toBe(200);
-  await expect(page.getByRole("heading", { level: 1, name: "Nice work." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "That’s the queue." })).toBeVisible();
+  for (const label of ["Again", "Hard", "Good", "Easy", "Today remaining"]) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("button", { name: "Undo last review" })).toBeVisible();
 
   await page.getByRole("link", { name: "View statistics" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Your review picture" })).toBeVisible();

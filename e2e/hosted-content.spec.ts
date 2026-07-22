@@ -214,7 +214,8 @@ test("Preview supports the complete disposable Phase 02 account and content path
 
   await signIn(page, email, password, `/app/decks/${deckId}/settings`);
 
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "More deck actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete deck…" }).click();
   const deleteResponse = page.waitForResponse(
     (response) =>
       response.url().endsWith(`/api/content/decks/${deckId}`) &&

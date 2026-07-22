@@ -16,6 +16,7 @@ import type {
   ReviewCardView,
   StudyDashboardSnapshot,
   StudyDeckRow,
+  StudySessionSummary,
   StudyStatistics,
 } from "@/lib/study/models";
 import { studyFilterDefinitionSchema } from "@/lib/study/custom-filter";
@@ -561,6 +562,59 @@ export async function readReviewCard(
       timezone: session.timezone,
       total: session.total_items,
     },
+  };
+}
+
+export async function readStudySessionSummary(
+  sessionId: string,
+  learnerProfileId: string,
+): Promise<StudySessionSummary | null> {
+  const client = await createNextServerDatabaseClient();
+  const [sessionResult, logsResult] = await Promise.all([
+    client
+      .from("study_sessions")
+      .select("completed_at,completed_items,rescheduling,source,status,total_items")
+      .eq("id", sessionId)
+      .eq("learner_profile_id", learnerProfileId)
+      .maybeSingle(),
+    client
+      .from("review_logs")
+      .select("id,deck_id,duration_ms,rating,reviewed_at")
+      .eq("study_session_id", sessionId)
+      .eq("learner_profile_id", learnerProfileId)
+      .order("reviewed_at", { ascending: false }),
+  ]);
+  if (sessionResult.error || logsResult.error || !sessionResult.data) return null;
+  const reviewLogIds = (logsResult.data ?? []).map((log) => log.id);
+  const undoneReviewIds = new Set<string>();
+  if (reviewLogIds.length > 0) {
+    const undoResult = await client
+      .from("review_undo_events")
+      .select("review_log_id")
+      .eq("learner_profile_id", learnerProfileId)
+      .in("review_log_id", reviewLogIds);
+    if (undoResult.error) return null;
+    for (const undo of undoResult.data ?? []) undoneReviewIds.add(undo.review_log_id);
+  }
+  const ratings = { again: 0, easy: 0, good: 0, hard: 0 };
+  let durationMs = 0;
+  const deckIds = new Set<string>();
+  for (const log of logsResult.data ?? []) {
+    if (undoneReviewIds.has(log.id)) continue;
+    if (log.rating in ratings) ratings[log.rating as keyof typeof ratings] += 1;
+    durationMs += log.duration_ms;
+    deckIds.add(log.deck_id);
+  }
+  return {
+    completed: sessionResult.data.completed_items,
+    completedAt: sessionResult.data.completed_at,
+    deckId: deckIds.size === 1 ? ([...deckIds][0] ?? null) : null,
+    durationMs,
+    lastReviewId: logsResult.data?.find((log) => !undoneReviewIds.has(log.id))?.id ?? null,
+    ratings,
+    rescheduling: sessionResult.data.rescheduling,
+    source: sessionResult.data.source,
+    total: sessionResult.data.total_items,
   };
 }
 

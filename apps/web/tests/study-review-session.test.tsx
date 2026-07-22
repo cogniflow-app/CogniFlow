@@ -4,12 +4,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ReviewCardView } from "@/lib/study/models";
+import type { ReviewCardView, StudySessionSummary } from "@/lib/study/models";
 
 const navigation = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 
-import { ReviewSession } from "../components/study/review-session.client";
+import { ReviewSession, StudySessionCompletion } from "../components/study/review-session.client";
 
 function rich(text: string): RichDocument {
   return {
@@ -56,6 +56,8 @@ function card(rescheduling = true): ReviewCardView {
 
 describe("review session", () => {
   beforeEach(() => {
+    navigation.push.mockReset();
+    navigation.refresh.mockReset();
     window.localStorage.clear();
     vi.stubGlobal(
       "fetch",
@@ -66,6 +68,61 @@ describe("review session", () => {
         }),
       ),
     );
+  });
+
+  it("summarizes every rating and restores the last review from completion", async () => {
+    const summary: StudySessionSummary = {
+      completed: 4,
+      completedAt: "2026-07-21T12:00:00.000Z",
+      deckId: "0190d9f0-0000-7000-8000-000000000004",
+      durationMs: 125_000,
+      lastReviewId: "0190d9f0-0000-7000-8000-000000000099",
+      ratings: { again: 1, easy: 1, good: 1, hard: 1 },
+      rescheduling: true,
+      source: "today",
+      total: 4,
+    };
+    const user = userEvent.setup();
+    render(<StudySessionCompletion summary={summary} todayRemaining={3} />);
+
+    expect(screen.getByRole("heading", { name: "That’s the queue." })).toBeVisible();
+    expect(screen.getByText("Today remaining").nextElementSibling).toHaveTextContent("3");
+    for (const rating of ["Again", "Hard", "Good", "Easy"]) {
+      expect(screen.getByText(rating).nextElementSibling).toHaveTextContent("1");
+    }
+    expect(screen.getByRole("link", { name: "Study more" })).toHaveAttribute(
+      "href",
+      `/app/study?deck=${summary.deckId}`,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Undo last review" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(JSON.parse(String(init?.body))).toMatchObject({ reviewLogId: summary.lastReviewId });
+    expect(navigation.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("does not report false completion when the active card becomes unavailable", () => {
+    const summary: StudySessionSummary = {
+      completed: 1,
+      completedAt: null,
+      deckId: "0190d9f0-0000-7000-8000-000000000004",
+      durationMs: 45_000,
+      lastReviewId: "0190d9f0-0000-7000-8000-000000000099",
+      ratings: { again: 0, easy: 0, good: 1, hard: 0 },
+      rescheduling: true,
+      source: "today",
+      total: 2,
+    };
+
+    render(<StudySessionCompletion summary={summary} todayRemaining={1} />);
+
+    expect(screen.getByRole("heading", { name: "This session can’t continue." })).toBeVisible();
+    expect(screen.getByText(/card was removed or deck access changed/i)).toBeVisible();
+    expect(screen.queryByText("Session complete")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Undo last review" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Study more" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Return to Study" })).toBeVisible();
   });
 
   it("keeps the answer out of the DOM until reveal and supports keyboard grading", async () => {
@@ -95,7 +152,8 @@ describe("review session", () => {
     const { container } = render(
       <ReviewSession card={card()} reducedMotion={false} seriousMode={false} />,
     );
-    await user.click(screen.getByRole("checkbox", { name: "Swipe selection" }));
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Swipe selection" }));
     await user.click(screen.getByRole("button", { name: /Show answer/ }));
     const surface = container.querySelector(".review-card");
     if (!surface) throw new Error("Review card surface is missing.");
@@ -171,7 +229,9 @@ describe("review session", () => {
     await user.click(screen.getByRole("button", { name: /Show answer/ }));
 
     await user.click(screen.getByRole("button", { name: /Good/ }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("The schedule changed");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This card changed in another session",
+    );
     expect(screen.getByText("Secret answer")).toBeVisible();
     expect(screen.getByRole("button", { name: /Good/ })).toBeEnabled();
     expect(navigation.refresh).not.toHaveBeenCalled();

@@ -66,6 +66,18 @@ export interface ReviewCardView {
   };
 }
 
+export interface StudySessionSummary {
+  readonly completed: number;
+  readonly completedAt: string | null;
+  readonly deckId: string | null;
+  readonly durationMs: number;
+  readonly lastReviewId: string | null;
+  readonly ratings: Readonly<Record<"again" | "easy" | "good" | "hard", number>>;
+  readonly rescheduling: boolean;
+  readonly source: string;
+  readonly total: number;
+}
+
 export interface StudyStatistics {
   readonly answerTimeBuckets: readonly { readonly count: number; readonly label: string }[];
   readonly cardsByState: Readonly<Record<"learning" | "new" | "relearning" | "review", number>>;

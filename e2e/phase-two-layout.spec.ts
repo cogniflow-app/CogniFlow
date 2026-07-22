@@ -214,7 +214,14 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
 
   await page.goto(`/app/decks/${deckId}`);
   const deckTotals = page.locator('dl[aria-label="Deck totals"]:visible');
-  await expect(deckTotals.locator(".deck-stat")).toHaveCount(4);
+  await expect(deckTotals.locator(".deck-stat")).toHaveCount(5);
+  await expect(deckTotals.locator("dt")).toHaveText([
+    "Card entries",
+    "Study cards",
+    "Due",
+    "New",
+    "Learning",
+  ]);
   await expect(page.getByRole("heading", { level: 2, name: "Card-type mix" })).toHaveCount(0);
   const firstTotalSpacing = await deckTotals
     .locator(".deck-stat")
@@ -234,8 +241,7 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
     .evaluateAll((elements) =>
       elements.map((element) => Math.round(element.getBoundingClientRect().top)),
     );
-  expect(tabletTotalRows[0]).toBe(tabletTotalRows[1]);
-  expect(tabletTotalRows[2]).toBeGreaterThan(tabletTotalRows[0] ?? 0);
+  expect(new Set(tabletTotalRows).size).toBe(1);
 
   await page.setViewportSize({ height: 844, width: 390 });
   await expectNoHorizontalOverflow(page);
@@ -247,6 +253,7 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
   expect(mobileTotalRows[0]).toBe(mobileTotalRows[1]);
   expect(mobileTotalRows[2]).toBe(mobileTotalRows[3]);
   expect(mobileTotalRows[2]).toBeGreaterThan(mobileTotalRows[0] ?? 0);
+  expect(mobileTotalRows[4]).toBeGreaterThan(mobileTotalRows[2] ?? 0);
   await capture(page, testInfo, "deck-overview-mobile");
 
   await page.setViewportSize({ height: 900, width: 1440 });
