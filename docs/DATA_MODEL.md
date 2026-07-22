@@ -474,7 +474,7 @@ Every schema-owning phase updates this document with:
 
 ## Phase 03 learner scheduling model
 
-Phase 03 migrations `20260721000000` through `20260722000000` add a scheduling graph that refers to
+Phase 03 migrations `20260721000000` through `20260722001000` add a scheduling graph that refers to
 Phase 02 generated cards without changing their authored identity. `srs_presets` and immutable
 `srs_preset_versions` belong to a learner profile; `deck_srs_settings` selects one preset per
 learner/deck. `card_schedules` has exactly one current row per learner profile and generated card.
@@ -506,4 +506,5 @@ registered session's viewable deck, note, and card IDs. The helpers preserve the
 deck-status, learner, and session-revocation semantics while allowing PostgreSQL to evaluate each
 authorized set once for large queue, dashboard, and statistics reads. Migration `20260722000000`
 adds the exact-response replay receipt and service-only preflight/v2 commit wrapper without changing
-existing canonical evidence.
+existing canonical evidence. Migration `20260722001000` aligns the replay function's volatility
+with its runtime authorization helper.

@@ -82,6 +82,11 @@ select ok(
   'canonical review commit is security-definer with an empty search path'
 );
 select ok(
+  (select procedure.provolatile = 'v' from pg_catalog.pg_proc as procedure
+   where procedure.oid = 'public.admin_get_srs_review_replay(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text)'::regprocedure),
+  'review replay volatility matches its runtime authorization helper'
+);
+select ok(
   exists(select 1 from pg_catalog.pg_trigger where tgrelid = 'public.review_logs'::regclass and tgname = 'review_logs_append_only')
   and exists(select 1 from pg_catalog.pg_trigger where tgrelid = 'public.review_undo_events'::regclass and tgname = 'review_undo_events_append_only'),
   'review evidence and compensations are append-only'

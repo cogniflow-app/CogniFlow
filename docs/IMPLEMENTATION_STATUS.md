@@ -82,6 +82,7 @@ collaboration, and actual offline synchronization were not started.
 13. `20260721012000_srs_lazy_control_audit_normalization.sql`
 14. `20260721013000_srs_read_authorization_performance.sql`
 15. `20260722000000_srs_review_replay_receipts.sql`
+16. `20260722001000_srs_review_replay_volatility.sql`
 
 No applied Phase 00–02 migration was edited. No setup value or environment variable was added.
 
@@ -91,9 +92,9 @@ No applied Phase 00–02 migration was edited. No setup value or environment var
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@lumen/srs` tests | 4 files / 28 deterministic, exact-parity, SM-2, optimizer, time/DST, queue, property, and 10,000-card tests pass                                                                               |
 | Phase 03 web tests | 5 focused files / 14 route, replay, rendering, double-submit, statistics, and pagination tests pass                                                                                            |
-| Local database     | Reset through all 48 migrations; 21 pgTAP files / 888 assertions pass                                                                                                                          |
-| Concurrency        | Two database connections: 1 commit, 1 typed stale conflict, 1 immutable log; aggregate canonical mutation 26.617 ms                                                                            |
-| Queue performance  | Authorized registered-device 10,000-card queue 97.752 ms; Today 101.006 ms; resume 0.350 ms; statistics 67.424 ms; all budgets pass                                                            |
+| Local database     | Reset through all 49 migrations; 21 pgTAP files / 889 assertions pass                                                                                                                          |
+| Concurrency        | Two database connections: 1 commit, 1 typed stale conflict, 1 immutable log; aggregate canonical mutation 25.174 ms                                                                            |
+| Queue performance  | Authorized registered-device 10,000-card queue 96.417 ms; Today 94.936 ms; resume 0.295 ms; statistics 66.352 ms; all budgets pass                                                             |
 | Browser E2E        | 29 pass / 19 intentional cross-project skips across Chromium desktop and Pixel 7                                                                                                               |
 | Accessibility      | 28/28 axe, keyboard, focus, zoom, responsive, theme, motion, and authenticated route checks pass                                                                                               |
 | Visual acceptance  | 2/2 dedicated desktop/mobile layout projects pass; actual Chromium pixels inspected for populated Study, collapsed/expanded scheduling, and 200% mobile statistics with no horizontal overflow |
@@ -106,7 +107,7 @@ No applied Phase 00–02 migration was edited. No setup value or environment var
 | `pnpm format:check` / `pnpm secret:scan`   | Exit 0; formatting accepted and no credential finding                                                                                                     |
 | `pnpm lint` / `pnpm typecheck`             | Exit 0; dependency boundaries and 9/9 strict TypeScript packages pass                                                                                     |
 | `pnpm test`                                | Exit 0; 85 files / 663 tests; coverage 74.43% statements, 64.56% branches, 72.38% functions, 77.73% lines                                                 |
-| `pnpm db:reset` / `pnpm test:db`           | Exit 0; empty reset through 48 migrations; 21 files / 888 assertions plus the two-connection concurrency proof pass                                       |
+| `pnpm db:reset` / `pnpm test:db`           | Exit 0; empty reset through 49 migrations; 21 files / 889 assertions plus the two-connection concurrency proof pass                                       |
 | `pnpm db:types` / `pnpm db:types:check`    | Exit 0; generated database types regenerated and current                                                                                                  |
 | verification-wrapped `pnpm build`          | Exit 0; optimized Next production build generates 76 route/static entries                                                                                 |
 | verification-wrapped `pnpm build:portable` | Exit 0; OpenNext emits the Cloudflare worker                                                                                                              |
@@ -141,12 +142,14 @@ committed with HTTP 200, but the identical retry returned 403 because
 commit RPC could reach its idempotency check. The acceptance cleanup ran and returned `rows: []`,
 so no active disposable fixture remained. Beta and Production database promotion were held.
 
-The forward repair adds migration `20260722000000_srs_review_replay_receipts.sql`, computes a hash
+The forward repair adds `20260722000000_srs_review_replay_receipts.sql` plus the separate
+`20260722001000_srs_review_replay_volatility.sql` catalog-alignment migration. It computes a hash
 over the complete raw review intent, checks an authorized exact-response receipt before mutable
 context, and stores the first canonical result through `admin_commit_srs_review_v2`. Focused route,
-pgTAP, reset, database, type, and generated-type checks pass locally. The final Preview deployment,
-disposable acceptance/cleanup, and post-cleanup verifier remain required before Beta promotion.
-`apps/web/.env.local` and all provider secrets remain ignored and untracked.
+pgTAP, reset, database, type, and generated-type checks pass locally. The receipt migration is on
+Preview; its verifier caught the non-failing volatility warning before acceptance, so the forward
+alignment migration and complete disposable acceptance/cleanup remain required before Beta
+promotion. `apps/web/.env.local` and all provider secrets remain ignored and untracked.
 
 ## Phase 02 product UI redesign
 

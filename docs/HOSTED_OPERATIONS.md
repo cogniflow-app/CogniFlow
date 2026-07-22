@@ -581,8 +581,8 @@ introduced by the Phase 02 promotion.
 
 ## Phase 03 Preview checkpoint procedure
 
-Phase 03 adds 15 migrations, `20260721000000_srs_schema.sql` through
-`20260722000000_srs_review_replay_receipts.sql`. They may be applied only after the
+Phase 03 adds 16 migrations, `20260721000000_srs_schema.sql` through
+`20260722001000_srs_review_replay_volatility.sql`. They may be applied only after the
 complete local gate, from a committed clean migration directory, using:
 
 ```bash
@@ -615,7 +615,8 @@ The first disposable SRS acceptance then found a real HTTP replay defect: the fi
 review committed, but its identical retry returned 403 because mutable session-item preflight ran
 before database idempotency lookup. Cleanup completed and proved no active disposable rows remained.
 Beta promotion was held. The forward fix adds an append-only exact-response receipt, an authorized
-replay preflight, and a v2 commit wrapper. Deploy that committed migration and matching application
-only to Preview, rerun the complete disposable acceptance plus cleanup, and rerun
+replay preflight, a v2 commit wrapper, and a separate forward migration aligning replay-function
+volatility with its authorization helper. Deploy those committed migrations and the matching
+application only to Preview, rerun the complete disposable acceptance plus cleanup, and rerun
 `pnpm db:verify:preview` before promotion. Do not substitute Beta/Production or weaken the
 fixed-project guards.
