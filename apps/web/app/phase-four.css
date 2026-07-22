@@ -477,6 +477,7 @@
   .practice-session-bar__actions,
   .practice-session-progress {
     display: flex;
+    min-width: 0;
     align-items: center;
     gap: 0.75rem;
   }
@@ -493,6 +494,12 @@
 
   .practice-session-bar__identity > span {
     display: grid;
+    min-width: 0;
+  }
+
+  .practice-session-bar__identity > span > strong,
+  .practice-session-bar__identity > span > small {
+    overflow-wrap: anywhere;
   }
 
   .practice-session-bar small,
@@ -1232,6 +1239,7 @@
       padding-inline: 0.8rem;
     }
     .practice-session-bar__actions {
+      flex-wrap: wrap;
       justify-content: space-between;
     }
     .practice-test-navigation {
