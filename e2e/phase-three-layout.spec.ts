@@ -38,6 +38,23 @@ async function expectNoHorizontalOverflow(page: Page) {
   ).toBeLessThanOrEqual(sizes.client + 1);
 }
 
+async function expectPhaseThreeGutters(page: Page, selector: string) {
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("The responsive viewport is unavailable.");
+  const expected = viewport.width <= 700 ? 16 : viewport.width >= 1200 ? 32 : 24;
+  const spacing = await page.locator(selector).evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      paddingLeft: Number.parseFloat(style.paddingLeft),
+      paddingRight: Number.parseFloat(style.paddingRight),
+      paddingTop: Number.parseFloat(style.paddingTop),
+    };
+  });
+  expect(spacing.paddingLeft).toBeGreaterThanOrEqual(expected - 0.5);
+  expect(spacing.paddingRight).toBeGreaterThanOrEqual(expected - 0.5);
+  expect(spacing.paddingTop).toBeGreaterThanOrEqual((viewport.width <= 700 ? 16 : 24) - 0.5);
+}
+
 async function createDeckWithCards(page: Page, title: string) {
   await page.goto("/app/decks/new");
   await page.getByRole("textbox", { name: "Deck title" }).fill(title);
@@ -116,6 +133,7 @@ test("Phase 03 Study surfaces remain calm, responsive, and visually complete", a
 
   await expect(page.getByRole("heading", { level: 1, name: /Ready when you are/u })).toBeVisible();
   await expect(page.getByText(/Nothing is scheduled right now/u)).toBeVisible();
+  await expectPhaseThreeGutters(page, ".study-dashboard");
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, "study-empty");
   await page.goto("/app/stats");
@@ -153,15 +171,52 @@ test("Phase 03 Study surfaces remain calm, responsive, and visually complete", a
   }
 
   await startDeckSession(page, title);
+  const pauseResponse = page.waitForResponse(
+    (response) => response.url().endsWith("/control") && response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Pause" }).click();
-  await expect(page.getByRole("heading", { name: "Continue your session" })).toBeVisible();
+  expect((await pauseResponse).status()).toBe(200);
+  await expect(page).toHaveURL(/\/app\/study$/u, { timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: "Continue your session" })).toBeVisible({
+    timeout: 15_000,
+  });
   await page.getByRole("button", { name: "Resume" }).click();
   await expect(page.getByText("Visual prompt 1")).toBeVisible();
   await expect(page.getByText("Visual answer 1")).toHaveCount(0);
+  const reviewScene = page.locator(".review-card-scene");
+  const compactReviewViewport = (page.viewportSize()?.width ?? 1_000) <= 700;
+  const reviewBodySpacing = await page.locator(".review-session__body").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      paddingLeft: Number.parseFloat(style.paddingLeft),
+      paddingRight: Number.parseFloat(style.paddingRight),
+    };
+  });
+  expect(reviewBodySpacing.paddingLeft).toBeGreaterThanOrEqual(compactReviewViewport ? 15.5 : 23.5);
+  expect(reviewBodySpacing.paddingRight).toBeGreaterThanOrEqual(
+    compactReviewViewport ? 15.5 : 23.5,
+  );
+  const reviewSceneBox = await reviewScene.boundingBox();
+  if (!reviewSceneBox) throw new Error("The review card scene is unavailable.");
+  expect(reviewSceneBox.width).toBeLessThanOrEqual(801);
+  expect(reviewSceneBox.height).toBeLessThanOrEqual(compactReviewViewport ? 353 : 417);
+  const cardFlipper = page.locator('.review-card-flipper[data-flipped="false"]');
+  await expect(cardFlipper).toBeVisible();
+  const flipMotion = await cardFlipper.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      duration: Number.parseFloat(style.transitionDuration),
+      transformStyle: style.transformStyle,
+    };
+  });
+  expect(flipMotion.transformStyle).toBe("preserve-3d");
+  expect(flipMotion.duration).toBeGreaterThanOrEqual(0.22);
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, "review-prompt");
-  await page.getByRole("button", { name: /Show answer/u }).click();
+  await reviewScene.click();
   await expect(page.getByText("Visual answer 1")).toBeVisible();
+  await expect(page.locator('.review-card-flipper[data-flipped="true"]')).toBeVisible();
+  await expect(page.locator(".review-card--prompt")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Again/u })).toBeVisible();
   await expect(page.getByRole("button", { name: /Hard/u })).toBeVisible();
   await expect(page.getByRole("button", { name: /Good/u })).toBeVisible();

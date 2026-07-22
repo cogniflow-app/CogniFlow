@@ -2,10 +2,16 @@
   .study-dashboard,
   .stats-dashboard,
   .scheduling-settings {
+    --phase-three-page-gutter: 1.5rem;
+
     display: grid;
     gap: clamp(1.25rem, 2vw, 2rem);
-    width: min(100%, 74rem);
+    width: min(100%, 78rem);
     margin-inline: auto;
+    padding: max(1.5rem, env(safe-area-inset-top, 0px))
+      max(var(--phase-three-page-gutter), env(safe-area-inset-right, 0px))
+      max(2rem, env(safe-area-inset-bottom, 0px))
+      max(var(--phase-three-page-gutter), env(safe-area-inset-left, 0px));
   }
 
   .study-dashboard :where(h1, h2, h3, p),
@@ -530,9 +536,10 @@
   .review-session__body {
     display: grid;
     gap: 0.85rem;
-    width: min(calc(100% - 1.5rem), 64rem);
+    width: min(100%, 67rem);
     margin-inline: auto;
-    padding-block: clamp(1rem, 2.5vh, 2rem) 1.5rem;
+    padding: clamp(1rem, 2.5vh, 2rem) max(1.5rem, env(safe-area-inset-right, 0px))
+      max(1.5rem, env(safe-area-inset-bottom, 0px)) max(1.5rem, env(safe-area-inset-left, 0px));
   }
 
   .review-warning {
@@ -587,25 +594,53 @@
     color: var(--color-text);
   }
 
-  .review-card {
+  .review-card-scene {
     position: relative;
+    width: min(100%, 50rem);
+    height: clamp(18rem, 44dvh, 26rem);
+    margin-inline: auto;
+    perspective: 75rem;
+    touch-action: pan-y;
+    animation: review-card-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .review-card-flipper {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transition: transform 230ms cubic-bezier(0.55, 0, 1, 0.45);
+    will-change: transform;
+  }
+
+  .review-card-flipper[data-flip-phase="turning"] {
+    transform: rotateY(90deg);
+  }
+
+  .review-card-flipper[data-flip-phase="answer"] {
+    transform: rotateY(180deg);
+    transition-timing-function: cubic-bezier(0, 0.55, 0.45, 1);
+  }
+
+  .review-card {
+    position: absolute;
+    inset: 0;
     display: grid;
+    min-height: 0;
     place-items: center;
-    min-height: clamp(20rem, 52vh, 34rem);
     overflow: hidden;
-    padding: clamp(2.5rem, 6vw, 5rem) clamp(1.25rem, 6vw, 4rem);
+    padding: clamp(2.75rem, 5vw, 3.5rem) clamp(1.25rem, 5vw, 3rem) clamp(1.5rem, 4vw, 2.5rem);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-xl);
     background: var(--color-surface-raised);
     box-shadow: var(--shadow-md);
-    touch-action: pan-y;
-    transition:
-      border-color var(--duration-fast),
-      box-shadow var(--duration-fast);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 
   .review-card--answer {
     border-color: color-mix(in srgb, var(--color-brand) 42%, var(--color-border));
+    background: color-mix(in srgb, var(--color-brand) 3%, var(--color-surface-raised));
+    transform: rotateY(180deg);
   }
 
   .review-card__side {
@@ -619,15 +654,38 @@
   }
 
   .review-card__content {
-    width: min(100%, 48rem);
+    width: 100%;
+    max-height: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 0.25rem;
+    scrollbar-width: thin;
+    text-align: center;
     font-size: clamp(1.1rem, 2vw, 1.4rem);
     line-height: 1.65;
+  }
+
+  .review-card__content .study-rich-document {
+    width: 100%;
+  }
+
+  @keyframes review-card-enter {
+    from {
+      opacity: 0;
+      transform: translateY(0.4rem) scale(0.995);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 
   .review-controls {
     display: grid;
     justify-items: center;
     gap: 0.65rem;
+    width: min(100%, 50rem);
+    margin-inline: auto;
   }
 
   .review-show-answer {
@@ -726,7 +784,9 @@
 
   .review-toolbar {
     justify-content: space-between;
+    width: min(100%, 50rem);
     min-height: 3rem;
+    margin-inline: auto;
     padding-block-start: 0.15rem;
     color: var(--color-text-muted);
   }
@@ -781,6 +841,16 @@
 
   .review-session--serious .review-card {
     box-shadow: none;
+  }
+
+  .review-session--serious .review-card-scene,
+  .review-session--reduced-motion .review-card-scene {
+    animation: none;
+  }
+
+  .review-session--serious .review-card-flipper,
+  .review-session--reduced-motion .review-card-flipper {
+    transition: none;
   }
 
   /* Statistics */
@@ -1421,6 +1491,14 @@
     margin: 0;
   }
 
+  @media (min-width: 1200px) {
+    .study-dashboard,
+    .stats-dashboard,
+    .scheduling-settings {
+      --phase-three-page-gutter: 2rem;
+    }
+  }
+
   @media (max-width: 900px) {
     .review-session__topbar {
       grid-template-columns: minmax(0, 1fr) auto;
@@ -1458,6 +1536,14 @@
   }
 
   @media (max-width: 700px) {
+    .study-dashboard,
+    .stats-dashboard,
+    .scheduling-settings {
+      --phase-three-page-gutter: 1rem;
+
+      padding-block-start: max(1rem, env(safe-area-inset-top, 0px));
+    }
+
     .study-page-header,
     .section-heading-row,
     .study-today-card__lead,
@@ -1506,12 +1592,17 @@
     }
 
     .review-session__body {
-      width: min(100% - 1rem, 64rem);
+      width: 100%;
+      padding-inline-start: max(1rem, env(safe-area-inset-left, 0px));
+      padding-inline-end: max(1rem, env(safe-area-inset-right, 0px));
       padding-block-start: 0.75rem;
     }
 
+    .review-card-scene {
+      height: clamp(17rem, 42dvh, 22rem);
+    }
+
     .review-card {
-      min-height: clamp(20rem, 55vh, 32rem);
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow-sm);
     }
@@ -1601,8 +1692,12 @@
   @media (prefers-reduced-motion: reduce) {
     .review-session .lumen-study-progress__indicator,
     .review-session .lumen-rating-button,
-    .review-card {
+    .review-card-flipper {
       transition: none;
+    }
+
+    .review-card-scene {
+      animation: none;
     }
   }
 }
