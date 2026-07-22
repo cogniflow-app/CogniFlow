@@ -1,6 +1,6 @@
 begin;
 
-select plan(6);
+select plan(7);
 
 insert into auth.users (
   instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,
@@ -16,6 +16,11 @@ where id='b0000000-0000-4000-8000-000000000001';
 insert into auth.sessions (id,user_id,created_at,updated_at,not_after) values (
   'b0000000-0000-4000-8000-000000000002','b0000000-0000-4000-8000-000000000001',
   pg_catalog.now(),pg_catalog.now(),pg_catalog.now()+interval '1 hour'
+);
+insert into public.devices (id,account_id,auth_session_id,display_name,platform,idempotency_key) values (
+  'b0000000-0000-4000-8000-000000000010','b0000000-0000-4000-8000-000000000001',
+  'b0000000-0000-4000-8000-000000000002','Performance browser','pgTAP',
+  'b0000000-0000-4000-8000-000000000011'
 );
 insert into public.decks (id,owner_account_id,title,slug,default_note_type_id,content_hash) values (
   'b0000000-0000-4000-8000-000000000003','b0000000-0000-4000-8000-000000000001',
@@ -89,11 +94,23 @@ select ok(
   'large due-queue predicates have dedicated learner/state/due indexes'
 );
 
+analyze public.decks, public.notes, public.cards, public.card_schedules;
+
 create temporary table srs_queue_measurement (name text primary key, plan json not null) on commit drop;
 grant select,insert on srs_queue_measurement to authenticated;
 
 set local role authenticated;
 set local "request.jwt.claims" = '{"sub":"b0000000-0000-4000-8000-000000000001","role":"authenticated","session_id":"b0000000-0000-4000-8000-000000000002"}';
+select results_eq(
+  $$
+    select
+      (select count(*)::integer from public.notes),
+      (select count(*)::integer from public.cards),
+      (select count(*)::integer from public.card_schedules)
+  $$,
+  $$ values (10000,10000,10000) $$,
+  'the performance fixture measures an authorized registered-device read path'
+);
 do $measurement$
 declare
   v_plan json;

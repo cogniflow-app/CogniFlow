@@ -29,7 +29,9 @@ described its draft branch.
   audit, optimizer metadata, content decisions, lazy controls, and account-deletion minimization.
   All exposed tables use RLS; service scheduling functions use actor-derived authorization, fixed
   search paths, exact grants, indexed policy/queue predicates, and no service-role direct SRS table
-  grants.
+  grants. Set-based, current-session content authorization helpers preserve the existing deck,
+  note, card, learner, and registered-device policy semantics without repeating security-definer
+  checks for every row in a large authorized queue.
 - Added one canonical review route and RPC protocol. The browser never supplies the next schedule.
   The trusted server computes with `@lumen/srs`; PostgreSQL repeats authorization, locks/compares
   version and before-state, binds idempotency to the complete command, atomically writes immutable
@@ -76,6 +78,7 @@ collaboration, and actual offline synchronization were not started.
 11. `20260721010000_srs_algorithm_migration.sql`
 12. `20260721011000_srs_lazy_schedule_controls.sql`
 13. `20260721012000_srs_lazy_control_audit_normalization.sql`
+14. `20260721013000_srs_read_authorization_performance.sql`
 
 No applied Phase 00–02 migration was edited. No setup value or environment variable was added.
 
@@ -85,9 +88,9 @@ No applied Phase 00–02 migration was edited. No setup value or environment var
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@lumen/srs` tests | 4 files / 28 deterministic, exact-parity, SM-2, optimizer, time/DST, queue, property, and 10,000-card tests pass                                                                               |
 | Phase 03 web tests | 5 focused files / 13 route, rendering, double-submit, statistics, and pagination tests pass                                                                                                    |
-| Local database     | Reset through all 46 migrations; 21 pgTAP files / 884 assertions pass                                                                                                                          |
-| Concurrency        | Two database connections: 1 commit, 1 typed stale conflict, 1 immutable log; aggregate canonical mutation 27.727 ms                                                                            |
-| Queue performance  | Aggregate 10,000-card queue 0.320 ms; Today 1047.483 ms; resume 0.079 ms; statistics 0.093 ms; all budgets pass                                                                                |
+| Local database     | Reset through all 47 migrations; 21 pgTAP files / 885 assertions pass                                                                                                                          |
+| Concurrency        | Two database connections: 1 commit, 1 typed stale conflict, 1 immutable log; aggregate canonical mutation 24.975 ms                                                                            |
+| Queue performance  | Authorized registered-device 10,000-card queue 95.794 ms; Today 95.834 ms; resume 0.343 ms; statistics 67.364 ms; all budgets pass                                                             |
 | Browser E2E        | 29 pass / 19 intentional cross-project skips across Chromium desktop and Pixel 7                                                                                                               |
 | Accessibility      | 28/28 axe, keyboard, focus, zoom, responsive, theme, motion, and authenticated route checks pass                                                                                               |
 | Visual acceptance  | 2/2 dedicated desktop/mobile layout projects pass; actual Chromium pixels inspected for populated Study, collapsed/expanded scheduling, and 200% mobile statistics with no horizontal overflow |
@@ -99,14 +102,22 @@ No applied Phase 00–02 migration was edited. No setup value or environment var
 | `pnpm install --frozen-lockfile`           | Exit 0; 10 workspace projects current under Node `24.18.0` and pnpm `11.13.0`                                                                             |
 | `pnpm format:check` / `pnpm secret:scan`   | Exit 0; formatting accepted and no credential finding                                                                                                     |
 | `pnpm lint` / `pnpm typecheck`             | Exit 0; dependency boundaries and 9/9 strict TypeScript packages pass                                                                                     |
-| `pnpm test`                                | Exit 0; 85 files / 662 tests; coverage 74.45% statements, 64.56% branches, 72.38% functions, 77.75% lines                                                 |
-| `pnpm db:reset` / `pnpm test:db`           | Exit 0; empty reset through 46 migrations; 21 files / 884 assertions plus the two-connection concurrency proof pass                                       |
+| `pnpm test`                                | Exit 0; 85 files / 662 tests; coverage 74.43% statements, 64.56% branches, 72.38% functions, 77.73% lines                                                 |
+| `pnpm db:reset` / `pnpm test:db`           | Exit 0; empty reset through 47 migrations; 21 files / 885 assertions plus the two-connection concurrency proof pass                                       |
 | `pnpm db:types` / `pnpm db:types:check`    | Exit 0; generated database types regenerated and current                                                                                                  |
 | verification-wrapped `pnpm build`          | Exit 0; optimized Next production build generates 76 route/static entries                                                                                 |
 | verification-wrapped `pnpm build:portable` | Exit 0; OpenNext emits the Cloudflare worker                                                                                                              |
 | `pnpm test:e2e` / `pnpm test:a11y`         | Exit 0; 29 pass / 19 intentional skips, then 28/28 pass                                                                                                   |
-| `pnpm test:lighthouse` / `pnpm test:load`  | Exit 0; Lighthouse assertions pass at 98/100/96/100; k6 15/15 checks, 0 failures, p95 8.93 ms                                                             |
-| `pnpm verify`                              | Exit 0 on 2026-07-21 under pinned Node/pnpm; complete aggregate reran every practical local gate above, including an empty database reset and both builds |
+| `pnpm test:lighthouse` / `pnpm test:load`  | Exit 0; Lighthouse assertions pass at 98/100/96/100; k6 15/15 checks, 0 failures, p95 8.61 ms                                                             |
+| `pnpm verify`                              | Exit 0 on 2026-07-22 under pinned Node/pnpm; complete aggregate reran every practical local gate above, including an empty database reset and both builds |
+
+GitHub Actions run `29886609843` exposed the original performance fixture's missing registered
+device and stale bulk-table statistics: its denial-path plans took 4545.316 ms for the due queue
+and 4406.666 ms for Today. A transaction-only diagnostic with a valid registered device showed the
+old row-by-row policies were also genuinely slow for authorized data (8616.804 ms Today and
+5385.696 ms statistics locally). Migration `13000` retains the authorization semantics while
+materializing current-session viewable ID sets once per query; the corrected fixture now proves
+all 10,000 rows are visible before recording the passing measurements above.
 
 Raw production build commands correctly rejected the developer-only HTTP values in the ignored
 `.env.local`; the verification wrapper supplied deterministic production-valid values without

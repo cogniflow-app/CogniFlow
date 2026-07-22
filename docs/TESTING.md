@@ -469,9 +469,11 @@ study-day cutoffs, all queue modes, deterministic resume, and typical/10,000-car
 creation, complete-command idempotency, stale versions, append-only evidence, compensation,
 rebuild/replay, profile isolation, public/deck-owner denial, inactive content, session limits,
 sibling/leech/manual/bulk/content/filter/migration/deletion behavior. Test 155 measures 10,000-card
-queue, Today, resume, and statistics query plans. `scripts/test-srs-concurrency.mjs` uses two real
-database connections and requires exactly one commit, one typed stale conflict, one log, and a
-sub-500 ms canonical mutation.
+queue, Today, resume, and statistics query plans. Its actor has a registered Auth-session device,
+the bulk fixture is analyzed before measurement, and a visibility assertion proves the timings are
+for all 10,000 authorized rows rather than a fast RLS-denial path. `scripts/test-srs-concurrency.mjs`
+uses two real database connections and requires exactly one commit, one typed stale conflict, one
+log, and a sub-500 ms canonical mutation.
 
 Web unit tests cover trusted route calculation, malicious transition rejection, answer DOM
 separation, keyboard/typed/safe-swipe behavior, duplicate-submit coalescing, preview-only behavior,

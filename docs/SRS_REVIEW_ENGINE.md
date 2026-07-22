@@ -68,6 +68,9 @@ Security-definer functions use an explicit `search_path`, actor-derived authoriz
 `service_role` execute grants. The service role has no direct table read/write grant for SRS data.
 Browser roles cannot execute service RPCs. RLS keeps schedules, sessions, filters, statistics, logs,
 and operations private to authorized learner context; public deck routes remain schedule-neutral.
+Read-only RLS obtains the current registered session's viewable deck, note, and card IDs through
+fixed-search-path set-returning helpers, so large queues reuse one authorized set instead of
+repeating an equivalent security-definer check for every row.
 
 ## Queue construction
 
@@ -126,10 +129,12 @@ text alternatives; tables remain available to keyboard and screen-reader users.
 
 ## Performance and verification targets
 
-Local pgTAP uses a realistic 10,000-card fixture. Budgets are 500 ms for package queue construction,
-1500 ms for the Today query, 500 ms for resume, 500 ms for statistics aggregation, and 500 ms for a
-canonical commit. The final Phase 03 measurements and complete command results are recorded in
-`IMPLEMENTATION_STATUS.md`.
+Local pgTAP uses a realistic 10,000-card fixture with a registered Auth-session device and refreshed
+planner statistics. A separate assertion proves all 10,000 rows are visible before timing, so a
+fast authorization denial cannot satisfy the performance gate. Budgets are 500 ms for package queue
+construction, 1500 ms for the Today query, 500 ms for resume, 500 ms for statistics aggregation,
+and 500 ms for a canonical commit. The final Phase 03 measurements and complete command results are
+recorded in `IMPLEMENTATION_STATUS.md`.
 
 Phase 04 remains separate: no adaptive Learn mastery, generalized grading, test mode, or persistent
 practice attempts are created here. Phase 05 owns actual offline synchronization; Phase 03 only

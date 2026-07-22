@@ -480,5 +480,8 @@ IDs, ratings, sources, states, versions, and transition payloads are schema- and
 the browser cannot inject an after-state. Review logs/preset versions are trigger-enforced
 append-only. Undo and account deletion preserve minimized compensating/audit evidence. Queue reads
 exclude unauthorized, inactive, deleted, suspended, and buried cards, and authorization is checked
-again at mutation time. No analytics integration receives card answers or review history, and no
-new environment secret or direct database credential is introduced.
+again at mutation time. Fixed-search-path set-returning helpers derive the current registered
+session's viewable deck, note, and card IDs once per read; they retain the same owner/member,
+deck-status, learner-access, and revoked-device fail-closed rules while avoiding a security-definer
+authorization call per queue row. No analytics integration receives card answers or review
+history, and no new environment secret or direct database credential is introduced.

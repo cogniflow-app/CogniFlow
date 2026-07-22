@@ -581,8 +581,8 @@ introduced by the Phase 02 promotion.
 
 ## Phase 03 Preview checkpoint procedure
 
-Phase 03 adds 13 migrations, `20260721000000_srs_schema.sql` through
-`20260721012000_srs_lazy_control_audit_normalization.sql`. They may be applied only after the
+Phase 03 adds 14 migrations, `20260721000000_srs_schema.sql` through
+`20260721013000_srs_read_authorization_performance.sql`. They may be applied only after the
 complete local gate, from a committed clean migration directory, using:
 
 ```bash

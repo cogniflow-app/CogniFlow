@@ -474,7 +474,7 @@ Every schema-owning phase updates this document with:
 
 ## Phase 03 learner scheduling model
 
-Phase 03 migrations `20260721000000` through `20260721012000` add a scheduling graph that refers to
+Phase 03 migrations `20260721000000` through `20260721013000` add a scheduling graph that refers to
 Phase 02 generated cards without changing their authored identity. `srs_presets` and immutable
 `srs_preset_versions` belong to a learner profile; `deck_srs_settings` selects one preset per
 learner/deck. `card_schedules` has exactly one current row per learner profile and generated card.
@@ -496,4 +496,8 @@ exposed objects. Browser roles have no direct write path; service functions deri
 active learner, use explicit search paths, and receive exact execute grants. Account deletion
 detaches or pseudonymizes identifiers and descriptive values while preserving minimized immutable
 evidence required by the established audit model. Full field semantics and the canonical mutation
-are in [SRS_REVIEW_ENGINE.md](./SRS_REVIEW_ENGINE.md).
+are in [SRS_REVIEW_ENGINE.md](./SRS_REVIEW_ENGINE.md). The final Phase 03 migration replaces
+row-by-row content-read authorization with fixed-search-path set-returning helpers for the current
+registered session's viewable deck, note, and card IDs. The helpers preserve the prior owner/member,
+deck-status, learner, and session-revocation semantics while allowing PostgreSQL to evaluate each
+authorized set once for large queue, dashboard, and statistics reads.
