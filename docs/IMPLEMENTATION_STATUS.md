@@ -1,8 +1,8 @@
 # Implementation status
 
 **Current phase:** Phase 03 — SRS and canonical review engine  
-**Status:** Complete implementation, local acceptance, Vercel Preview, and protected smoke;
-Preview database deployment blocked on owner CLI authorization  
+**Status:** Phase 03 deployed and verified on Preview; exact HTTP replay repair in local acceptance
+before final Preview validation and Beta promotion  
 **Evidence date:** 2026-07-22 UTC  
 **Next phase:** Phase 04 has not started
 
@@ -35,9 +35,11 @@ described its draft branch.
 - Added one canonical review route and RPC protocol. The browser never supplies the next schedule.
   The trusted server computes with `@lumen/srs`; PostgreSQL repeats authorization, locks/compares
   version and before-state, binds idempotency to the complete command, atomically writes immutable
-  evidence plus schedule/session/counter/sibling/leech effects, returns an identical prior result
-  for an exact retry, rejects payload-changing UUID reuse, and returns a typed stale conflict to a
-  competing legitimate command. Undo is compensating, not deletion.
+  evidence plus schedule/session/counter/sibling/leech effects, and returns a typed stale conflict
+  to a competing legitimate command. An authorized replay lookup runs before mutable session or
+  schedule preflight, and an append-only private receipt returns the exact original canonical
+  response for an identical retry while rejecting payload-changing UUID reuse. Undo is
+  compensating, not deletion.
 - Added `/app/study`, `/app/study/session/[sessionId]`, `/app/stats`, and
   `/app/settings/scheduling`, plus deck Study entry/counts and first-class workspace navigation.
   Today, deck, folder, multi-deck, saved-filter, due/new, state, forgotten, leech, starred, tag,
@@ -79,6 +81,7 @@ collaboration, and actual offline synchronization were not started.
 12. `20260721011000_srs_lazy_schedule_controls.sql`
 13. `20260721012000_srs_lazy_control_audit_normalization.sql`
 14. `20260721013000_srs_read_authorization_performance.sql`
+15. `20260722000000_srs_review_replay_receipts.sql`
 
 No applied Phase 00–02 migration was edited. No setup value or environment variable was added.
 
@@ -87,28 +90,28 @@ No applied Phase 00–02 migration was edited. No setup value or environment var
 | Check              | Result                                                                                                                                                                                         |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@lumen/srs` tests | 4 files / 28 deterministic, exact-parity, SM-2, optimizer, time/DST, queue, property, and 10,000-card tests pass                                                                               |
-| Phase 03 web tests | 5 focused files / 13 route, rendering, double-submit, statistics, and pagination tests pass                                                                                                    |
-| Local database     | Reset through all 47 migrations; 21 pgTAP files / 885 assertions pass                                                                                                                          |
-| Concurrency        | Two database connections: 1 commit, 1 typed stale conflict, 1 immutable log; aggregate canonical mutation 24.975 ms                                                                            |
-| Queue performance  | Authorized registered-device 10,000-card queue 95.794 ms; Today 95.834 ms; resume 0.343 ms; statistics 67.364 ms; all budgets pass                                                             |
+| Phase 03 web tests | 5 focused files / 14 route, replay, rendering, double-submit, statistics, and pagination tests pass                                                                                            |
+| Local database     | Reset through all 48 migrations; 21 pgTAP files / 888 assertions pass                                                                                                                          |
+| Concurrency        | Two database connections: 1 commit, 1 typed stale conflict, 1 immutable log; aggregate canonical mutation 26.617 ms                                                                            |
+| Queue performance  | Authorized registered-device 10,000-card queue 97.752 ms; Today 101.006 ms; resume 0.350 ms; statistics 67.424 ms; all budgets pass                                                            |
 | Browser E2E        | 29 pass / 19 intentional cross-project skips across Chromium desktop and Pixel 7                                                                                                               |
 | Accessibility      | 28/28 axe, keyboard, focus, zoom, responsive, theme, motion, and authenticated route checks pass                                                                                               |
 | Visual acceptance  | 2/2 dedicated desktop/mobile layout projects pass; actual Chromium pixels inspected for populated Study, collapsed/expanded scheduling, and 200% mobile statistics with no horizontal overflow |
 | Lighthouse         | Assertions pass; scores 98/100/96/100; FCP 0.758 s, LCP 2.311 s, TBT 3 ms, CLS 0                                                                                                               |
-| Load smoke         | 15/15 checks pass; 0 failed; request-duration p95 8.93 ms                                                                                                                                      |
+| Load smoke         | 15/15 checks pass; 0 failed; request-duration p95 8.59 ms                                                                                                                                      |
 
 | Phase 03 validation command                | Local result                                                                                                                                              |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm install --frozen-lockfile`           | Exit 0; 10 workspace projects current under Node `24.18.0` and pnpm `11.13.0`                                                                             |
 | `pnpm format:check` / `pnpm secret:scan`   | Exit 0; formatting accepted and no credential finding                                                                                                     |
 | `pnpm lint` / `pnpm typecheck`             | Exit 0; dependency boundaries and 9/9 strict TypeScript packages pass                                                                                     |
-| `pnpm test`                                | Exit 0; 85 files / 662 tests; coverage 74.43% statements, 64.56% branches, 72.38% functions, 77.73% lines                                                 |
-| `pnpm db:reset` / `pnpm test:db`           | Exit 0; empty reset through 47 migrations; 21 files / 885 assertions plus the two-connection concurrency proof pass                                       |
+| `pnpm test`                                | Exit 0; 85 files / 663 tests; coverage 74.43% statements, 64.56% branches, 72.38% functions, 77.73% lines                                                 |
+| `pnpm db:reset` / `pnpm test:db`           | Exit 0; empty reset through 48 migrations; 21 files / 888 assertions plus the two-connection concurrency proof pass                                       |
 | `pnpm db:types` / `pnpm db:types:check`    | Exit 0; generated database types regenerated and current                                                                                                  |
 | verification-wrapped `pnpm build`          | Exit 0; optimized Next production build generates 76 route/static entries                                                                                 |
 | verification-wrapped `pnpm build:portable` | Exit 0; OpenNext emits the Cloudflare worker                                                                                                              |
 | `pnpm test:e2e` / `pnpm test:a11y`         | Exit 0; 29 pass / 19 intentional skips, then 28/28 pass                                                                                                   |
-| `pnpm test:lighthouse` / `pnpm test:load`  | Exit 0; Lighthouse assertions pass at 98/100/96/100; k6 15/15 checks, 0 failures, p95 8.61 ms                                                             |
+| `pnpm test:lighthouse` / `pnpm test:load`  | Exit 0; Lighthouse assertions pass at 98/100/96/100; k6 15/15 checks, 0 failures, p95 8.59 ms                                                             |
 | `pnpm verify`                              | Exit 0 on 2026-07-22 under pinned Node/pnpm; complete aggregate reran every practical local gate above, including an empty database reset and both builds |
 
 GitHub Actions run `29886609843` exposed the original performance fixture's missing registered
@@ -125,26 +128,25 @@ editing that file.
 
 ### Hosted Preview checkpoint
 
-Commit `860072b` is pushed on `codex/phase-03-srs-review-engine`. Vercel deployment
-`dpl_DQnShsWaYsa8SHfhf95YCZ3Pw28K` is Ready at
-`https://cogniflow-rjnr672pz-cogniflow-app-3471s-projects.vercel.app` with target `preview`. The
-guarded protected Preview smoke passed 11/11 checks in 10.7 seconds, including `/api/health`
-confirmation of the Preview deployment profile and Supabase project reference, protected-route
-redirects, neutral Auth responses, private-content denial, security headers, and `noindex`.
+Owner CLI reauthentication restored access to fixed Preview project `cfwddajyjbueggpzfomh`. The
+guarded deployment applied the original 14 Phase 03 migrations. Independent verification then
+proved all 47 remote migrations matched local history at that checkpoint, the push dry run was
+empty, public/private lint had no errors, hosted invariants passed 1/1, the schema diff was clean,
+storage checks passed, and linked generated types matched the repository. The matching protected
+Preview baseline smoke passed 11/11.
 
-`pnpm db:deploy:preview` exited 1 during its initial fixed-project `supabase link` status lookup:
-the currently authenticated Supabase CLI account cannot access Preview project
-`cfwddajyjbueggpzfomh`. The guard stopped before migration-history inspection, dry run, or database
-write, so the attempt changed no hosted schema or data. `pnpm db:verify:preview`, disposable hosted
-SRS acceptance, its cleanup assertions, and the post-cleanup verifier cannot truthfully run until
-an owner reauthenticates the CLI to an account with access to that exact Preview project. The owner
-must run `pnpm exec supabase login`, confirm `pnpm exec supabase projects list` includes the Preview
-reference, and then resume the documented Phase 03 Preview checkpoint. No token should be pasted
-into a repository file or chat.
+The first deeper disposable SRS acceptance exposed a canonical retry defect: its first review
+committed with HTTP 200, but the identical retry returned 403 because
+`admin_get_srs_review_context` rejected the already-reviewed session item before the existing
+commit RPC could reach its idempotency check. The acceptance cleanup ran and returned `rows: []`,
+so no active disposable fixture remained. Beta and Production database promotion were held.
 
-Preview Supabase remains unmodified by Phase 03; Beta and Production were not linked or modified.
-The protected smoke created no disposable learner or content fixture, so there was no hosted SRS
-cleanup to perform. `apps/web/.env.local` and all provider secrets remain ignored and untracked.
+The forward repair adds migration `20260722000000_srs_review_replay_receipts.sql`, computes a hash
+over the complete raw review intent, checks an authorized exact-response receipt before mutable
+context, and stores the first canonical result through `admin_commit_srs_review_v2`. Focused route,
+pgTAP, reset, database, type, and generated-type checks pass locally. The final Preview deployment,
+disposable acceptance/cleanup, and post-cleanup verifier remain required before Beta promotion.
+`apps/web/.env.local` and all provider secrets remain ignored and untracked.
 
 ## Phase 02 product UI redesign
 

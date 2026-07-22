@@ -474,7 +474,7 @@ Every schema-owning phase updates this document with:
 
 ## Phase 03 learner scheduling model
 
-Phase 03 migrations `20260721000000` through `20260721013000` add a scheduling graph that refers to
+Phase 03 migrations `20260721000000` through `20260722000000` add a scheduling graph that refers to
 Phase 02 generated cards without changing their authored identity. `srs_presets` and immutable
 `srs_preset_versions` belong to a learner profile; `deck_srs_settings` selects one preset per
 learner/deck. `card_schedules` has exactly one current row per learner profile and generated card.
@@ -484,6 +484,10 @@ no destructive backfill.
 
 `review_logs` is immutable canonical evidence with a client review UUID, complete idempotency
 fingerprint, rating/source/timing/study day, engine and preset versions, and before/after schedules.
+`private.srs_review_receipts` is append-only replay state keyed by learner and idempotency identity;
+it binds the complete raw request hash to the exact canonical API result so an authorized lost-
+response retry succeeds before mutable session or schedule preflight. Browser roles and direct
+service-role table access are denied; only fixed-search-path service RPCs may read or append it.
 `srs_undo_events` compensates without deleting a log. `study_sessions` and ordered
 `study_session_items` preserve a temporary deterministic queue and resume point; they do not own
 the schedule. `daily_study_counters` stores bounded per-study-day aggregates. `study_filters` stores
@@ -496,8 +500,10 @@ exposed objects. Browser roles have no direct write path; service functions deri
 active learner, use explicit search paths, and receive exact execute grants. Account deletion
 detaches or pseudonymizes identifiers and descriptive values while preserving minimized immutable
 evidence required by the established audit model. Full field semantics and the canonical mutation
-are in [SRS_REVIEW_ENGINE.md](./SRS_REVIEW_ENGINE.md). The final Phase 03 migration replaces
+are in [SRS_REVIEW_ENGINE.md](./SRS_REVIEW_ENGINE.md). Migration `20260721013000` replaces
 row-by-row content-read authorization with fixed-search-path set-returning helpers for the current
 registered session's viewable deck, note, and card IDs. The helpers preserve the prior owner/member,
 deck-status, learner, and session-revocation semantics while allowing PostgreSQL to evaluate each
-authorized set once for large queue, dashboard, and statistics reads.
+authorized set once for large queue, dashboard, and statistics reads. Migration `20260722000000`
+adds the exact-response replay receipt and service-only preflight/v2 commit wrapper without changing
+existing canonical evidence.

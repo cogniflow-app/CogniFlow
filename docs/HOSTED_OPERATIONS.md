@@ -581,8 +581,8 @@ introduced by the Phase 02 promotion.
 
 ## Phase 03 Preview checkpoint procedure
 
-Phase 03 adds 14 migrations, `20260721000000_srs_schema.sql` through
-`20260721013000_srs_read_authorization_performance.sql`. They may be applied only after the
+Phase 03 adds 15 migrations, `20260721000000_srs_schema.sql` through
+`20260722000000_srs_review_replay_receipts.sql`. They may be applied only after the
 complete local gate, from a committed clean migration directory, using:
 
 ```bash
@@ -606,15 +606,16 @@ remain unchanged.
 
 ### Phase 03 checkpoint on 2026-07-22 UTC
 
-Vercel Preview deployment `dpl_DQnShsWaYsa8SHfhf95YCZ3Pw28K` reached Ready at
-`https://cogniflow-rjnr672pz-cogniflow-app-3471s-projects.vercel.app`, and the protected hosted smoke
-passed 11/11 checks. The guarded `pnpm db:deploy:preview` command then stopped at the initial
-fixed-project link because the current Supabase CLI identity lacks access to Preview project
-`cfwddajyjbueggpzfomh`. It performed no migration read, dry run, or write.
+After owner CLI reauthentication restored access to fixed Preview project
+`cfwddajyjbueggpzfomh`, the guarded deployment applied the original 14 Phase 03 migrations and the
+independent verifier proved remote-history parity, an empty dry run, clean schema diff, matching
+generated types, hosted invariants, and storage checks. The protected baseline smoke passed 11/11.
 
-An owner must reauthenticate the Supabase CLI to an account that can list that exact project, then
-resume with `pnpm db:deploy:preview`, `pnpm db:verify:preview`,
-`pnpm test:hosted:preview:srs --url <exact-ready-url>`, and the final
-`pnpm db:verify:preview`. Do not pass an access token through chat, add it to `.env.local`, bypass
-the fixed-project guard, or substitute Beta/Production. The disposable SRS acceptance and cleanup
-have not run while this authorization blocker remains.
+The first disposable SRS acceptance then found a real HTTP replay defect: the first canonical
+review committed, but its identical retry returned 403 because mutable session-item preflight ran
+before database idempotency lookup. Cleanup completed and proved no active disposable rows remained.
+Beta promotion was held. The forward fix adds an append-only exact-response receipt, an authorized
+replay preflight, and a v2 commit wrapper. Deploy that committed migration and matching application
+only to Preview, rerun the complete disposable acceptance plus cleanup, and rerun
+`pnpm db:verify:preview` before promotion. Do not substitute Beta/Production or weaken the
+fixed-project guards.

@@ -50,22 +50,29 @@ The browser sends intent, not a transition: learner context, card, session, one 
 version, client review UUID, idempotency key, source, and expected preset/version. The browser may
 render package-generated previews but never submits `scheduleAfter`.
 
-The server authenticates and resolves the active learner, verifies study access and active content,
-loads the exact preset and schedule context through a service-only RPC, validates the command, and
-computes the transition through `packages/srs`. It then calls `admin_commit_srs_review`, which
-repeats actor/profile/card/session/preset checks, locks the schedule target, compares the version and
-before-state, binds idempotency to the complete command plus trusted transition, appends immutable
-before/after evidence, updates the schedule and session item, updates the daily counter, and applies
-sibling bury/leech behavior atomically.
+The server authenticates and resolves the active learner, validates the complete raw command, and
+computes its request hash. Before reading mutable session or schedule state, it calls
+`admin_get_srs_review_replay`. An authorized exact match returns the stored canonical result; reuse
+of the review identity with a different request hash is rejected. A fresh command then verifies
+study access and active content, loads the exact preset and schedule context through a service-only
+RPC, and computes the transition through `packages/srs`. It calls `admin_commit_srs_review_v2`,
+which repeats runtime authorization and replay checks, delegates the first commit to the locked
+canonical mutation, and stores the exact result in `private.srs_review_receipts`. The canonical
+commit repeats actor/profile/card/session/preset checks, locks the schedule target, compares the
+version and before-state, binds idempotency to the complete command plus trusted transition,
+appends immutable before/after evidence, updates the schedule and session item, updates the daily
+counter, and applies sibling bury/leech behavior atomically.
 
-An identical duplicate review UUID returns the stored canonical result. Reusing the UUID with any
-payload difference is rejected. Competing valid commands produce exactly one commit and one typed
-stale-version conflict. Review logs and preset versions are append-only at the database boundary;
-undo appends a compensating record and restores a valid locked schedule rather than deleting
-history.
+An identical duplicate review UUID returns the original canonical result even after the session
+item and schedule have advanced. Reusing the UUID with any payload difference is rejected.
+Competing valid commands produce exactly one commit and one typed stale-version conflict. Review
+logs, exact-response receipts, and preset versions are append-only at the database boundary; undo
+appends a compensating record and restores a valid locked schedule rather than deleting history.
 
 Security-definer functions use an explicit `search_path`, actor-derived authorization, and exact
-`service_role` execute grants. The service role has no direct table read/write grant for SRS data.
+`service_role` execute grants. Replay lookup repeats account, learner, active profile-session, and
+registered-device authorization before returning a receipt. The service role has no direct table
+read/write grant for SRS data.
 Browser roles cannot execute service RPCs. RLS keeps schedules, sessions, filters, statistics, logs,
 and operations private to authorized learner context; public deck routes remain schedule-neutral.
 Read-only RLS obtains the current registered session's viewable deck, note, and card IDs through

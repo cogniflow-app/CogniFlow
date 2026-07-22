@@ -62,6 +62,7 @@ describe("canonical review route", () => {
       profileSessionId: null,
     });
     mocks.rpc
+      .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({
         data: {
           buriedUntil: null,
@@ -90,15 +91,36 @@ describe("canonical review route", () => {
     const response = await POST(request(body));
 
     expect(response.status).toBe(200);
-    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    expect(mocks.rpc).toHaveBeenCalledTimes(3);
     expect(mocks.rpc).toHaveBeenNthCalledWith(
-      2,
-      "admin_commit_srs_review",
+      3,
+      "admin_commit_srs_review_v2",
       expect.objectContaining({
         p_current_schedule_version: 0,
         p_rating: "good",
+        p_request_hash: expect.stringMatching(/^[a-f0-9]{64}$/u),
         p_schedule_after: expect.objectContaining({ reps: 1, state: "learning" }),
         p_schedule_before: expect.objectContaining({ reps: 0, state: "new" }),
+      }),
+    );
+  });
+
+  it("returns an exact authorized replay before reading mutable session state", async () => {
+    const canonical = { duplicate: false, reviewId: ids.review, scheduleVersion: 1 };
+    mocks.rpc.mockReset();
+    mocks.rpc.mockResolvedValueOnce({ data: canonical, error: null });
+
+    const response = await POST(request(body));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ data: canonical });
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "admin_get_srs_review_replay",
+      expect.objectContaining({
+        p_idempotency_key: ids.idempotency,
+        p_request_hash: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        p_review_id: ids.review,
       }),
     );
   });

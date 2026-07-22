@@ -4029,6 +4029,34 @@ export type Database = {
         };
         Returns: Json;
       };
+      admin_commit_srs_review_v2: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_card_id: string;
+          p_command_hash: string;
+          p_current_schedule_version: number;
+          p_device_id: string;
+          p_duration_ms: number;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_preset_id: string;
+          p_preset_version: number;
+          p_profile_session_id: string;
+          p_rating: Database["public"]["Enums"]["review_rating"];
+          p_request_hash: string;
+          p_review_id: string;
+          p_reviewed_at: string;
+          p_schedule_after: Json;
+          p_schedule_before: Json;
+          p_scheduler_version: string;
+          p_source: Database["public"]["Enums"]["review_source"];
+          p_study_day_start: number;
+          p_study_session_id: string;
+          p_timezone: string;
+        };
+        Returns: Json;
+      };
       admin_complete_current_account_onboarding: {
         Args: {
           p_actor_account_id: string;
@@ -4364,6 +4392,19 @@ export type Database = {
           p_learner_profile_id: string;
           p_profile_session_id: string;
           p_study_session_id: string;
+        };
+        Returns: Json;
+      };
+      admin_get_srs_review_replay: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_profile_session_id: string;
+          p_request_hash: string;
+          p_review_id: string;
         };
         Returns: Json;
       };
