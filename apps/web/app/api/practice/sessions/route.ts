@@ -80,7 +80,7 @@ const schema = z
       })
       .strict()
       .default({
-        layout: "one_at_a_time",
+        layout: "one_page",
         partialCredit: true,
         pauseAllowed: true,
         reviewPolicy: "end",

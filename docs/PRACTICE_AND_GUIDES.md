@@ -84,13 +84,16 @@ controls disclosed only when relevant. Active modes use a compact focus shell wi
 progress, pause/exit, safe areas, serious mode, and reduced-motion behavior.
 
 Flashcards use a bounded two-stage perspective flip; the answer is not in readable DOM before the
-edge-on midpoint. Test supports saved seeded questions, one-at-a-time or answer-sheet navigation,
-flags, timer, pause policy, end/after-each review, select-all partial credit, real question review,
-mistake practice, retake/regenerate, and a printable answer key. Match uses seeded choices, keyboard
-and touch targets, a timer, low-weight evidence, and personal-best summaries. Audio modes use local
-browser speech; pronunciation recording is an explicit local-only action with no upload. Diagram
-practice reuses normalized Phase 02 geometry and renderer accessibility text, with zoom and a typed
-keyboard alternative.
+edge-on midpoint. Test renders every remaining seeded question in one scrollable paper with mixed
+question controls, same-device draft retention, flags, timer, pause policy, one final submit,
+select-all partial credit, real question review, mistake practice, retake/regenerate, and a
+printable answer key. Match shuffles one term and one definition tile for every remaining card onto
+one board. Drag/drop and two-tile selection share the same deterministic pairing state, and a list
+view provides an explicit keyboard/screen-reader alternative. Correct pairs save low-weight
+practice evidence, clear from the board, preserve resume behavior, and contribute to personal-best
+timing. Audio modes use local browser speech; pronunciation recording is an explicit local-only
+action with no upload. Diagram practice reuses normalized Phase 02 geometry and renderer
+accessibility text, with zoom and a typed keyboard alternative.
 
 ## Versioned guides
 

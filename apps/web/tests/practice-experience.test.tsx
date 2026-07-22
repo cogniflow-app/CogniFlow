@@ -12,7 +12,9 @@ import {
   PracticeSession,
   PracticeSessionComplete,
 } from "../components/practice/practice-session.client";
+import { PracticeMatchBoard } from "../components/practice/practice-match-board.client";
 import { PracticeSetup } from "../components/practice/practice-setup.client";
+import { PracticeTestPaper } from "../components/practice/practice-test-paper.client";
 
 function rich(text: string): RichDocument {
   return {
@@ -102,6 +104,60 @@ function practiceCard(mode: PracticeMode = "flashcards"): PracticeCardView {
   };
 }
 
+function practiceCards(
+  mode: "match" | "test",
+  kinds: readonly string[],
+): readonly PracticeCardView[] {
+  const prompts = [
+    "Which organelle produces most cellular ATP?",
+    "Which structure contains genetic material?",
+    "Where are proteins assembled?",
+    "Which organelle modifies and packages proteins?",
+  ];
+  const answers = ["Mitochondrion", "Nucleus", "Ribosome", "Golgi apparatus"];
+  const items = kinds.map((kind, position) => ({
+    position,
+    status: "pending" as const,
+    kind,
+  }));
+  return kinds.map((kind, position) => {
+    const base = practiceCard(mode);
+    return {
+      ...base,
+      answer: answers[position] ?? `Answer ${String(position + 1)}`,
+      cardId: `0190d9f0-0000-7000-8000-${String(position + 3).padStart(12, "0")}`,
+      choices:
+        kind === "true_false"
+          ? ["True", "False"]
+          : ["Mitochondrion", "Nucleus", "Ribosome", "Golgi apparatus"],
+      correctChoices: kind === "select_all" ? ["Mitochondrion", "Nucleus"] : [],
+      item: {
+        ...base.item,
+        position,
+        questionKind: kind,
+        questionLevel: mode === "match" ? ("recognition" as const) : ("free_recall" as const),
+      },
+      prompt: prompts[position] ?? `Question ${String(position + 1)}`,
+      session: {
+        ...base.session,
+        config: {
+          ...base.session.config,
+          questionTypes: kinds,
+          testOptions: {
+            layout: "one_page" as const,
+            partialCredit: true,
+            pauseAllowed: true,
+            reviewPolicy: "end" as const,
+          },
+        },
+        items: items.map(({ kind: _kind, ...item }) => item),
+        mode,
+        total: kinds.length,
+      },
+    };
+  });
+}
+
 const attemptResult: PracticeAttemptResult = {
   attemptId: "0190d9f0-0000-7000-8000-000000000099",
   grade: {
@@ -138,13 +194,16 @@ describe("Phase 04 practice experience", () => {
   beforeEach(() => {
     navigation.push.mockReset();
     navigation.refresh.mockReset();
+    window.sessionStorage.clear();
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ data: attemptResult }), {
-          headers: { "content-type": "application/json" },
-          status: 200,
-        }),
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ data: attemptResult }), {
+            headers: { "content-type": "application/json" },
+            status: 200,
+          }),
+        ),
       ),
     );
   });
@@ -189,7 +248,7 @@ describe("Phase 04 practice experience", () => {
     expect(body).not.toHaveProperty("rating");
     expect(body).not.toHaveProperty("scheduleAfter");
     expect(await screen.findByText("Correct")).toBeVisible();
-    expect(screen.getByText(/remains separate from the canonical SRS schedule/i)).toBeVisible();
+    expect(screen.queryByText(/canonical SRS schedule/i)).not.toBeInTheDocument();
   });
 
   it("reports practice mastery separately from canonical review state at completion", () => {
@@ -214,10 +273,90 @@ describe("Phase 04 practice experience", () => {
     );
 
     expect(screen.getByRole("heading", { name: "You finished the session" })).toBeVisible();
-    expect(screen.getByText(/No result here masquerades as a canonical review/i)).toBeVisible();
+    expect(screen.getByText(/review schedule changes only when you choose/i)).toBeVisible();
     expect(screen.getByRole("link", { name: "Review mistakes" })).toHaveAttribute(
       "href",
       "/app/study/mode/write",
+    );
+  });
+
+  it("renders a shuffled Match board and removes each correctly selected pair", async () => {
+    const user = userEvent.setup();
+    render(
+      <PracticeMatchBoard
+        cards={practiceCards("match", ["match", "match"])}
+        reducedMotion={false}
+        seriousMode={false}
+      />,
+    );
+
+    expect(screen.getAllByRole("button", { name: /Term:|Definition:/ })).toHaveLength(4);
+    await user.click(
+      screen.getByRole("button", {
+        name: "Term: Which organelle produces most cellular ATP?",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Definition: Mitochondrion" }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    expect(
+      screen.queryByRole("button", {
+        name: "Term: Which organelle produces most cellular ATP?",
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Term:|Definition:/ })).toHaveLength(2);
+    expect(screen.getByText(/1 remaining/i)).toBeVisible();
+  });
+
+  it("keeps an incorrect Match pair on the board and offers the accessible list view", async () => {
+    const user = userEvent.setup();
+    render(
+      <PracticeMatchBoard
+        cards={practiceCards("match", ["match", "match"])}
+        reducedMotion
+        seriousMode
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Term: Which organelle produces most cellular ATP?",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Definition: Nucleus" }));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.getByText(/Not a pair/i)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "List" }));
+    expect(screen.getByLabelText(/Match for Which organelle/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Check pairs" })).toBeEnabled();
+  });
+
+  it("shows a mixed Test as one scrollable form and submits every question together", async () => {
+    const user = userEvent.setup();
+    const cards = practiceCards("test", ["multiple_choice", "typed", "true_false", "select_all"]);
+    render(<PracticeTestPaper cards={cards} reducedMotion={false} />);
+
+    expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(4);
+    expect(screen.getByRole("button", { name: "Submit test" })).toBeEnabled();
+    const firstMitochondrion = screen.getAllByLabelText("Mitochondrion", {
+      selector: "input",
+    })[0];
+    if (!firstMitochondrion) throw new Error("Multiple-choice fixture was not rendered.");
+    await user.click(firstMitochondrion);
+    await user.type(screen.getByLabelText("Your answer"), "Nucleus");
+    await user.click(screen.getByLabelText("True", { selector: "input" }));
+    const selectAllMitochondrion = screen.getAllByLabelText("Mitochondrion", {
+      selector: "input",
+    })[1];
+    if (!selectAllMitochondrion) throw new Error("Select-all fixture was not rendered.");
+    await user.click(selectAllMitochondrion);
+    await user.click(screen.getByRole("button", { name: "Submit test" }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(navigation.refresh).toHaveBeenCalledOnce());
+    expect(vi.mocked(fetch).mock.calls.every(([url]) => url === "/api/practice/attempts")).toBe(
+      true,
     );
   });
 });

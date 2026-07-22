@@ -27,49 +27,49 @@ export const practiceModeCopy: Readonly<
   >
 > = Object.freeze({
   flashcards: {
-    description: "Flip through real deck content, sort what you know, and keep SRS untouched.",
+    description: "Flip through your deck and sort what you know.",
     eyebrow: "Explore",
     label: "Flashcards",
     shortcut: "Space to flip",
   },
   learn: {
-    description: "Move from recognition to delayed written recall as mastery grows.",
+    description: "Start with guidance, then recall more on your own.",
     eyebrow: "Adaptive",
     label: "Learn",
     shortcut: "Questions adapt",
   },
   write: {
-    description: "Practice precise recall with explainable flexible grading and a second pass.",
+    description: "Type answers and strengthen precise recall.",
     eyebrow: "Recall",
     label: "Write",
     shortcut: "Type your answer",
   },
   test: {
-    description: "Generate a seeded practice test with scoring, review, and no SRS side effects.",
+    description: "Answer a mixed question paper, then see your score.",
     eyebrow: "Assess",
     label: "Test",
     shortcut: "Timed or untimed",
   },
   match: {
-    description: "Pair prompts and answers with keyboard, touch, or an accessible list.",
+    description: "Clear a shuffled board by pairing terms and definitions.",
     eyebrow: "Fast practice",
     label: "Match",
     shortcut: "Beat your best",
   },
   spell: {
-    description: "Hear or read a prompt, replay it slowly, and type the spelling.",
+    description: "Hear a word, replay it slowly, and type the spelling.",
     eyebrow: "Language",
     label: "Spell",
     shortcut: "Local speech",
   },
   pronunciation: {
-    description: "Speak, record locally if you choose, replay, and self-assess privately.",
+    description: "Speak, replay, and assess your pronunciation privately.",
     eyebrow: "Language",
     label: "Pronunciation",
     shortcut: "Nothing uploads",
   },
   diagram: {
-    description: "Recall labels with visual hotspots and a complete keyboard text alternative.",
+    description: "Recall labels from a visual or keyboard-friendly text view.",
     eyebrow: "Visual",
     label: "Diagram",
     shortcut: "Visual + text",

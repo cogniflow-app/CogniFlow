@@ -63,7 +63,7 @@ test("guided learners complete Flashcards and adaptive Learn without a silent SR
 
   await page.goto("/app/study");
   await expect(page.getByRole("heading", { name: "Choose how you want to learn" })).toBeVisible();
-  await expect(page.getByText("Practice only · no due-date changes").first()).toBeVisible();
+  await expect(page.getByText(/Due dates change only when you explicitly save/i)).toBeVisible();
   await page.locator('[data-guide-id="mode-flashcards"]').click();
   await expect(page.getByRole("heading", { name: "Set up Flashcards" })).toBeVisible();
   await page.getByLabel("Questions").fill("1");
@@ -134,9 +134,9 @@ test("guided learners complete Flashcards and adaptive Learn without a silent SR
       response.url().endsWith("/api/practice/qualifications") &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Apply rating explicitly" }).click();
+  await page.getByRole("button", { name: "Save review rating" }).click();
   expect((await qualificationResponse).ok()).toBe(true);
-  await expect(page.getByText("Canonical SRS review saved and linked.")).toBeVisible();
+  await expect(page.getByText("Review schedule updated.")).toBeVisible();
   await page.getByRole("button", { name: /Next question/ }).click();
   await expect(page.getByRole("heading", { name: "You finished the session" })).toBeVisible();
 
@@ -161,4 +161,112 @@ test("guided learners complete Flashcards and adaptive Learn without a silent SR
     axe.violations.filter(({ impact }) => impact === "serious" || impact === "critical"),
   ).toEqual([]);
   expect([...externalHosts]).toEqual([]);
+});
+
+test("Match uses a shuffled card board and Test submits one mixed answer sheet", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  await provisionAndSignInLocalAuthor(page, {
+    displayName: `Match and test learner ${testInfo.project.name}`,
+    emailPrefix: `phase04-board-${testInfo.project.name}`,
+    handlePrefix: "matchtest",
+    returnTo: "/app/decks/new",
+  });
+
+  const invitation = page.getByRole("dialog", { name: /Make Lumen yours/i });
+  await expect(invitation).toBeVisible();
+  await invitation.getByRole("button", { name: "Explore on my own" }).click();
+
+  await page.getByRole("textbox", { name: "Deck title" }).fill("Cell structures");
+  await page.getByRole("button", { name: "Continue" }).click();
+  const deckResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/content/decks") && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Create deck and add cards" }).click();
+  const deckId = ((await (await deckResponse).json()) as { data: { id: string } }).data.id;
+  const pairs = [
+    ["Cell energy organelle", "Mitochondrion"],
+    ["Genetic material organelle", "Nucleus"],
+    ["Protein assembly structure", "Ribosome"],
+  ] as const;
+  for (const [index, [prompt, answer]] of pairs.entries()) {
+    await page.getByRole("textbox", { name: "Front / prompt" }).fill(prompt);
+    await page.getByRole("textbox", { name: "Back / answer" }).fill(answer);
+    const noteResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/content/decks/${deckId}/notes`) &&
+        response.request().method() === "POST",
+    );
+    await page
+      .getByRole("button", {
+        name: index === pairs.length - 1 ? "Save card" : "Save and add another",
+      })
+      .click();
+    expect((await noteResponse).status()).toBe(201);
+  }
+
+  const canonicalReviews: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/study/reviews") && request.method() === "POST")
+      canonicalReviews.push(request.url());
+  });
+
+  await page.goto("/app/study/mode/match");
+  await page.getByLabel("Questions").fill("3");
+  await page.getByRole("button", { name: "Start Match" }).click();
+  await expect(page.getByRole("heading", { name: "Match the cards" })).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Shuffled matching cards" }).getByRole("button"),
+  ).toHaveCount(6);
+  const matchAxe = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(
+    matchAxe.violations.filter(({ impact }) => impact === "serious" || impact === "critical"),
+  ).toEqual([]);
+  for (const [prompt, answer] of pairs) {
+    await page.getByRole("button", { name: `Term: ${prompt}` }).click();
+    const attempt = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/practice/attempts") && response.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: `Definition: ${answer}` }).click();
+    expect((await attempt).ok()).toBe(true);
+  }
+  await expect(page.getByRole("heading", { name: "Board cleared" })).toBeVisible();
+
+  await page.goto("/app/study/mode/test");
+  await page.getByLabel("Questions").fill("3");
+  await page.getByRole("button", { name: "Start Test" }).click();
+  await expect(page.getByRole("heading", { name: "Show what you know" })).toBeVisible();
+  const questions = page.locator(".practice-test-question");
+  await expect(questions).toHaveCount(3);
+  const testAxe = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(
+    testAxe.violations.filter(({ impact }) => impact === "serious" || impact === "critical"),
+  ).toEqual([]);
+  const answerByPrompt = new Map(pairs);
+  for (let index = 0; index < 2; index += 1) {
+    const question = questions.nth(index);
+    const prompt = await question.getByRole("heading").innerText();
+    const expected = [...answerByPrompt.entries()].find(([term]) => prompt.includes(term))?.[1];
+    expect(expected).toBeTruthy();
+    await question.getByLabel(expected ?? "").check();
+  }
+  await questions.nth(2).getByLabel("True", { exact: true }).check();
+  let submittedAttempts = 0;
+  page.on("response", (response) => {
+    if (response.url().endsWith("/api/practice/attempts") && response.request().method() === "POST")
+      submittedAttempts += 1;
+  });
+  await page.getByRole("button", { name: "Submit test" }).click();
+  await expect.poll(() => submittedAttempts).toBe(3);
+  await expect(page.getByRole("heading", { name: "100% on this test" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review every question" })).toBeVisible();
+  expect(canonicalReviews).toEqual([]);
+  await expectNoHorizontalOverflow(page);
 });
