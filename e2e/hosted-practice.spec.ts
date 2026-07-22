@@ -22,19 +22,20 @@ async function waitForFixtureConfirmation(): Promise<void> {
 
 async function finishCurrentPracticeItem(page: Page): Promise<void> {
   const showAnswer = page.getByRole("button", { name: /Show answer/u });
+  const typed = page.getByRole("textbox", { name: "Your answer" });
+  const firstChoice = page.locator(".practice-choices input").first();
+  await expect(showAnswer.or(typed).or(firstChoice).first()).toBeVisible({ timeout: 20_000 });
   if (await showAnswer.isVisible().catch(() => false)) {
     await showAnswer.click();
     await page.getByRole("button", { name: /Know it/u }).click();
   } else {
-    const typed = page.getByRole("textbox", { name: "Your answer" });
     if (await typed.isVisible().catch(() => false)) await typed.fill("ATP");
-    else {
-      const firstChoice = page.locator(".practice-choices input").first();
-      if (await firstChoice.isVisible().catch(() => false)) await firstChoice.check();
-    }
+    else await firstChoice.check();
     await page.getByRole("button", { name: "Check answer" }).click();
   }
   const next = page.getByRole("button", { name: /Next question/u });
+  const completed = page.getByRole("heading", { name: "You finished the session" });
+  await expect(next.or(completed).first()).toBeVisible({ timeout: 20_000 });
   if (await next.isVisible().catch(() => false)) await next.click();
 }
 
@@ -112,6 +113,7 @@ test("Preview guides practice modes, persists results, and preserves SRS isolati
 
   await page.goto("/app/study/mode/test");
   await page.getByLabel("Questions").fill("1");
+  await page.getByText("Test behavior", { exact: true }).click();
   await page.getByLabel("Test layout").selectOption("one_page");
   await page.getByRole("button", { name: "Start Test" }).click();
   await expect(page.getByRole("navigation", { name: "Test questions" })).toBeVisible();

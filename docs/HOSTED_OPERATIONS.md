@@ -650,3 +650,20 @@ practice/guide state through the canonical account-deletion path, verifies no ac
 rows, and asserts recursively empty content Storage even after interruption. Rerun
 `pnpm db:verify:preview` after cleanup and record the URL/commit/time/evidence in the PR and
 `IMPLEMENTATION_STATUS.md`.
+
+### Phase 04 checkpoint on 2026-07-22 UTC
+
+Commit `0e473c11738144f32bf56de2b6c903989fafb73e` reached Ready at immutable protected Preview
+`https://cogniflow-qkegtuai1-cogniflow-app-3471s-projects.vercel.app`. Only the three additive Phase
+04 migrations were applied to fixed Preview project `cfwddajyjbueggpzfomh`; no seed was deployed.
+The initial verifier proved an empty migration dry run, hosted invariants, an empty public/private
+schema diff, generated-type parity, and empty Storage. Its existing/known function-volatility
+diagnostics remained warnings only.
+
+The protected baseline passed 11/11. The complete Phase 04 disposable acceptance passed 1/1 and
+proved guide persistence, Flashcards, one-page Test completion and review, Getting Started,
+unauthenticated private-data isolation, and zero canonical SRS review writes. Canonical cleanup
+removed the disposable Auth/content/practice/guide state, the guarded residual query returned
+`rows: []`, and recursive content Storage was empty. The post-cleanup verifier passed with the same
+empty dry run, invariants, clean schema diff, generated-type parity, and empty Storage. Beta and
+Production were not deployed or reconfigured.

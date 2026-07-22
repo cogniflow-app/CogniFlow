@@ -2,8 +2,9 @@
 
 **Current phase:** Phase 04 — Adaptive Learn and guided study experience  
 **Status:** Phase 03 redesign and Learn polish are merged through PRs #13 and #14; Phase 04 is
-implemented and fully verified locally on its single required feature branch, with Preview
-deployment, hosted acceptance, and draft-PR publication in progress  
+implemented and fully verified locally and on its exact protected Preview deployment; its three
+Preview migrations, hosted acceptance, cleanup proof, and post-cleanup parity check are complete,
+with draft-PR publication in progress  
 **Evidence date:** 2026-07-22  
 **Next phase:** Phase 05 has not started
 
@@ -84,8 +85,27 @@ the seed inserted no application data. Generated database types match that fresh
 | `pnpm test:load`                         | 15/15 checks pass; 0 failed; request-duration p95 6.94 ms                                                                                                 |
 | `pnpm verify`                            | Exit 0; aggregate CI-equivalent gate reran every practical local check above after guide/browser synchronization hardening                                |
 
-Hosted Preview URL, migration parity, disposable-identity cleanup, and Storage cleanup evidence will
-be added after the exact branch deployment completes. Phase 05 has not started.
+### Hosted Phase 04 evidence (2026-07-22 08:16 UTC)
+
+Commit `0e473c11738144f32bf56de2b6c903989fafb73e` reached Ready at the exact protected Preview URL
+`https://cogniflow-qkegtuai1-cogniflow-app-3471s-projects.vercel.app`. The branch alias was not used
+as evidence because it redirects to the immutable deployment URL above.
+
+| Command or evidence                   | Result                                                                                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm db:deploy:preview`              | Exit 0; applied only the three additive Phase 04 migrations to fixed Preview project `cfwddajyjbueggpzfomh`; no seed data                                                      |
+| Initial `pnpm db:verify:preview`      | Exit 0; remote history current, empty dry run, hosted invariants pass, public/private schema diff empty, generated types match; warnings-only volatility diagnostics unchanged |
+| `pnpm test:hosted:preview`            | Exit 0; 11/11 protected baseline smoke checks passed against the exact immutable Preview                                                                                       |
+| `pnpm test:hosted:preview:practice`   | Exit 0; 1/1 disposable scenario proved first-run guide persistence, Flashcards, one-page Test/review, Getting Started, private-data isolation, and no canonical review writes  |
+| Cleanup proof                         | Exit 0; canonical account deletion removed Auth and active disposable practice/content/guide state; the guarded query returned `rows: []`; recursive content Storage was empty |
+| Post-cleanup `pnpm db:verify:preview` | Exit 0; migration dry run remained empty, hosted invariants passed, schema diff stayed empty, generated types matched, and Storage remained empty                              |
+
+The acceptance harness was hardened to wait for actual rendered question/feedback states, open the
+collapsed Test behavior controls before selection, accept the valid single-question completion
+state, and cap every browser action at 20 seconds. Every diagnostic run still executed guarded
+cleanup and returned `rows: []`. Beta Supabase, Production Supabase, Vercel Production,
+`recallflash.com`, SMTP, OAuth, child-safety flags, and provider secrets were not changed. Phase 05
+has not started.
 
 ## Phase 03 Study experience redesign
 
