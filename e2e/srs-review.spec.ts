@@ -18,6 +18,17 @@ test("desktop and mobile learners complete a keyboard review through the canonic
     returnTo: "/app/decks/new",
   });
 
+  const welcomeGuide = page.getByRole("dialog", { name: /Make Lumen yours/i });
+  await welcomeGuide.waitFor({ state: "visible", timeout: 5_000 }).catch(() => undefined);
+  if (await welcomeGuide.isVisible().catch(() => false)) {
+    const guideWrite = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/guides/progress") && response.request().method() === "POST",
+    );
+    await welcomeGuide.getByRole("button", { name: "Explore on my own" }).click();
+    expect((await guideWrite).ok()).toBe(true);
+  }
+
   await page.getByRole("textbox", { name: "Deck title" }).fill("Canonical review check");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.locator('[aria-describedby="card-type-typed_answer-detail"]').click();

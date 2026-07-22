@@ -170,6 +170,16 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
 
   await createAdultAccount(page);
   await expect(page.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
+  const welcomeGuide = page.getByRole("dialog", { name: /Make Lumen yours/i });
+  await welcomeGuide.waitFor({ state: "visible", timeout: 5_000 }).catch(() => undefined);
+  if (await welcomeGuide.isVisible().catch(() => false)) {
+    const guideWrite = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/guides/progress") && response.request().method() === "POST",
+    );
+    await welcomeGuide.getByRole("button", { name: "Explore on my own" }).click();
+    expect((await guideWrite).ok()).toBe(true);
+  }
   await expect(page.getByRole("link", { name: "New deck" })).toHaveCount(1);
   await expectButtonContentInside(page.getByRole("link", { name: "New deck" }));
   await expect(page.locator(".library-metric")).toHaveCount(0);
@@ -545,7 +555,9 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
 
   await page.reload();
   await page.setViewportSize({ height: 568, width: 320 });
-  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("font-size", "200%", "important");
+  });
   const enlargedPreview = page.getByRole("region", { name: "Flashcard player" });
   await expect(enlargedPreview).toHaveAttribute("data-reduced-motion", "true");
   expect(

@@ -589,3 +589,33 @@ but is non-authoritative.
   after schedules, source, timing, and idempotency identity for replay and audit.
 - Public preview, authored-content reads, practice grading, games, and Phase 04 mastery cannot
   reach this mutation accidentally.
+
+## ADR-0022: Practice mastery is separate evidence with explicit SRS promotion
+
+**Context.** Recognition, guided recall, tests, matching, spelling, pronunciation, and visual
+practice are useful learning signals but are not equivalent to a canonical FSRS review. Treating
+every successful interaction as review evidence would inflate memory state, reward guesses, and
+make scheduling effects impossible to understand. Adaptive selection and flexible grading also
+need deterministic replay, learner-private persistence, and child-safe answer retention.
+
+**Decision.** Phase 04 stores append-only practice attempts and maintains a separate concept-mastery
+projection through `packages/learning-engine`. `packages/grading` is deterministic and offline-safe;
+its optional semantic provider remains disabled. Sessions save a seed and ordered item set so
+resume and test questions cannot drift. Choice/test/match/game-like evidence has deliberately low
+or zero scheduling authority. Only a correct, unaided Learn/Write free-recall attempt on a new or
+due card can be marked eligible. Eligibility merely enables a confirmation UI. A separate endpoint
+uses the unmodified Phase 03 canonical review API with the learner-selected rating and records the
+review link; it never writes the schedule directly.
+
+Guide definitions are versioned checked-in code. Only bounded resume/suppression state is persisted
+under account/learner RLS. The guide system emits no clickstream and uses no third-party analytics.
+
+**Consequences.**
+
+- Practice mastery cannot be described as FSRS stability or retrievability.
+- Lucky choices, hints, reveals, retries, Test, Match, Flashcards, Spell, Pronunciation, Diagram,
+  and future games cannot silently advance due dates.
+- Identical session seeds and state produce identical candidates, distractors, and question order.
+- Managed/minor answers remain discarded or hash-only; local pronunciation recordings never cross
+  the browser boundary.
+- Guide version changes can be offered once without erasing prior completion history.

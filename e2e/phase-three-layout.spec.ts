@@ -131,6 +131,17 @@ test("Phase 03 Study surfaces remain calm, responsive, and visually complete", a
     returnTo: "/app/study",
   });
 
+  const welcomeGuide = page.getByRole("dialog", { name: /Make Lumen yours/i });
+  await welcomeGuide.waitFor({ state: "visible", timeout: 5_000 }).catch(() => undefined);
+  if (await welcomeGuide.isVisible().catch(() => false)) {
+    const guideWrite = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/guides/progress") && response.request().method() === "POST",
+    );
+    await welcomeGuide.getByRole("button", { name: "Explore on my own" }).click();
+    expect((await guideWrite).ok()).toBe(true);
+  }
+
   await expect(page.getByRole("heading", { level: 1, name: /Ready when you are/u })).toBeVisible();
   await expect(page.getByText(/Nothing is scheduled right now/u)).toBeVisible();
   await expectPhaseThreeGutters(page, ".study-dashboard");

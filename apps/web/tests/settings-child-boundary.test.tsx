@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountContext } from "../lib/server/account-context";
 
 const mocks = vi.hoisted(() => ({
+  readGlobalGuideProgress: vi.fn(),
   readProtectedReturnTo: vi.fn(),
   readLibrarySnapshot: vi.fn(),
   requireAccountContext: vi.fn(),
@@ -15,6 +16,9 @@ vi.mock("@/lib/server/account-context", () => ({
 }));
 vi.mock("@/lib/server/content-repository", () => ({
   readLibrarySnapshot: mocks.readLibrarySnapshot,
+}));
+vi.mock("@/lib/server/guide-repository", () => ({
+  readGlobalGuideProgress: mocks.readGlobalGuideProgress,
 }));
 vi.mock("next/navigation", () => ({
   useServerInsertedHTML: () => undefined,
@@ -89,6 +93,7 @@ const childContext: AccountContext = {
 
 describe("managed learner account-setting boundary", () => {
   beforeEach(() => {
+    mocks.readGlobalGuideProgress.mockResolvedValue(null);
     mocks.readProtectedReturnTo.mockImplementation(async (fallback: string) => fallback);
     mocks.readLibrarySnapshot.mockResolvedValue(emptyLibrarySnapshot);
     mocks.requireAccountContext.mockResolvedValue(childContext);

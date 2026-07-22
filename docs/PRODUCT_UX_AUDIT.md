@@ -198,3 +198,42 @@ mutation contract.
   authentication change, environment variable, fake statistic, or Phase 04 behavior. It does not
   alter FSRS/SM-2 results, queue construction, idempotency, review-log immutability, or canonical
   mutation behavior.
+
+## Phase 04 adaptive practice and guide audit
+
+The supplied Learn screenshot exposed two systemic defects: the practice sheet expanded to an
+almost empty 1,174 px slab and the surrounding workspace could lose visible top/side clearance.
+The first implementation of the Phase 04 stylesheet also referenced nonexistent design tokens,
+which made surfaces transparent and amplified the missing-margin appearance. All Phase 04 roots now
+use the established color tokens and a scoped component layer. The practice stage is capped at
+896 px, desktop cards at 440 px height, mobile cards at 352 px, and mobile/tablet gutters at 16 px.
+Study preserves 16/24/32 px gutters. The two-stage 3D flip matches the published player rhythm;
+serious/reduced-motion paths reveal immediately without placing the answer in the DOM early.
+
+| Route/state                                           | Audit finding                                                                | Implemented correction                                                                                                                    |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Library / Published                                   | Permanent help would compete with content actions                            | One quiet Help & guide navigation item; no new sidebar mode list                                                                          |
+| Deck Overview / Cards / previews / History / Settings | Existing Phase 02 hierarchy should not be restyled by practice CSS           | Phase 04 styles are scoped/layered; shared navigation receives only the guide entry and target IDs                                        |
+| Study                                                 | Review and practice choices were disconnected and scheduling effects unclear | One Practice lab beneath Study today, schedule-effect badges, real availability, resume, weak-area/exam/help links                        |
+| Statistics / Scheduling                               | Practice mastery could be mistaken for FSRS memory                           | Existing canonical labels remain; practice glance explicitly says separate mastery and links to its evidence                              |
+| Getting Started                                       | No durable help or first-run recovery                                        | Real seven-item checklist, glossary, mode explanations, recommendations, restartable global and contextual tours                          |
+| First authenticated visit                             | A forced tutorial would interrupt the user's destination                     | Non-blocking invitation with Start, Later, and Explore on my own; versioned state suppresses repeats                                      |
+| Guide desktop / mobile                                | Anchored coach positioning escaped narrow viewports                          | Anchored coach only above 768 px; mobile uses a safe-area bottom sheet with focus trap/restoration and target fallback                    |
+| Flashcards prompt                                     | Huge blank card and controls detached from content                           | Bounded content-centered card, nearby tools/actions, 3D flip, tap/Space/swipe reveal, star, audio, practice classifications               |
+| Learn / Write                                         | Technical mastery rules and silent schedule ambiguity                        | One question, concise reason disclosure, immediate plain feedback, delayed progression, mastery bar, explicit SRS card only when eligible |
+| Write incorrect / answer-key problem                  | Flexible grades had no trusted recovery                                      | Accessible comparison, optional retype, audited learner-correct and answer-key-problem actions                                            |
+| Test setup                                            | Dense settings wall                                                          | Shared setup pattern with defaults; question mix and test behavior are progressive disclosures                                            |
+| Active Test                                           | No stable way to understand position or unanswered work                      | Saved seeded item list, answer-sheet/one-at-a-time preference, numbered keyboard links, unanswered count, flags, timer, pause policy      |
+| Test results                                          | Generic practice summary hid question-level evidence                         | Real score/time, per-question response/key/explanation/partial credit, mistake practice, retake/regenerate, print answer key              |
+| Match                                                 | Small controls would fail touch/keyboard use                                 | Responsive large tile choices, visible selection, timer, low-stimulation path, personal-best summary                                      |
+| Spell / Pronunciation                                 | Browser capability and privacy warnings could dominate                       | Replay/slower speech, language, typed/text fallback; recording privacy is disclosed on demand and recordings remain local                 |
+| Diagram                                               | Visual-only interaction would exclude keyboard users                         | Existing normalized renderer/geometry, zoom/reset, accessible SVG/media alternative, typed keyboard flow and reveal/hint path             |
+| Exam planning                                         | Practice load could be confused with required reviews or a grade promise     | Adjustable date/days/minutes/scope assumptions, feasibility warning, daily plan, explicit SRS-versus-extra-practice labels                |
+| Empty / loading / unavailable                         | Zero data could become a fake metric wall or false completion                | Concise add-card/no-data states, existing route skeletons, and unavailable sessions return a recovery action, not a success claim         |
+| Paused / conflict / failure                           | Recovery could advance or lose place                                         | Modal pause state, saved server position, version conflicts fail closed, and errors retain the current question                           |
+| 320 px / 200% text / zoom                             | Intrinsic three-column mastery widths caused a 2.8 px overflow at 320 px     | Grid children now use zero minimums; explicit matrix asserts no overflow and viewport-contained actions                                   |
+
+Real visual acceptance covers 1920×1080, 1536×1024, 1440×900, 1366×768, 1280×800,
+1024×768, 768×1024, 430×932, 390×844, 360×800, 320×568, and 1366×640, plus 125% and
+150% zoom, 200% text, long content, dark, serious, and reduced-motion states. Diagnostic captures
+stay under ignored `test-results`; no personal screenshot is committed.

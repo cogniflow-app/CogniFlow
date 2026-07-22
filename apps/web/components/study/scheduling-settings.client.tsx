@@ -359,7 +359,7 @@ export function SchedulingSettings({
   const retentionPercent = Number.isFinite(retention) ? Math.round(retention * 100) : 90;
 
   return (
-    <div className="scheduling-settings">
+    <div className="scheduling-settings" data-guide-id="scheduling-settings">
       <header className="study-page-header">
         <div>
           <p className="eyebrow">Scheduling</p>

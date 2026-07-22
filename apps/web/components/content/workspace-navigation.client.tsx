@@ -27,6 +27,7 @@ const primaryItems: readonly WorkspaceNavigationItem[] = [
 const studyItems: readonly WorkspaceNavigationItem[] = [
   { href: "/app/study", icon: PlayIcon, label: "Study" },
   { href: "/app/stats", icon: ListIcon, label: "Statistics" },
+  { href: "/app/getting-started", icon: BookOpenIcon, label: "Help & guide" },
 ] as const;
 
 const accountItems: readonly WorkspaceNavigationItem[] = [
@@ -76,7 +77,11 @@ export function WorkspaceNavigation({
   readonly selfMode: boolean;
 }) {
   return (
-    <nav aria-label="Workspace navigation" className="workspace-navigation">
+    <nav
+      aria-label="Workspace navigation"
+      className="workspace-navigation"
+      data-guide-id="workspace-navigation"
+    >
       <div className="workspace-navigation__group">
         <span className="workspace-navigation__label">Learning</span>
         <NavigationList items={studyItems} onNavigate={onNavigate} />

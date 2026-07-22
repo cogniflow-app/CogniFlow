@@ -311,7 +311,7 @@ export function LibraryDashboard({
           : "All decks";
   const filtersActive = Boolean(query.trim() || selectedFolder || filterMode !== "recent");
   return (
-    <ProductPage className="library-shell">
+    <ProductPage className="library-shell" data-guide-id="library-main">
       <section className="library-hero" aria-labelledby="library-heading">
         <div className="library-hero__copy">
           <h1 id="library-heading">Library</h1>

@@ -12,7 +12,7 @@ await rm(join(repositoryRoot, "apps/web/.next/dev"), { force: true, recursive: t
 const executable = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const child = spawn(executable, ["--filter", "@lumen/web", "dev"], {
   cwd: repositoryRoot,
-  env: process.env,
+  env: { ...process.env, LUMEN_E2E: "true" },
   stdio: "inherit",
 });
 

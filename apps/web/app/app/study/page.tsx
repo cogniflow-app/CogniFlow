@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { StudyDashboard } from "@/components/study/study-dashboard.client";
 import { requireAccountContext } from "@/lib/server/account-context";
+import { readPracticeHub } from "@/lib/server/practice-repository";
 import { readStudyDashboard } from "@/lib/server/study-repository";
 
 export const metadata: Metadata = { title: "Study" };
@@ -26,16 +27,15 @@ export default async function StudyPage({
       : typeof learnerSettings.studyDayStart === "number"
         ? learnerSettings.studyDayStart
         : 240;
-  const snapshot = await readStudyDashboard(
-    account.profile.id,
-    account.activeLearner.id,
-    timezone,
-    studyDayStart,
-  );
+  const [snapshot, practice] = await Promise.all([
+    readStudyDashboard(account.profile.id, account.activeLearner.id, timezone, studyDayStart),
+    readPracticeHub(account.activeLearner.id),
+  ]);
   return (
     <StudyDashboard
       initialDeckId={initialDeckId}
       learnerName={account.activeLearner.displayName ?? account.activeLearner.pseudonym}
+      practice={practice}
       snapshot={snapshot}
     />
   );

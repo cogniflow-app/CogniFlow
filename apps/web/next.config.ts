@@ -124,6 +124,7 @@ export function createNextConfigForEnvironment(
     { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=()" },
   ];
   const nextConfig: NextConfig = {
+    ...(source.LUMEN_E2E === "true" ? { devIndicators: false } : {}),
     env: {
       NEXT_PUBLIC_APP_URL: environment.public.appUrl,
     },
