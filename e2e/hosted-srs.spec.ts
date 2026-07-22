@@ -128,7 +128,7 @@ test("Preview commits, deduplicates, undoes, resumes, and isolates canonical SRS
   await page.getByRole("link", { name: "View statistics" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Your review picture" })).toBeVisible();
   await expect(page.getByText(deckTitle)).toBeVisible();
-  await page.context().clearCookies();
+  await page.context().clearCookies({ name: /^(?!_vercel_jwt$).+/u });
   const privateStats = await page.request.get(`${baseUrl}/app/stats`, { maxRedirects: 0 });
   expect([302, 303, 307, 308]).toContain(privateStats.status());
   expect(privateStats.headers()["location"]).toContain("/auth/sign-in");
