@@ -41,6 +41,7 @@ async function rateCurrentCard(page: Page, rating: "Again" | "Easy" | "Good" | "
 
 test("Preview commits, deduplicates, undoes, resumes, and isolates canonical SRS reviews", async ({
   page,
+  request,
 }) => {
   const compactRunId = runId.replaceAll("-", "");
   const email = `phase02-preview-${compactRunId}@example.test`;
@@ -128,8 +129,15 @@ test("Preview commits, deduplicates, undoes, resumes, and isolates canonical SRS
   await page.getByRole("link", { name: "View statistics" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Your review picture" })).toBeVisible();
   await expect(page.getByText(deckTitle)).toBeVisible();
-  await page.context().clearCookies({ name: /^(?!_vercel_jwt$).+/u });
-  const privateStats = await page.request.get(`${baseUrl}/app/stats`, { maxRedirects: 0 });
+  const protectionCookie = (await page.context().cookies(baseUrl)).find(
+    (cookie) => cookie.name === "_vercel_jwt",
+  );
+  const privateStats = await request.get(`${baseUrl}/app/stats`, {
+    headers: protectionCookie
+      ? { Cookie: `${protectionCookie.name}=${protectionCookie.value}` }
+      : undefined,
+    maxRedirects: 0,
+  });
   expect([302, 303, 307, 308]).toContain(privateStats.status());
   expect(privateStats.headers()["location"]).toContain("/auth/sign-in");
 });
