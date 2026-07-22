@@ -1,8 +1,8 @@
 # Implementation status
 
 **Current phase:** Phase 03 — SRS and canonical review engine  
-**Status:** Phase 03 deployed and verified on Preview; exact HTTP replay repair in local acceptance
-before final Preview validation and Beta promotion  
+**Status:** Exact HTTP replay repair is locally and Preview verified in draft PR #12; Beta and
+Production promotion await merge  
 **Evidence date:** 2026-07-22 UTC  
 **Next phase:** Phase 04 has not started
 
@@ -145,11 +145,18 @@ so no active disposable fixture remained. Beta and Production database promotion
 The forward repair adds `20260722000000_srs_review_replay_receipts.sql` plus the separate
 `20260722001000_srs_review_replay_volatility.sql` catalog-alignment migration. It computes a hash
 over the complete raw review intent, checks an authorized exact-response receipt before mutable
-context, and stores the first canonical result through `admin_commit_srs_review_v2`. Focused route,
-pgTAP, reset, database, type, and generated-type checks pass locally. The receipt migration is on
-Preview; its verifier caught the non-failing volatility warning before acceptance, so the forward
-alignment migration and complete disposable acceptance/cleanup remain required before Beta
-promotion. `apps/web/.env.local` and all provider secrets remain ignored and untracked.
+context, and stores the first canonical result through `admin_commit_srs_review_v2`. Both forward
+migrations are applied only to Preview. The verifier proves exact 49-migration parity, an empty dry
+run, no new lint warning, 1/1 hosted invariants, a clean schema diff, storage checks, and matching
+generated types.
+
+Vercel Preview `https://cogniflow-may25qyue-cogniflow-app-3471s-projects.vercel.app` passed the
+protected baseline 11/11 in 9.2 seconds. The corrected disposable SRS acceptance then passed 1/1 in
+33.4 seconds: first commit, byte-equivalent HTTP duplicate, undo, all four ratings, reload/resume,
+statistics, and an independent no-Lumen-cookie private-data isolation probe. Enforced account/
+content/Storage cleanup returned `rows: []`, and the complete post-cleanup Preview verifier passed.
+Draft PR #12 remains unmerged; Beta Supabase, Vercel Production, and `recallflash.com` were not
+modified. `apps/web/.env.local` and all provider secrets remain ignored and untracked.
 
 ## Phase 02 product UI redesign
 

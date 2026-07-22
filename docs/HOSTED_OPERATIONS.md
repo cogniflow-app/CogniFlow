@@ -616,7 +616,13 @@ review committed, but its identical retry returned 403 because mutable session-i
 before database idempotency lookup. Cleanup completed and proved no active disposable rows remained.
 Beta promotion was held. The forward fix adds an append-only exact-response receipt, an authorized
 replay preflight, a v2 commit wrapper, and a separate forward migration aligning replay-function
-volatility with its authorization helper. Deploy those committed migrations and the matching
-application only to Preview, rerun the complete disposable acceptance plus cleanup, and rerun
-`pnpm db:verify:preview` before promotion. Do not substitute Beta/Production or weaken the
-fixed-project guards.
+volatility with its authorization helper. Both forward migrations were applied only to Preview;
+the verifier then proved exact 49-migration parity, an empty dry run, no new lint warning, hosted
+invariants, a clean schema diff, Storage checks, and matching generated types.
+
+The matching protected Vercel Preview passed the 11/11 baseline and the complete 1/1 disposable SRS
+acceptance. The acceptance proved first commit, exact HTTP replay, undo, four-rating persistence,
+resume, statistics, and unauthenticated private-data isolation. Cleanup returned `rows: []`, and
+the post-cleanup verifier passed. Draft PR #12 must be reviewed and merged before the Beta guard may
+promote the 16 Phase 03 migrations. Until then, Beta/Production remain unchanged. Do not substitute
+Beta/Production or weaken the fixed-project guards.

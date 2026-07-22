@@ -489,4 +489,6 @@ entry, custom queues, scheduling disclosure, review states, undo, statistics/his
 decisions, serious mode, reduced motion, 320 px mobile, and 200% text. It waits for route-specific
 stable content before measuring layout or capturing private diagnostic screenshots. The hosted
 counterpart is `e2e/hosted-srs.spec.ts`, and it may run only through the guarded wrapper described
-in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md).
+in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). Its final isolation probe uses an independent
+cookie-less transport with only the already-attested, exact-host Vercel bypass cookie; it asserts
+that the streamed sign-in boundary contains no disposable deck title or private statistics.
