@@ -1,8 +1,9 @@
 # Implementation status
 
 **Current phase:** Phase 03 — SRS and canonical review engine  
-**Status:** Complete implementation and local acceptance; hosted Preview evidence pending  
-**Evidence date:** 2026-07-21 UTC  
+**Status:** Complete implementation, local acceptance, Vercel Preview, and protected smoke;
+Preview database deployment blocked on owner CLI authorization  
+**Evidence date:** 2026-07-22 UTC  
 **Next phase:** Phase 04 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
@@ -109,10 +110,30 @@ No applied Phase 00–02 migration was edited. No setup value or environment var
 
 Raw production build commands correctly rejected the developer-only HTTP values in the ignored
 `.env.local`; the verification wrapper supplied deterministic production-valid values without
-editing that file. Preview deployment, hosted acceptance/cleanup, commit, and draft-PR evidence
-will replace this paragraph after those gates run. Preview, Beta, and Production have not been
-modified yet by Phase 03. `apps/web/.env.local` and all provider secrets remain ignored and
-untracked.
+editing that file.
+
+### Hosted Preview checkpoint
+
+Commit `860072b` is pushed on `codex/phase-03-srs-review-engine`. Vercel deployment
+`dpl_DQnShsWaYsa8SHfhf95YCZ3Pw28K` is Ready at
+`https://cogniflow-rjnr672pz-cogniflow-app-3471s-projects.vercel.app` with target `preview`. The
+guarded protected Preview smoke passed 11/11 checks in 10.7 seconds, including `/api/health`
+confirmation of the Preview deployment profile and Supabase project reference, protected-route
+redirects, neutral Auth responses, private-content denial, security headers, and `noindex`.
+
+`pnpm db:deploy:preview` exited 1 during its initial fixed-project `supabase link` status lookup:
+the currently authenticated Supabase CLI account cannot access Preview project
+`cfwddajyjbueggpzfomh`. The guard stopped before migration-history inspection, dry run, or database
+write, so the attempt changed no hosted schema or data. `pnpm db:verify:preview`, disposable hosted
+SRS acceptance, its cleanup assertions, and the post-cleanup verifier cannot truthfully run until
+an owner reauthenticates the CLI to an account with access to that exact Preview project. The owner
+must run `pnpm exec supabase login`, confirm `pnpm exec supabase projects list` includes the Preview
+reference, and then resume the documented Phase 03 Preview checkpoint. No token should be pasted
+into a repository file or chat.
+
+Preview Supabase remains unmodified by Phase 03; Beta and Production were not linked or modified.
+The protected smoke created no disposable learner or content fixture, so there was no hosted SRS
+cleanup to perform. `apps/web/.env.local` and all provider secrets remain ignored and untracked.
 
 ## Phase 02 product UI redesign
 
