@@ -48,6 +48,46 @@ export async function POST(request: NextRequest) {
     );
   }
   const input = parsed.data;
+  const requestHash = await sha256Hex(
+    JSON.stringify({
+      accountId: context.accountId,
+      cardId: input.cardId,
+      currentScheduleVersion: input.currentScheduleVersion,
+      deviceId: context.deviceId,
+      durationMs: input.durationMs,
+      idempotencyKey: input.idempotencyKey,
+      learnerProfileId: context.learnerProfileId,
+      profileSessionId: context.profileSessionId,
+      rating: input.rating,
+      reviewId: input.reviewId,
+      reviewedAt: input.reviewedAt,
+      source: input.source,
+      studyDayStart: input.studyDayStart,
+      studySessionId: input.studySessionId,
+      timezone: input.timezone,
+    }),
+  );
+  const { data: replay, error: replayError } = await context.privileged.rpc(
+    "admin_get_srs_review_replay",
+    {
+      p_actor_account_id: context.accountId,
+      p_auth_session_id: context.authSessionId,
+      p_device_id: context.deviceId,
+      p_idempotency_key: input.idempotencyKey,
+      p_learner_profile_id: context.learnerProfileId,
+      p_profile_session_id: nullableRpcArgument(context.profileSessionId),
+      p_request_hash: requestHash,
+      p_review_id: input.reviewId,
+    },
+  );
+  if (replayError) {
+    return context.applyCookies(
+      srsDatabaseError(replayError, "The review retry was not verified."),
+    );
+  }
+  if (replay !== null) {
+    return context.applyCookies(apiSuccess({ data: replay }));
+  }
   const { data: rawContext, error: contextError } = await context.privileged.rpc(
     "admin_get_srs_review_context",
     {
@@ -146,7 +186,7 @@ export async function POST(request: NextRequest) {
       timezone: input.timezone,
     }),
   );
-  const { data, error } = await context.privileged.rpc("admin_commit_srs_review", {
+  const { data, error } = await context.privileged.rpc("admin_commit_srs_review_v2", {
     p_actor_account_id: context.accountId,
     p_auth_session_id: context.authSessionId,
     p_card_id: input.cardId,
@@ -160,6 +200,7 @@ export async function POST(request: NextRequest) {
     p_preset_version: typeof presetRow.version === "number" ? presetRow.version : 0,
     p_profile_session_id: nullableRpcArgument(context.profileSessionId),
     p_rating: input.rating,
+    p_request_hash: requestHash,
     p_review_id: input.reviewId,
     p_reviewed_at: input.reviewedAt,
     p_schedule_after: toDatabaseJson(transition.after),

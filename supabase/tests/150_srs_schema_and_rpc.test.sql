@@ -18,6 +18,7 @@ select has_table('public', 'srs_preset_versions', 'preset history exists');
 select has_table('public', 'content_change_schedule_decisions', 'private content-change choices exist');
 select has_table('public', 'study_session_events', 'study session controls are audited');
 select has_table('public', 'study_content_reports', 'private study-content reports exist');
+select has_table('private', 'srs_review_receipts', 'exact canonical review replay receipts exist');
 
 select ok(
   not exists(
@@ -58,27 +59,46 @@ select ok(
   and not pg_catalog.has_table_privilege('authenticated', 'public.review_logs', 'insert')
   and not pg_catalog.has_function_privilege(
     'authenticated',
-    'public.admin_commit_srs_review(uuid,uuid,uuid,uuid,uuid,uuid,uuid,public.review_rating,timestamptz,integer,text,smallint,bigint,uuid,uuid,text,public.review_source,uuid,bigint,jsonb,jsonb,text)',
+    'public.admin_commit_srs_review_v2(uuid,uuid,uuid,uuid,uuid,uuid,uuid,public.review_rating,timestamptz,integer,text,smallint,bigint,uuid,uuid,text,text,public.review_source,uuid,bigint,jsonb,jsonb,text)',
     'execute'
   )
   and pg_catalog.has_function_privilege(
     'service_role',
-    'public.admin_commit_srs_review(uuid,uuid,uuid,uuid,uuid,uuid,uuid,public.review_rating,timestamptz,integer,text,smallint,bigint,uuid,uuid,text,public.review_source,uuid,bigint,jsonb,jsonb,text)',
+    'public.admin_commit_srs_review_v2(uuid,uuid,uuid,uuid,uuid,uuid,uuid,public.review_rating,timestamptz,integer,text,smallint,bigint,uuid,uuid,text,text,public.review_source,uuid,bigint,jsonb,jsonb,text)',
+    'execute'
+  )
+  and pg_catalog.has_function_privilege(
+    'service_role',
+    'public.admin_get_srs_review_replay(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text)',
     'execute'
   ),
   'authenticated reads use RLS while canonical writes stay service-only'
 );
 select ok(
   (select procedure.prosecdef from pg_catalog.pg_proc as procedure
-   where procedure.oid = 'public.admin_commit_srs_review(uuid,uuid,uuid,uuid,uuid,uuid,uuid,public.review_rating,timestamptz,integer,text,smallint,bigint,uuid,uuid,text,public.review_source,uuid,bigint,jsonb,jsonb,text)'::regprocedure)
+   where procedure.oid = 'public.admin_commit_srs_review_v2(uuid,uuid,uuid,uuid,uuid,uuid,uuid,public.review_rating,timestamptz,integer,text,smallint,bigint,uuid,uuid,text,text,public.review_source,uuid,bigint,jsonb,jsonb,text)'::regprocedure)
   and (select procedure.proconfig @> array['search_path=""']::text[] from pg_catalog.pg_proc as procedure
-   where procedure.oid = 'public.admin_commit_srs_review(uuid,uuid,uuid,uuid,uuid,uuid,uuid,public.review_rating,timestamptz,integer,text,smallint,bigint,uuid,uuid,text,public.review_source,uuid,bigint,jsonb,jsonb,text)'::regprocedure) is true,
+   where procedure.oid = 'public.admin_commit_srs_review_v2(uuid,uuid,uuid,uuid,uuid,uuid,uuid,public.review_rating,timestamptz,integer,text,smallint,bigint,uuid,uuid,text,text,public.review_source,uuid,bigint,jsonb,jsonb,text)'::regprocedure) is true,
   'canonical review commit is security-definer with an empty search path'
+);
+select ok(
+  (select procedure.provolatile = 'v' from pg_catalog.pg_proc as procedure
+   where procedure.oid = 'public.admin_get_srs_review_replay(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text)'::regprocedure),
+  'review replay volatility matches its runtime authorization helper'
 );
 select ok(
   exists(select 1 from pg_catalog.pg_trigger where tgrelid = 'public.review_logs'::regclass and tgname = 'review_logs_append_only')
   and exists(select 1 from pg_catalog.pg_trigger where tgrelid = 'public.review_undo_events'::regclass and tgname = 'review_undo_events_append_only'),
   'review evidence and compensations are append-only'
+);
+select ok(
+  exists(
+    select 1 from pg_catalog.pg_trigger
+    where tgrelid = 'private.srs_review_receipts'::regclass
+      and tgname = 'srs_review_receipts_append_only'
+  )
+  and not pg_catalog.has_table_privilege('service_role', 'private.srs_review_receipts', 'select'),
+  'exact replay receipts are append-only and inaccessible outside their service RPCs'
 );
 
 create temporary table srs_fixture (name text primary key, value text not null) on commit drop;
@@ -146,12 +166,12 @@ insert into srs_fixture values
 
 set local role service_role;
 select is(
-  (public.admin_commit_srs_review(
+  (public.admin_commit_srs_review_v2(
     '91000000-0000-4000-8000-000000000001','92000000-0000-4000-8000-000000000001',
     '93000000-0000-4000-8000-000000000001',(select value::uuid from srs_fixture where name='owner_learner'),
     null,'97000000-0000-4000-8000-000000000001',null,'good',(select value::timestamptz from srs_fixture where name='reviewed_at'),
     1200,'America/Chicago',240::smallint,0::bigint,'98000000-0000-4000-8000-000000000001',
-    '99000000-0000-4000-8000-000000000001',repeat('c',64),'today',(select value::uuid from srs_fixture where name='preset'),1::bigint,
+    '99000000-0000-4000-8000-000000000001',repeat('c',64),repeat('e',64),'today',(select value::uuid from srs_fixture where name='preset'),1::bigint,
     pg_catalog.jsonb_build_object(
       'algorithm','fsrs','state','new','due',(select value::timestamptz from srs_fixture where name='reviewed_at'),
       'lastReviewedAt',null,'stability',0,'difficulty',0,'elapsedDays',0,'scheduledDays',0,
@@ -171,26 +191,36 @@ select is(
 );
 
 select is(
-  (public.admin_commit_srs_review(
+  (public.admin_commit_srs_review_v2(
     '91000000-0000-4000-8000-000000000001','92000000-0000-4000-8000-000000000001',
     '93000000-0000-4000-8000-000000000001',(select value::uuid from srs_fixture where name='owner_learner'),
     null,'97000000-0000-4000-8000-000000000001',null,'good',(select value::timestamptz from srs_fixture where name='reviewed_at'),
     1200,'America/Chicago',240::smallint,0::bigint,'98000000-0000-4000-8000-000000000001',
-    '99000000-0000-4000-8000-000000000001',repeat('c',64),'today',(select value::uuid from srs_fixture where name='preset'),1::bigint,
+    '99000000-0000-4000-8000-000000000001',repeat('c',64),repeat('e',64),'today',(select value::uuid from srs_fixture where name='preset'),1::bigint,
     pg_catalog.jsonb_build_object('algorithm','fsrs','state','new','due',(select value::timestamptz from srs_fixture where name='reviewed_at'),'lastReviewedAt',null,'stability',0,'difficulty',0,'elapsedDays',0,'scheduledDays',0,'learningStep',0,'reps',0,'lapses',0,'legacyEaseFactor',null,'schedulerVersion','lumen-srs/1 (v5.4.1 using FSRS-6.0)'),
     pg_catalog.jsonb_build_object('algorithm','fsrs','state','learning','due',(select value::timestamptz from srs_fixture where name='reviewed_at')+interval '10 minutes','lastReviewedAt',(select value::timestamptz from srs_fixture where name='reviewed_at'),'stability',2.3065,'difficulty',2.11810397,'elapsedDays',0,'scheduledDays',0,'learningStep',1,'reps',1,'lapses',0,'legacyEaseFactor',null,'schedulerVersion','lumen-srs/1 (v5.4.1 using FSRS-6.0)'),
     'lumen-srs/1 (v5.4.1 using FSRS-6.0)'
   )->>'duplicate'),
-  'true',
-  'a duplicate review ID returns the stored result without reapplying'
+  'false',
+  'an exact retry returns the original canonical result without reapplying'
+);
+
+select is(
+  public.admin_get_srs_review_replay(
+    '91000000-0000-4000-8000-000000000001','92000000-0000-4000-8000-000000000001',
+    '93000000-0000-4000-8000-000000000001',(select value::uuid from srs_fixture where name='owner_learner'),
+    null,'98000000-0000-4000-8000-000000000001','99000000-0000-4000-8000-000000000001',repeat('e',64)
+  )->>'reviewId',
+  '98000000-0000-4000-8000-000000000001',
+  'the route can recover the exact receipt before mutable session-state validation'
 );
 
 select throws_ok(
-  $$select public.admin_commit_srs_review(
+  $$select public.admin_commit_srs_review_v2(
     '91000000-0000-4000-8000-000000000001','92000000-0000-4000-8000-000000000001','93000000-0000-4000-8000-000000000001',
     (select value::uuid from srs_fixture where name='owner_learner'),null,'97000000-0000-4000-8000-000000000001',null,'good',
     (select value::timestamptz from srs_fixture where name='reviewed_at'),1200,'America/Chicago',240::smallint,0::bigint,
-    '98000000-0000-4000-8000-000000000001','99000000-0000-4000-8000-000000000001',repeat('d',64),'today',
+    '98000000-0000-4000-8000-000000000001','99000000-0000-4000-8000-000000000001',repeat('c',64),repeat('d',64),'today',
     (select value::uuid from srs_fixture where name='preset'),1::bigint,'{}','{}','lumen-srs/1 (v5.4.1 using FSRS-6.0)')$$,
   '22023','review idempotency key was reused with different input',
   'a reused review ID with a different command is rejected'

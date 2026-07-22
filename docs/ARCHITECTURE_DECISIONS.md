@@ -555,20 +555,26 @@ whole command, schedule locking, and no lost updates. A browser-computed transit
 a TypeScript read followed by unrelated writes would be race-prone.
 
 **Decision.** `packages/srs` pins `ts-fsrs` `5.4.1`, wraps FSRS-6.0 behind project types, and is the
-only canonical calculator. The authenticated server obtains an authorized context through a
-service-only fixed-search-path RPC, computes exactly one transition, and submits that transition
-with the original context to `admin_commit_srs_review`. The commit RPC repeats authorization,
-locks or lazily creates the learner/card schedule, compares its version and complete before-state,
-revalidates the exact preset version, binds the client review UUID/idempotency key to the complete
-command and computed transition, and atomically appends evidence plus schedule/session/counter and
-sibling/leech effects. It never accepts a transition from a browser. Direct service-role table
-access is revoked; the RPC receives only the minimum execute grant.
+only canonical calculator. Before loading mutable session or schedule context, the authenticated
+server hashes the complete raw review intent and asks a service-only fixed-search-path replay RPC
+for an existing exact receipt. An exact retry returns the original canonical response even after
+the first commit advanced the session or schedule; the same review identity with a different hash
+is rejected. A fresh command obtains its authorized context, computes exactly one transition, and
+submits that transition plus the request hash to `admin_commit_srs_review_v2`. The wrapper repeats
+authorization and replay checks, then delegates the first commit to the original locked mutation
+and stores its exact response in an append-only private receipt. The commit locks or lazily creates
+the learner/card schedule, compares its version and complete before-state, revalidates the exact
+preset version, binds the client review UUID/idempotency key to the complete command and computed
+transition, and atomically appends evidence plus schedule/session/counter and sibling/leech effects.
+It never accepts a transition from a browser. Direct service-role table access is revoked; the RPCs
+receive only the minimum execute grants.
 
-Identical review UUID retries return their prior result. A differing payload under that UUID is an
-idempotency conflict. Two legitimate commands for the same version serialize under the schedule
-lock: one commits and the other receives a typed stale-version result. Undo and algorithm changes
-are separate compensating/replay transactions with immutable audit evidence. Preview calculation
-uses the same package and preset but is non-authoritative.
+Identical review UUID retries return the byte-equivalent prior canonical result before mutable
+context validation. A differing payload under that UUID is an idempotency conflict. Two legitimate
+commands for the same version serialize under the schedule lock: one commits and the other receives
+a typed stale-version result. Undo and algorithm changes are separate compensating/replay
+transactions with immutable audit evidence. Preview calculation uses the same package and preset
+but is non-authoritative.
 
 **Consequences.**
 
@@ -577,6 +583,8 @@ uses the same package and preset but is non-authoritative.
 - The trusted TypeScript calculation and PostgreSQL commit form one verified protocol rather than
   one process transaction; the commit's lock, before-state equality, preset-version check, and
   payload fingerprint reject any context drift between the two calls.
+- An append-only private receipt is the stable response boundary for lost-response retries; replay
+  lookup still repeats runtime actor, learner, and device authorization before returning data.
 - Review evidence records `lumen-srs/1 (v5.4.1 using FSRS-6.0)`, the preset version, before and
   after schedules, source, timing, and idempotency identity for replay and audit.
 - Public preview, authored-content reads, practice grading, games, and Phase 04 mastery cannot

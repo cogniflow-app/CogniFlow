@@ -128,8 +128,18 @@ test("Preview commits, deduplicates, undoes, resumes, and isolates canonical SRS
   await page.getByRole("link", { name: "View statistics" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Your review picture" })).toBeVisible();
   await expect(page.getByText(deckTitle)).toBeVisible();
-  await page.context().clearCookies();
-  const privateStats = await page.request.get(`${baseUrl}/app/stats`, { maxRedirects: 0 });
-  expect([302, 303, 307, 308]).toContain(privateStats.status());
-  expect(privateStats.headers()["location"]).toContain("/auth/sign-in");
+  const protectionCookie = (await page.context().cookies(baseUrl)).find(
+    (cookie) => cookie.name === "_vercel_jwt",
+  );
+  const privateStats = await fetch(`${baseUrl}/app/stats`, {
+    headers: protectionCookie
+      ? { Cookie: `${protectionCookie.name}=${protectionCookie.value}` }
+      : undefined,
+    redirect: "manual",
+  });
+  const privateStatsBody = await privateStats.text();
+  expect(privateStats.status).toBe(200);
+  expect(privateStatsBody).toContain("Sign in");
+  expect(privateStatsBody).not.toContain("Your review picture");
+  expect(privateStatsBody).not.toContain(deckTitle);
 });

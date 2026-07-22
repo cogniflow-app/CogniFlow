@@ -466,18 +466,20 @@ forget, replay/rebuild/migration, genuine SM-2, optimizer gating, property bound
 study-day cutoffs, all queue modes, deterministic resume, and typical/10,000-card budgets.
 
 `supabase/tests/150_srs_schema_and_rpc.test.sql` covers schema, RLS, exact grants/search paths, lazy
-creation, complete-command idempotency, stale versions, append-only evidence, compensation,
-rebuild/replay, profile isolation, public/deck-owner denial, inactive content, session limits,
-sibling/leech/manual/bulk/content/filter/migration/deletion behavior. Test 155 measures 10,000-card
+creation, complete-command idempotency, exact-response receipts, replay before mutable context,
+altered-request denial, stale versions, append-only evidence, compensation, rebuild/replay, profile
+isolation, public/deck-owner denial, inactive content, session limits, sibling/leech/manual/bulk/
+content/filter/migration/deletion behavior. Test 155 measures 10,000-card
 queue, Today, resume, and statistics query plans. Its actor has a registered Auth-session device,
 the bulk fixture is analyzed before measurement, and a visibility assertion proves the timings are
 for all 10,000 authorized rows rather than a fast RLS-denial path. `scripts/test-srs-concurrency.mjs`
 uses two real database connections and requires exactly one commit, one typed stale conflict, one
 log, and a sub-500 ms canonical mutation.
 
-Web unit tests cover trusted route calculation, malicious transition rejection, answer DOM
-separation, keyboard/typed/safe-swipe behavior, duplicate-submit coalescing, preview-only behavior,
-truthful accessible statistics, and deterministic repository pagination. `e2e/srs-review.spec.ts`
+Web unit tests cover trusted route calculation, authorized HTTP replay before mutable session
+preflight, malicious transition rejection, answer DOM separation, keyboard/typed/safe-swipe
+behavior, duplicate-submit coalescing, preview-only behavior, truthful accessible statistics, and
+deterministic repository pagination. `e2e/srs-review.spec.ts`
 provisions isolated local learners and exercises pause/resume, lazy controls, reveal, typed answer,
 keyboard review, canonical persistence, statistics, mobile Chromium, and axe. The aggregate
 `pnpm verify` remains the final local gate and resets the database before pgTAP.
@@ -487,4 +489,6 @@ entry, custom queues, scheduling disclosure, review states, undo, statistics/his
 decisions, serious mode, reduced motion, 320 px mobile, and 200% text. It waits for route-specific
 stable content before measuring layout or capturing private diagnostic screenshots. The hosted
 counterpart is `e2e/hosted-srs.spec.ts`, and it may run only through the guarded wrapper described
-in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md).
+in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). Its final isolation probe uses an independent
+cookie-less transport with only the already-attested, exact-host Vercel bypass cookie; it asserts
+that the streamed sign-in boundary contains no disposable deck title or private statistics.

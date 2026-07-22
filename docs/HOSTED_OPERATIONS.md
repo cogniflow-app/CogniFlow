@@ -581,8 +581,8 @@ introduced by the Phase 02 promotion.
 
 ## Phase 03 Preview checkpoint procedure
 
-Phase 03 adds 14 migrations, `20260721000000_srs_schema.sql` through
-`20260721013000_srs_read_authorization_performance.sql`. They may be applied only after the
+Phase 03 adds 16 migrations, `20260721000000_srs_schema.sql` through
+`20260722001000_srs_review_replay_volatility.sql`. They may be applied only after the
 complete local gate, from a committed clean migration directory, using:
 
 ```bash
@@ -606,15 +606,23 @@ remain unchanged.
 
 ### Phase 03 checkpoint on 2026-07-22 UTC
 
-Vercel Preview deployment `dpl_DQnShsWaYsa8SHfhf95YCZ3Pw28K` reached Ready at
-`https://cogniflow-rjnr672pz-cogniflow-app-3471s-projects.vercel.app`, and the protected hosted smoke
-passed 11/11 checks. The guarded `pnpm db:deploy:preview` command then stopped at the initial
-fixed-project link because the current Supabase CLI identity lacks access to Preview project
-`cfwddajyjbueggpzfomh`. It performed no migration read, dry run, or write.
+After owner CLI reauthentication restored access to fixed Preview project
+`cfwddajyjbueggpzfomh`, the guarded deployment applied the original 14 Phase 03 migrations and the
+independent verifier proved remote-history parity, an empty dry run, clean schema diff, matching
+generated types, hosted invariants, and storage checks. The protected baseline smoke passed 11/11.
 
-An owner must reauthenticate the Supabase CLI to an account that can list that exact project, then
-resume with `pnpm db:deploy:preview`, `pnpm db:verify:preview`,
-`pnpm test:hosted:preview:srs --url <exact-ready-url>`, and the final
-`pnpm db:verify:preview`. Do not pass an access token through chat, add it to `.env.local`, bypass
-the fixed-project guard, or substitute Beta/Production. The disposable SRS acceptance and cleanup
-have not run while this authorization blocker remains.
+The first disposable SRS acceptance then found a real HTTP replay defect: the first canonical
+review committed, but its identical retry returned 403 because mutable session-item preflight ran
+before database idempotency lookup. Cleanup completed and proved no active disposable rows remained.
+Beta promotion was held. The forward fix adds an append-only exact-response receipt, an authorized
+replay preflight, a v2 commit wrapper, and a separate forward migration aligning replay-function
+volatility with its authorization helper. Both forward migrations were applied only to Preview;
+the verifier then proved exact 49-migration parity, an empty dry run, no new lint warning, hosted
+invariants, a clean schema diff, Storage checks, and matching generated types.
+
+The matching protected Vercel Preview passed the 11/11 baseline and the complete 1/1 disposable SRS
+acceptance. The acceptance proved first commit, exact HTTP replay, undo, four-rating persistence,
+resume, statistics, and unauthenticated private-data isolation. Cleanup returned `rows: []`, and
+the post-cleanup verifier passed. Draft PR #12 must be reviewed and merged before the Beta guard may
+promote the 16 Phase 03 migrations. Until then, Beta/Production remain unchanged. Do not substitute
+Beta/Production or weaken the fixed-project guards.
