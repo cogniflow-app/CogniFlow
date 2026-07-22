@@ -492,11 +492,13 @@ export async function runHostedContentAcceptance(
     createPreflightFileImplementation = createHostedPreflightFile,
     destroyPreflightFileImplementation = destroyHostedPreflightFile,
     preflightImplementation = preflightHostedContentTarget,
+    playwrightConfig = "playwright.hosted-content.config.ts",
     processImplementation = process,
     provisionFixtureImplementation = provisionHostedAcceptanceFixture,
     randomUUIDImplementation = randomUUID,
     runCommandImplementation = runCommand,
     signalControllerImplementation = createHostedContentSignalController,
+    successMessage = "Preview Phase 02 content acceptance and verified minimization completed successfully.\n",
     writeFileImplementation = writeFile,
   } = {},
 ) {
@@ -567,7 +569,7 @@ export async function runHostedContentAcceptance(
     signalController.throwIfSignaled();
     await runCommandImplementation(
       "pnpm",
-      ["exec", "playwright", "test", "--config=playwright.hosted-content.config.ts"],
+      ["exec", "playwright", "test", `--config=${playwrightConfig}`],
       {
         env: sandbox.environment,
         signalController,
@@ -621,9 +623,7 @@ export async function runHostedContentAcceptance(
     throw error;
   }
   if (runFailure) throw runFailure;
-  processImplementation.stdout.write(
-    "Preview Phase 02 content acceptance and verified minimization completed successfully.\n",
-  );
+  processImplementation.stdout.write(successMessage);
   return 0;
 }
 

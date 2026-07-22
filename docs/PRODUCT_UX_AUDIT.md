@@ -85,3 +85,26 @@ The completed audit will link each correction to:
 - sanitized screenshots for every major route/card type at desktop and mobile;
 - explicit checks at the required eleven viewports, 125% and 150% zoom, 200% text, long content, both themes, serious mode, reduced motion, and keyboard-only operation;
 - the complete local validation command matrix and hosted Preview smoke result.
+
+## Phase 03 study UX extension
+
+Phase 03 preserves the compact workspace and adds one first-class Study destination rather than a
+second dashboard. Study uses concise deck rows and queue controls; Settings hides advanced
+scheduler details by default; Statistics uses real tables and restrained summaries instead of a
+metric wall. Ordinary copy says Card, Related cards, requested retention, and due time rather than
+exposing internal card-generation or raw FSRS structures.
+
+The review surface keeps answer content out of DOM before reveal, makes four ratings visible only
+after reveal, uses text plus color, supports `1`–`4`, never grades on swipe alone, and keeps the card
+when commit fails. It includes explicit empty, paused, conflict, completed, content-change, and undo
+states.
+
+Dedicated Chromium layout acceptance covers empty/populated Study, deck entry, custom study,
+collapsed and expanded scheduling settings, prompt and answer faces, all ratings, undo, statistics,
+per-card history, semantic content decisions, serious mode, reduced motion, 320 px mobile, and 200%
+text without horizontal overflow. Two visual projects pass. Actual repository-produced browser
+pixels were opened and inspected for populated Study, scheduling progressive disclosure, and mobile
+statistics at 200% text; the in-app browser runtime was unavailable, so direct visual QA used the
+local image viewer. The full browser suite passes 29 scenarios with 19 intentional cross-project
+skips, and the accessibility suite passes 28/28 checks. No screenshot or browser artifact is
+tracked.

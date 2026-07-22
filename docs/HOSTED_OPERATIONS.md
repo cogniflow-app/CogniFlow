@@ -578,3 +578,28 @@ The historical bootstrap changed only hosted Phase 01 infrastructure, guarded op
 and documentation; its statement that content was not yet implemented is historical evidence, not
 the current Phase 02 branch status. No Phase 03 scheduling, later study mode, or game scope is
 introduced by the Phase 02 promotion.
+
+## Phase 03 Preview checkpoint procedure
+
+Phase 03 adds 13 migrations, `20260721000000_srs_schema.sql` through
+`20260721012000_srs_lazy_control_audit_normalization.sql`. They may be applied only after the
+complete local gate, from a committed clean migration directory, using:
+
+```bash
+pnpm db:deploy:preview
+pnpm db:verify:preview
+```
+
+Do not run `db:deploy:beta`, deploy seed data, or change Production. After the matching branch's
+Vercel Preview is Ready and `/api/health` proves the Preview project reference, run the protected
+baseline smoke and the Phase 03 disposable acceptance wrapper. That wrapper must keep the Supabase
+server key in the guarded parent process, pass no provider credential to Playwright, provision only
+reserved-address adult identities, exercise isolated New/reveal/four-rating/persistence/duplicate/
+undo/resume/statistics/isolation cases, and always invoke the existing account-deletion cleanup.
+It must assert Auth removal, withdrawn publication, empty recursive Storage inventory, and privacy-
+minimized retained scheduling/content evidence. Rerun `pnpm db:verify:preview` after cleanup.
+
+Record the exact deployment URL, test count, UTC time, migration parity, cleanup proof, and final
+verification in `IMPLEMENTATION_STATUS.md`. There is no Phase 03 environment variable or worker
+deployment. Beta Supabase, Production Supabase, `recallflash.com`, SMTP, OAuth, and child gates must
+remain unchanged.

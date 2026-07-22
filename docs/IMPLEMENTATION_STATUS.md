@@ -1,12 +1,118 @@
 # Implementation status
 
-**Current phase:** Phase 02 — content model, editor, media, and card types  
-**Status:** Usability and authoring redesign complete and aggregate-verified locally; one draft
-pull request is open and the final branch Preview is pending  
+**Current phase:** Phase 03 — SRS and canonical review engine  
+**Status:** Complete implementation and local acceptance; hosted Preview evidence pending  
 **Evidence date:** 2026-07-21 UTC  
-**Next phase:** Phase 03 has not started
+**Next phase:** Phase 04 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
+
+## Phase 03 SRS and canonical review engine
+
+Branch `codex/phase-03-srs-review-engine` began from clean `origin/main` at `8b63e448`. Before Phase
+03 changes, Docker/local Supabase were healthy, the ignored `apps/web/.env.local` existed without
+being read or modified, the 33-migration Phase 00–02 chain reset cleanly, and the complete baseline
+passed. Phase 02's usability work was already merged even though this file's former header still
+described its draft branch.
+
+### Completed scope
+
+- Added framework-independent `@lumen/srs` with exact `ts-fsrs` `5.4.1`, project engine identity
+  `lumen-srs/1 (v5.4.1 using FSRS-6.0)`, FSRS defaults (0.90 retention, 36500-day maximum,
+  `1m 10m` learning, `10m` relearning, short-term scheduling and fuzz), genuine SM-2 compatibility,
+  presets, all states/ratings, previews, retrievability, replay/rebuild, rollback, forget, explicit
+  algorithm migration, content operations, time/study-day utilities, deterministic queues, and a
+  disabled-by-default optimizer adapter with a 400-log threshold.
+- Added learner-private presets and immutable versions, per-deck settings, canonical schedules and
+  logs, sessions/items, saved filters, daily counters, undo compensation, scheduling-operation
+  audit, optimizer metadata, content decisions, lazy controls, and account-deletion minimization.
+  All exposed tables use RLS; service scheduling functions use actor-derived authorization, fixed
+  search paths, exact grants, indexed policy/queue predicates, and no service-role direct SRS table
+  grants.
+- Added one canonical review route and RPC protocol. The browser never supplies the next schedule.
+  The trusted server computes with `@lumen/srs`; PostgreSQL repeats authorization, locks/compares
+  version and before-state, binds idempotency to the complete command, atomically writes immutable
+  evidence plus schedule/session/counter/sibling/leech effects, returns an identical prior result
+  for an exact retry, rejects payload-changing UUID reuse, and returns a typed stale conflict to a
+  competing legitimate command. Undo is compensating, not deletion.
+- Added `/app/study`, `/app/study/session/[sessionId]`, `/app/stats`, and
+  `/app/settings/scheduling`, plus deck Study entry/counts and first-class workspace navigation.
+  Today, deck, folder, multi-deck, saved-filter, due/new, state, forgotten, leech, starred, tag,
+  review-ahead, cram, preview-only, relative-overdue, deterministic random, and interval-range
+  queues use real authorized data. Repository reads paginate deterministically beyond PostgREST row
+  caps and batch large identifier sets.
+- Added the calm canonical review surface: answer absent from DOM before reveal; server-consistent
+  interval previews; Again/Hard/Good/Easy and keyboard `1`–`4`; double-submit guard; failure/conflict
+  retention; progress/remaining/state/timer; pause/resume; exact edit; star, bury, sibling bury,
+  suspend, report, undo, manual/range/order/leech/forget/rebuild/content decisions; safe
+  confirm-only swipe; typed local comparison; audio preference; live announcements; mobile,
+  serious-mode, and reduced-motion behavior.
+- Added personal preset CRUD/duplication/default restore, multi-deck apply, FSRS/SM-2 selection,
+  requested retention, steps, maximum interval, daily limits/order/mix, sibling/leech/fuzz settings,
+  workload preview, bulk controls, and explicit audited algorithm migration preview/confirmation.
+- Added real private statistics for state/due counts, review count/time, ratings, lapses/leeches,
+  retrievability/stability/difficulty/interval distributions, forecast, heatmap, answer time,
+  maturity, decks, tags, workload, and grouped per-card review history with accessible tables and
+  exact edit links. No sample metrics are rendered.
+
+The implementation contract, state machine, queue, time behavior, trust boundary, content-change
+decisions, settings, statistics, SM-2, and optimizer boundary are documented in
+[SRS_REVIEW_ENGINE.md](./SRS_REVIEW_ENGINE.md). Phase 04 adaptive Learn/grading, games, imports,
+collaboration, and actual offline synchronization were not started.
+
+### Additive migrations
+
+1. `20260721000000_srs_schema.sql`
+2. `20260721001000_srs_authorization_and_rpcs.sql`
+3. `20260721002000_srs_presets_and_content_decisions.sql`
+4. `20260721003000_srs_session_controls.sql`
+5. `20260721004000_srs_content_change_decisions.sql`
+6. `20260721005000_srs_schedule_replacement.sql`
+7. `20260721006000_srs_sibling_bury_and_reports.sql`
+8. `20260721007000_srs_bulk_schedule_controls.sql`
+9. `20260721008000_srs_account_deletion_privacy.sql`
+10. `20260721009000_srs_saved_filters.sql`
+11. `20260721010000_srs_algorithm_migration.sql`
+12. `20260721011000_srs_lazy_schedule_controls.sql`
+13. `20260721012000_srs_lazy_control_audit_normalization.sql`
+
+No applied Phase 00–02 migration was edited. No setup value or environment variable was added.
+
+### Focused acceptance evidence
+
+| Check              | Result                                                                                                                                                                                         |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@lumen/srs` tests | 4 files / 28 deterministic, exact-parity, SM-2, optimizer, time/DST, queue, property, and 10,000-card tests pass                                                                               |
+| Phase 03 web tests | 5 focused files / 13 route, rendering, double-submit, statistics, and pagination tests pass                                                                                                    |
+| Local database     | Reset through all 46 migrations; 21 pgTAP files / 884 assertions pass                                                                                                                          |
+| Concurrency        | Two database connections: 1 commit, 1 typed stale conflict, 1 immutable log; aggregate canonical mutation 27.727 ms                                                                            |
+| Queue performance  | Aggregate 10,000-card queue 0.320 ms; Today 1047.483 ms; resume 0.079 ms; statistics 0.093 ms; all budgets pass                                                                                |
+| Browser E2E        | 29 pass / 19 intentional cross-project skips across Chromium desktop and Pixel 7                                                                                                               |
+| Accessibility      | 28/28 axe, keyboard, focus, zoom, responsive, theme, motion, and authenticated route checks pass                                                                                               |
+| Visual acceptance  | 2/2 dedicated desktop/mobile layout projects pass; actual Chromium pixels inspected for populated Study, collapsed/expanded scheduling, and 200% mobile statistics with no horizontal overflow |
+| Lighthouse         | Assertions pass; scores 98/100/96/100; FCP 0.758 s, LCP 2.311 s, TBT 3 ms, CLS 0                                                                                                               |
+| Load smoke         | 15/15 checks pass; 0 failed; request-duration p95 8.93 ms                                                                                                                                      |
+
+| Phase 03 validation command                | Local result                                                                                                                                              |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`           | Exit 0; 10 workspace projects current under Node `24.18.0` and pnpm `11.13.0`                                                                             |
+| `pnpm format:check` / `pnpm secret:scan`   | Exit 0; formatting accepted and no credential finding                                                                                                     |
+| `pnpm lint` / `pnpm typecheck`             | Exit 0; dependency boundaries and 9/9 strict TypeScript packages pass                                                                                     |
+| `pnpm test`                                | Exit 0; 85 files / 662 tests; coverage 74.45% statements, 64.56% branches, 72.38% functions, 77.75% lines                                                 |
+| `pnpm db:reset` / `pnpm test:db`           | Exit 0; empty reset through 46 migrations; 21 files / 884 assertions plus the two-connection concurrency proof pass                                       |
+| `pnpm db:types` / `pnpm db:types:check`    | Exit 0; generated database types regenerated and current                                                                                                  |
+| verification-wrapped `pnpm build`          | Exit 0; optimized Next production build generates 76 route/static entries                                                                                 |
+| verification-wrapped `pnpm build:portable` | Exit 0; OpenNext emits the Cloudflare worker                                                                                                              |
+| `pnpm test:e2e` / `pnpm test:a11y`         | Exit 0; 29 pass / 19 intentional skips, then 28/28 pass                                                                                                   |
+| `pnpm test:lighthouse` / `pnpm test:load`  | Exit 0; Lighthouse assertions pass at 98/100/96/100; k6 15/15 checks, 0 failures, p95 8.93 ms                                                             |
+| `pnpm verify`                              | Exit 0 on 2026-07-21 under pinned Node/pnpm; complete aggregate reran every practical local gate above, including an empty database reset and both builds |
+
+Raw production build commands correctly rejected the developer-only HTTP values in the ignored
+`.env.local`; the verification wrapper supplied deterministic production-valid values without
+editing that file. Preview deployment, hosted acceptance/cleanup, commit, and draft-PR evidence
+will replace this paragraph after those gates run. Preview, Beta, and Production have not been
+modified yet by Phase 03. `apps/web/.env.local` and all provider secrets remain ignored and
+untracked.
 
 ## Phase 02 product UI redesign
 

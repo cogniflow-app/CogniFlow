@@ -282,13 +282,35 @@ it may not weaken the database command boundary.
 
 Later phases add sections here rather than creating undocumented payloads:
 
-| Protocol                | Owning phase          | Status          |
-| ----------------------- | --------------------- | --------------- |
-| Identity/privacy audit  | Phase 01              | Implemented     |
-| Content authoring/audit | Phase 02              | Implemented     |
-| Review/offline sync     | Phase 03 and Phase 05 | Not implemented |
-| Collaboration           | Phase 07              | Not implemented |
-| Assignment/reporting    | Phase 08              | Not implemented |
-| Realtime games          | Phase 09              | Not implemented |
-| XP/currency/progression | Phase 10              | Not implemented |
-| AI jobs                 | Phase 11              | Not implemented |
+| Protocol                | Owning phase | Status          |
+| ----------------------- | ------------ | --------------- |
+| Identity/privacy audit  | Phase 01     | Implemented     |
+| Content authoring/audit | Phase 02     | Implemented     |
+| Canonical review        | Phase 03     | Implemented     |
+| Offline review sync     | Phase 05     | Not implemented |
+| Collaboration           | Phase 07     | Not implemented |
+| Assignment/reporting    | Phase 08     | Not implemented |
+| Realtime games          | Phase 09     | Not implemented |
+| XP/currency/progression | Phase 10     | Not implemented |
+| AI jobs                 | Phase 11     | Not implemented |
+
+## Phase 03 canonical review and schedule-operation facts
+
+`POST /api/study/reviews` accepts a versioned review command containing the active learner/card/
+session, rating, reviewed-at time, bounded duration, IANA time zone and cutoff, device identity,
+expected schedule and preset versions, review source, client review UUID, and idempotency key. It
+does not accept a next schedule. The server calculates one trusted transition with `@lumen/srs` and
+the database commits it only when the locked canonical before-state still matches.
+
+A successful review emits one immutable `review_logs` fact and returns the exact canonical result.
+An exact duplicate UUID returns that result without another fact. A UUID reused for another command
+is `IDEMPOTENCY_CONFLICT`; competing valid commands return `SCHEDULE_VERSION_CONFLICT` to the
+loser. Review evidence records `lumen-srs/1 (v5.4.1 using FSRS-6.0)` plus the immutable preset
+version. The server response is authoritative over local interval previews.
+
+Pause/resume/preview advance updates temporary session state only. Undo emits a compensating
+`srs_undo_events` fact plus an audited schedule transition. Manual due, range reschedule, due order,
+suspend, bury, sibling bury, star, leech, forget, rebuild, content decision, bulk operation, and
+algorithm migration emit `srs_schedule_operations` evidence. These commands use expected versions
+and cannot mutate another learner. Phase 05 may deliver the same review envelope from an outbox but
+may not change its idempotency or authorization semantics.

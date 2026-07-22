@@ -140,7 +140,12 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
             >
               <span className="flashcard-face__label">Question</span>
               <div className="flashcard-face__content">
-                <StudyCardRenderer media={card.media} renderer={card.renderer} revealed={false} />
+                <StudyCardRenderer
+                  media={card.media}
+                  renderer={card.renderer}
+                  revealed={false}
+                  typedAnswerLabel="Typed answer preview"
+                />
               </div>
               <small>{card.cardType.replaceAll("_", " ")}</small>
             </article>
@@ -152,7 +157,12 @@ export function PublicDeckPreview({ deck }: { readonly deck: PublicDeckView }) {
             >
               <span className="flashcard-face__label">Answer</span>
               <div className="flashcard-face__content">
-                <StudyCardRenderer media={card.media} renderer={card.renderer} revealed />
+                <StudyCardRenderer
+                  media={card.media}
+                  renderer={card.renderer}
+                  revealed
+                  typedAnswerLabel="Typed answer preview"
+                />
               </div>
               <small>{card.cardType.replaceAll("_", " ")}</small>
             </article>

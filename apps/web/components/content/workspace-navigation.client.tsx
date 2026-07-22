@@ -1,6 +1,14 @@
 "use client";
 
-import { BookOpenIcon, GlobeIcon, LockIcon, UserIcon, UsersIcon } from "@lumen/ui";
+import {
+  BookOpenIcon,
+  GlobeIcon,
+  ListIcon,
+  LockIcon,
+  PlayIcon,
+  UserIcon,
+  UsersIcon,
+} from "@lumen/ui";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
 
@@ -16,8 +24,14 @@ const primaryItems: readonly WorkspaceNavigationItem[] = [
   { href: "/app/published", icon: GlobeIcon, label: "Published" },
 ] as const;
 
+const studyItems: readonly WorkspaceNavigationItem[] = [
+  { href: "/app/study", icon: PlayIcon, label: "Study" },
+  { href: "/app/stats", icon: ListIcon, label: "Statistics" },
+] as const;
+
 const accountItems: readonly WorkspaceNavigationItem[] = [
   { href: "/app/settings/profile", icon: UserIcon, label: "Profile" },
+  { href: "/app/settings/scheduling", icon: PlayIcon, label: "Scheduling" },
   { href: "/app/settings/learners", icon: UsersIcon, label: "Learner profiles" },
   { href: "/app/settings/privacy", icon: LockIcon, label: "Privacy" },
 ] as const;
@@ -63,6 +77,10 @@ export function WorkspaceNavigation({
 }) {
   return (
     <nav aria-label="Workspace navigation" className="workspace-navigation">
+      <div className="workspace-navigation__group">
+        <span className="workspace-navigation__label">Learning</span>
+        <NavigationList items={studyItems} onNavigate={onNavigate} />
+      </div>
       <div className="workspace-navigation__group">
         <span className="workspace-navigation__label">Content</span>
         <NavigationList items={primaryItems} onNavigate={onNavigate} />

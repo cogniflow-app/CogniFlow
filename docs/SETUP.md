@@ -594,3 +594,16 @@ On Linux CI use `pnpm exec playwright install --with-deps chromium`.
 ### A clean install changes the lockfile
 
 Confirm Node `24.18.0`, pnpm `11.13.0`, and a clean checkout. `pnpm install --frozen-lockfile` should never modify it.
+
+## Phase 03 scheduler setup
+
+Phase 03 adds no environment variable, paid service, Python runtime, or recurring process. Install
+the frozen workspace normally; `@lumen/srs` resolves exact `ts-fsrs` `5.4.1` from the lockfile.
+Reset local Supabase to apply the 13 additive `20260721000000`–`20260721012000` migrations, then run
+`pnpm db:types` when schema types change. Existing Phase 02 cards become New lazily and require no
+seed/backfill command.
+
+Use `/app/settings/scheduling` for learner presets and deck assignment. The optimizer is disabled
+by default and has no owner setup action. Preview migration and hosted acceptance use only the
+guarded commands in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md); never copy hosted credentials
+into `apps/web/.env.local`.

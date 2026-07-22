@@ -1,6 +1,7 @@
 import "../phase-one.css";
 import "../phase-two.css";
 import "../product-redesign.css";
+import "../phase-three.css";
 
 import { brandConfig } from "@lumen/config/brand";
 import type { Metadata } from "next";

@@ -1,8 +1,8 @@
 # Architecture decisions
 
 **Project:** Lumen (temporary, configuration-driven brand)  
-**Decision baseline:** Phase 02  
-**Last updated:** 2026-07-16
+**Decision baseline:** Phase 03  
+**Last updated:** 2026-07-21
 
 This file is the architectural decision record (ADR) for implementation choices that affect more than one package or phase. The product target remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md). A later decision must add a new ADR and mark the earlier record superseded; do not silently rewrite a decision after it has shipped.
 
@@ -30,6 +30,7 @@ This file is the architectural decision record (ADR) for implementation choices 
 | 0018 | Mutation-aware appearance and workspace returns        | Accepted; qualifies 0014         |
 | 0019 | Retry-stable atomic authoring and leased media cleanup | Accepted; qualifies 0017         |
 | 0020 | Versioned media graphs and fail-closed projections     | Accepted; qualifies 0017/0019    |
+| 0021 | Trusted SRS calculation plus transactional commit      | Accepted; qualifies 0012         |
 
 ## ADR-0001: Pinned Node and pnpm Turborepo workspace
 
@@ -545,3 +546,38 @@ deck/card projections, including description documents, without rewriting author
   is not guessed.
 - Public content never exposes an internal media identity merely because it survived in a legacy
   payload or deck description.
+
+## ADR-0021: Trusted SRS calculation plus transactional commit
+
+**Context.** PostgreSQL cannot execute the pinned TypeScript FSRS implementation, while review
+correctness requires one authoritative calculation, immutable evidence, idempotency bound to the
+whole command, schedule locking, and no lost updates. A browser-computed transition is untrusted;
+a TypeScript read followed by unrelated writes would be race-prone.
+
+**Decision.** `packages/srs` pins `ts-fsrs` `5.4.1`, wraps FSRS-6.0 behind project types, and is the
+only canonical calculator. The authenticated server obtains an authorized context through a
+service-only fixed-search-path RPC, computes exactly one transition, and submits that transition
+with the original context to `admin_commit_srs_review`. The commit RPC repeats authorization,
+locks or lazily creates the learner/card schedule, compares its version and complete before-state,
+revalidates the exact preset version, binds the client review UUID/idempotency key to the complete
+command and computed transition, and atomically appends evidence plus schedule/session/counter and
+sibling/leech effects. It never accepts a transition from a browser. Direct service-role table
+access is revoked; the RPC receives only the minimum execute grant.
+
+Identical review UUID retries return their prior result. A differing payload under that UUID is an
+idempotency conflict. Two legitimate commands for the same version serialize under the schedule
+lock: one commits and the other receives a typed stale-version result. Undo and algorithm changes
+are separate compensating/replay transactions with immutable audit evidence. Preview calculation
+uses the same package and preset but is non-authoritative.
+
+**Consequences.**
+
+- Canonical scheduling is centralized without introducing a direct database connection or a
+  second scheduler implementation.
+- The trusted TypeScript calculation and PostgreSQL commit form one verified protocol rather than
+  one process transaction; the commit's lock, before-state equality, preset-version check, and
+  payload fingerprint reject any context drift between the two calls.
+- Review evidence records `lumen-srs/1 (v5.4.1 using FSRS-6.0)`, the preset version, before and
+  after schedules, source, timing, and idempotency identity for replay and audit.
+- Public preview, authored-content reads, practice grading, games, and Phase 04 mastery cannot
+  reach this mutation accidentally.

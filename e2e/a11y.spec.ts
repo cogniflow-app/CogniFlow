@@ -272,6 +272,21 @@ test("the authenticated library, deck creation, and card editor are accessible b
   await expectNoDocumentOverflow(page);
   await expectNoSeriousOrCriticalViolations(page);
 
+  const phaseThreeRoutes = [
+    { heading: /Ready when you are/u, route: "/app/study" },
+    { heading: "Your review picture", route: "/app/stats" },
+    { heading: "Memory settings", route: "/app/settings/scheduling" },
+  ] as const;
+  for (const target of phaseThreeRoutes) {
+    await page.goto(target.route);
+    await expect(page.getByRole("heading", { level: 1, name: target.heading })).toBeVisible();
+    await expect(page.locator("main.workspace-main")).toBeVisible();
+    await expect(page.getByRole("main", { name: "Loading page" })).toHaveCount(0);
+    await expectNoDocumentOverflow(page);
+    await expectNoSeriousOrCriticalViolations(page);
+  }
+  await page.goto("/app");
+
   await page.setViewportSize({ height: 844, width: 390 });
   const workspaceTrigger = page.getByRole("button", { name: "Open workspace navigation" });
   await workspaceTrigger.click();
