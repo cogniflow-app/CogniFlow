@@ -35,11 +35,16 @@ import {
   PendingContentMutations,
   performContentMutation,
 } from "@/lib/content/client-mutations";
+import { useOffline } from "@/components/offline/offline-provider.client";
 
 type LibraryView = "grid" | "list";
 type LibraryFilterMode = "all" | "recent" | "published" | "archived";
 
 function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: LibraryView }) {
+  const { available, pinDeck, pins, unpinDeck } = useOffline();
+  const [pinning, setPinning] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const pin = pins.get(deck.id);
   const accent =
     deck.visibility === "public"
       ? "success"
@@ -100,6 +105,37 @@ function DeckTile({ deck, view }: { readonly deck: DeckSummary; readonly view: L
         </span>
         {view === "list" && <span>Edited {new Date(deck.updatedAt).toLocaleDateString()}</span>}
       </div>
+      <div className="deck-tile__offline">
+        <Button
+          aria-label={`${pin ? "Remove" : "Pin"} ${deck.title} ${pin ? "from" : "for"} offline use`}
+          disabled={!available || pinning}
+          onClick={() => {
+            setPinning(true);
+            setPinError(null);
+            void (pin ? unpinDeck(deck.id) : pinDeck(deck.id))
+              .catch((error: unknown) =>
+                setPinError(
+                  error instanceof Error ? error.message : "The offline copy could not be changed.",
+                ),
+              )
+              .finally(() => setPinning(false));
+          }}
+          size="sm"
+          variant="secondary"
+        >
+          {pinning ? "Saving…" : pin ? "Pinned offline" : "Pin for offline"}
+        </Button>
+        {pin && (
+          <small>
+            {Math.max(1, Math.ceil(pin.estimatedBytes / 1_024))} KB · {pin.cardCount} cards
+          </small>
+        )}
+      </div>
+      {pinError && (
+        <p className="deck-tile__offline-error" role="alert">
+          {pinError}
+        </p>
+      )}
     </article>
   );
 }

@@ -589,7 +589,10 @@ Save intended schema changes as a new migration, run `pnpm db:reset`, then `pnpm
 pnpm exec playwright install chromium
 ```
 
-On Linux CI use `pnpm exec playwright install --with-deps chromium`.
+GitHub-hosted `ubuntu-latest` runners already include Chromium's runtime libraries, so CI uses the
+same browser-only command and avoids making browser tests depend on an Ubuntu package-mirror
+refresh. Provision Playwright's documented operating-system packages in a custom Linux runner
+image before running this command rather than installing them during every test job.
 
 ### A clean install changes the lockfile
 
@@ -620,3 +623,24 @@ Run `pnpm db:reset` to apply the three `20260722002000`–`20260722004000` migra
 under `apps/web/lib/guides`; there is no guide administration or analytics service to configure.
 Preview deployment/cleanup is governed by [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). Keep the
 existing ignored local environment file unchanged and never copy hosted credentials into it.
+
+## Phase 05 offline/PWA setup
+
+Phase 05 adds workspace package `@lumen/offline` with pinned Dexie `4.4.4` and test-only
+`fake-indexeddb` `6.2.5`. Root `sharp` `0.34.5` reproducibly creates the checked-in PNG icons from
+`apps/web/public/pwa/icon-source.svg`:
+
+```bash
+pnpm exec node scripts/generate-pwa-icons.mjs
+```
+
+No credential or provider configuration is needed. Service-worker registration is production-only
+unless a developer deliberately sets `localStorage["lumen:pwa-dev"]="true"` for local browser
+testing. Use `pnpm test:pwa` for the production-like build/worker/offline suite. Local schema/RPC
+work requires Docker and local Supabase followed by `pnpm db:reset`, `pnpm db:types`, and
+`pnpm test:db`.
+
+Browser site settings can deny IndexedDB, persistence, quota estimates, install prompts, or
+Background Sync; online behavior must still work. Private pins are tied to the browser profile.
+Use Offline & sync to clear one learner or all account data. Explicit sign-out also clears private
+offline state. Detailed recovery is in [OFFLINE_PWA_AND_SYNC.md](./OFFLINE_PWA_AND_SYNC.md).

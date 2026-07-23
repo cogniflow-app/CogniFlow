@@ -156,11 +156,20 @@ export async function POST(request: NextRequest) {
   });
   const scheduleVersion =
     typeof reviewContext.scheduleVersion === "number" ? reviewContext.scheduleVersion : 0;
-  if (scheduleVersion !== input.currentScheduleVersion) {
+  const appliedAfterReplay = scheduleVersion !== input.currentScheduleVersion;
+  const canonicalLastReviewedAt = before.lastReviewedAt
+    ? new Date(before.lastReviewedAt).getTime()
+    : null;
+  if (
+    appliedAfterReplay &&
+    canonicalLastReviewedAt !== null &&
+    new Date(input.reviewedAt).getTime() <= canonicalLastReviewedAt
+  ) {
     return context.applyCookies(
       apiError(409, {
         code: "CONFLICT",
-        message: "This card changed elsewhere. Reload before grading.",
+        message:
+          "This card was also reviewed on another device. Its event time overlaps the canonical history and needs review.",
         retryable: false,
       }),
     );
@@ -213,5 +222,5 @@ export async function POST(request: NextRequest) {
   });
   if (error || !data)
     return context.applyCookies(srsDatabaseError(error ?? {}, "The review was not saved."));
-  return context.applyCookies(apiSuccess({ data }));
+  return context.applyCookies(apiSuccess({ appliedAfterReplay, data }));
 }

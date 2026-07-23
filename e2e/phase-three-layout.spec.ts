@@ -307,7 +307,7 @@ test("Phase 03 Study surfaces remain calm, responsive, and visually complete", a
     });
     expect(appearanceWrite.status()).toBe(200);
     await page.reload();
-    await expect(page.locator(".review-session--serious")).toBeVisible();
+    await expect(page.locator("main:visible .review-session--serious:visible")).toBeVisible();
     await capture(page, testInfo, "review-serious-mode");
   }
 

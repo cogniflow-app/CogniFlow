@@ -194,7 +194,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install pinned Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
 
       - name: Start and reset local Supabase
         run: |
@@ -248,7 +248,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install pinned Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
 
       - name: Start and reset local Supabase
         run: |
@@ -302,7 +302,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install pinned Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
 
       - name: Run Lighthouse budgets
         shell: bash

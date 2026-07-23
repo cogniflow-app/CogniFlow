@@ -528,3 +528,33 @@ out of Playwright, provisions one disposable adult identity, exercises first-run
 Flashcards, Test answer-sheet navigation/results, schedule-effect labels, no silent canonical
 review, and anonymous isolation, then always runs established account-deletion/minimization and
 empty-Storage verification. Run `pnpm db:verify:preview` again after cleanup.
+
+## Phase 05 PWA, IndexedDB, and synchronization
+
+`@lumen/offline` unit tests use `fake-indexeddb` for schema/store creation, profile/account/public
+isolation, cleanup, pins, media hash dedup/reference retention, receipts/conflicts, cursor
+persistence, causal lookup, retry/dead-letter behavior, LRU, temporary IDs, and the 10,000-card
+read budget. Protocol tests cover closed schemas, deterministic serialization/fingerprints,
+altered identity, causal cycles, large cursors, negotiation, and bounded deterministic jitter.
+
+Web unit tests validate manifest fields/icons and inspect the explicit worker allow/exclusion/cache
+policy. pgTAP `170_phase05_offline_sync.test.sql` verifies RLS, grants, fixed search paths, indexes,
+exact/pending/completed receipts, changed-payload rejection, cursor feed, preferences, and
+authorized reads. Existing canonical SRS concurrency remains the lock/race proof.
+
+The dedicated production-like browser command is:
+
+```bash
+pnpm test:pwa
+```
+
+It builds Next, starts the production server with local Supabase, registers and controls the real
+service worker, creates/pins authorized content, disconnects the browser context, opens the neutral
+shell, and reads the verified card after navigation. The ordinary E2E/a11y suites continue to cover
+desktop/mobile/reduced-motion behavior; Phase 05 additions must not reduce Phase 00–04 counts.
+
+Hosted Phase 05 acceptance may target only an exact Ready protected Preview URL after Preview
+migration verification. The guarded parent must retain provider credentials, create a disposable
+adult account, exercise manifest/worker/pin/offline review/practice/content/sync/conflict/isolation,
+run established account-deletion and Storage cleanup, then rerun `pnpm db:verify:preview`. The
+Playwright child must never receive a Supabase service key.

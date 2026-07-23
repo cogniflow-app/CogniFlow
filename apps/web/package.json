@@ -22,6 +22,7 @@
     "@lumen/domain": "workspace:*",
     "@lumen/grading": "workspace:*",
     "@lumen/learning-engine": "workspace:*",
+    "@lumen/offline": "workspace:*",
     "@lumen/srs": "workspace:*",
     "@lumen/ui": "workspace:*",
     "next": "16.2.10",

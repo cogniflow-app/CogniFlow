@@ -5,6 +5,8 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
+import { useOffline } from "@/components/offline/offline-provider.client";
+import { NoteEditor } from "./note-editor.client";
 import { CARD_TYPE_BY_CODE } from "@/lib/content/card-types";
 import { PendingContentMutations, performContentMutation } from "@/lib/content/client-mutations";
 import type {
@@ -36,6 +38,7 @@ const CARD_TYPE_GROUPS: readonly {
 
 export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly FolderSummary[] }) {
   const router = useRouter();
+  const offline = useOffline();
   const [step, setStep] = useState<1 | 2>(1);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -43,6 +46,8 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
   const [cardType, setCardType] = useState<CardTypeCode>("basic");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedLocally, setSavedLocally] = useState(false);
+  const [localDeckId, setLocalDeckId] = useState<string | null>(null);
   const pendingMutations = useRef(new PendingContentMutations());
   const stepTwoHeadingRef = useRef<HTMLHeadingElement>(null);
 
@@ -51,9 +56,21 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
   }, [step]);
 
   async function createDeck(openComposer: boolean) {
+    if (savedLocally) return;
     setSubmitting(true);
     setError(null);
     try {
+      if (!navigator.onLine) {
+        const temporaryDeckId = await offline.queueDeckCreation({
+          description,
+          folderId: folderId === "none" ? null : folderId,
+          title,
+        });
+        setSavedLocally(true);
+        if (openComposer) setLocalDeckId(temporaryDeckId);
+        setSubmitting(false);
+        return;
+      }
       const result = await performContentMutation<ContentMutationResult<DeckSummary>>({
         body: {
           description,
@@ -90,6 +107,22 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
       return;
     }
     await createDeck(true);
+  }
+
+  if (localDeckId) {
+    return (
+      <section aria-labelledby="offline-deck-composer" className="deck-creation-shell">
+        <header>
+          <p className="eyebrow">Saved on this browser</p>
+          <h1 id="offline-deck-composer">{title}</h1>
+          <p>
+            Add cards now. This deck and its cards keep their causal order and receive canonical IDs
+            after reconnection.
+          </p>
+        </header>
+        <NoteEditor deckId={localDeckId} deckTitle={title} initialKind={cardType} />
+      </section>
+    );
   }
 
   return (
@@ -205,6 +238,11 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
             {error}
           </p>
         )}
+        {savedLocally && (
+          <p className="offline-notice" role="status">
+            Deck saved on this browser. It is waiting to sync before cards can be added online.
+          </p>
+        )}
 
         <footer className="deck-creation-actions">
           {step === 1 ? (
@@ -222,12 +260,26 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
           )}
           <div className="deck-creation-actions__primary">
             {step === 2 && (
-              <Button disabled={submitting} onClick={() => void createDeck(false)} variant="ghost">
+              <Button
+                disabled={submitting || savedLocally}
+                onClick={() => void createDeck(false)}
+                variant="ghost"
+              >
                 Create deck without adding cards
               </Button>
             )}
-            <Button loading={submitting} loadingLabel="Creating deck" size="lg" type="submit">
-              {step === 1 ? "Continue" : "Create deck and add cards"}
+            <Button
+              disabled={savedLocally}
+              loading={submitting}
+              loadingLabel="Creating deck"
+              size="lg"
+              type="submit"
+            >
+              {savedLocally
+                ? "Waiting to sync"
+                : step === 1
+                  ? "Continue"
+                  : "Create deck and add cards"}
             </Button>
           </div>
         </footer>

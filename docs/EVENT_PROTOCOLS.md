@@ -338,3 +338,25 @@ No other practice command can produce `review_logs` or mutate `card_schedules`.
 Guide progress commands contain a stable key/version, status, current step, expected version, and
 bounded metadata. They record resume/suppression state only, are isolated by account/learner RLS,
 and do not emit an interaction stream. Definitions and copy remain checked-in code.
+
+## Offline synchronization protocol v1
+
+A request contains protocol version `1`, the exact registered device and learner profile, up to
+100 closed-schema operations, and up to five decimal-string cursors. The JSON body is limited to
+512 KiB. Every operation carries account/profile/device scope, operation and idempotency UUIDs,
+entity chain, base version, occurrence/creation times, typed payload, retry state, and a SHA-256
+fingerprint over the deterministic complete command.
+
+The server reauthorizes the Supabase session/device/profile, verifies every fingerprint, causally
+orders commands, and reserves a payload-bound receipt before dispatch. A response has one explicit
+result per operation—`acknowledged`, `duplicate`, `applied_after_replay`, `conflict`, `retryable`,
+`rejected`, `unauthorized`, `unsupported_protocol`, or `dead_letter`—plus authoritative
+projections where safe, typed failures/conflicts, next cursors, capabilities, and server time.
+Unrelated operations may partially succeed; a failed causal predecessor blocks only its chain.
+
+Review payloads are events, not schedules. Practice payloads are minimized evidence, not mastery.
+Content payloads carry base snapshots/versions and stable local IDs, not blind final documents.
+Exact receipt retries replay; any altered operation/idempotency reuse fails. Raw answers, rich
+documents, or media bytes are never part of the server change feed or structured logs. Full local
+stores, retry timing, replay, and resolution behavior are in
+[OFFLINE_PWA_AND_SYNC.md](./OFFLINE_PWA_AND_SYNC.md).

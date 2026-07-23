@@ -75,6 +75,39 @@ describe("public environment", () => {
       }),
     ).toThrow(/NEXT_PUBLIC_SUPABASE_URL must use HTTPS/u);
   });
+
+  it("permits only the exact loopback pair for guarded production PWA tests", () => {
+    expect(
+      parsePublicEnvironment({
+        ...productionEnvironment,
+        DEPLOYMENT_PROFILE: "test",
+        NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+        NEXT_PUBLIC_LOCAL_PWA_TEST_MODE: "true",
+        NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+      }),
+    ).toMatchObject({
+      appUrl: "http://127.0.0.1:3100",
+      supabaseUrl: "http://127.0.0.1:54321",
+    });
+    expect(() =>
+      parsePublicEnvironment({
+        ...productionEnvironment,
+        DEPLOYMENT_PROFILE: "test",
+        NEXT_PUBLIC_APP_URL: "http://localhost:3100",
+        NEXT_PUBLIC_LOCAL_PWA_TEST_MODE: "true",
+        NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+      }),
+    ).toThrow(/NEXT_PUBLIC_APP_URL must use HTTPS/u);
+    expect(() =>
+      parsePublicEnvironment({
+        ...productionEnvironment,
+        DEPLOYMENT_PROFILE: "vercel_beta",
+        NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+        NEXT_PUBLIC_LOCAL_PWA_TEST_MODE: "true",
+        NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+      }),
+    ).toThrow(/NEXT_PUBLIC_APP_URL must use HTTPS/u);
+  });
 });
 
 describe("server environment and capabilities", () => {

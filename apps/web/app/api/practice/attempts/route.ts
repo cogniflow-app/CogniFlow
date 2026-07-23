@@ -23,6 +23,7 @@ const schema = z
   .object({
     answerRevealed: z.boolean().default(false),
     attemptId: z.uuid(),
+    contentVersion: z.number().int().positive(),
     durationMs: z.number().int().min(0).max(86_400_000),
     hintsUsed: z.number().int().min(0).max(100).default(0),
     idempotencyKey: z.uuid(),
@@ -175,6 +176,14 @@ export async function POST(request: NextRequest) {
       apiError(409, {
         code: "CONFLICT",
         message: "This practice item changed. Reload the session before answering.",
+        retryable: false,
+      }),
+    );
+  if (card.contentVersion !== input.contentVersion)
+    return context.applyCookies(
+      apiError(409, {
+        code: "CONFLICT",
+        message: "This practice card changed. Reload the session before answering.",
         retryable: false,
       }),
     );

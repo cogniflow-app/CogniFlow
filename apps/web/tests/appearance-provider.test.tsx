@@ -247,6 +247,30 @@ describe("appearance preferences", () => {
     });
   });
 
+  it("waits for identity-bound cleanup observers before navigation may continue", async () => {
+    let releaseCleanup: (() => void) | undefined;
+    let settled = false;
+    const cleanup = new Promise<void>((resolve) => {
+      releaseCleanup = resolve;
+    });
+    const observeBoundary = (event: Event) => {
+      const detail = (event as CustomEvent<{ waitUntil(promise: Promise<unknown>): void }>).detail;
+      detail.waitUntil(cleanup);
+    };
+    window.addEventListener("lumen:identity-boundary", observeBoundary, { once: true });
+
+    const isolation = isolateBrowserLearnerContext("account_signed_out").then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    releaseCleanup?.();
+    await isolation;
+    expect(settled).toBe(true);
+  });
+
   it("keeps operating-system reduced motion authoritative", async () => {
     vi.stubGlobal(
       "matchMedia",

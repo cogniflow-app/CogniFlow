@@ -4,6 +4,7 @@ import { Button } from "@lumen/ui";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
+import { useOffline } from "@/components/offline/offline-provider.client";
 import type { PracticeCardView } from "@/lib/practice/models";
 
 import { recordPracticeAttempt } from "./practice-attempt-client";
@@ -74,6 +75,7 @@ function PracticeTestPaperReady({
   readonly reducedMotion: boolean;
 }) {
   const router = useRouter();
+  const offline = useOffline();
   const storageKey = `lumen:test-draft:${first.session.id}`;
   const [responses, setResponses] = useState<TestResponses>({});
   const [hydrated, setHydrated] = useState(false);
@@ -181,6 +183,7 @@ function PracticeTestPaperReady({
         await recordPracticeAttempt({
           card,
           durationMs: durationPerQuestion,
+          queueOffline: offline.queuePracticeAttempt,
           response: responseText,
           responseKind: card.item.questionKind,
           ...(hasAnswer(response) ? {} : { selfVerdict: "incorrect" as const }),

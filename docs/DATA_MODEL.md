@@ -537,3 +537,21 @@ fixed-search-path RPCs bound to the current Auth session, registered device, act
 Account deletion minimizes or removes guide and practice projections while preserving only the
 bounded audit facts required by the existing deletion model. Exact formulas and field meanings are
 documented in [PRACTICE_AND_GUIDES.md](./PRACTICE_AND_GUIDES.md).
+
+## Phase 05 synchronization metadata
+
+Migration `20260723000000_phase05_sync_schema.sql` adds only three server relations:
+
+- `public.sync_device_state`, keyed by account/learner/device, stores protocol `1`, the last
+  monotonic cursor, last seen/successful sync, pause state, and bounded metered/media preferences.
+  It has RLS read access for the authorized account/learner and no direct browser writes.
+- `private.sync_operation_receipts` binds operation and idempotency UUIDs to account, learner,
+  registered device, operation kind, complete command fingerprint, typed result, and completion
+  time. It is accessible only through fixed-search-path service RPCs.
+- `private.sync_change_feed` stores only account/learner scope, monotonic sequence, entity
+  type/opaque ID/version, tombstone, and timestamp. It duplicates no content or learning payload.
+
+Foreign-key cascades attach every row to existing account, learner, and device deletion. Cursor,
+receipt-status, device, learner, and RLS authorization paths are indexed. The browser-only
+IndexedDB schema and retention rules are documented in
+[OFFLINE_PWA_AND_SYNC.md](./OFFLINE_PWA_AND_SYNC.md).

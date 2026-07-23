@@ -54,6 +54,7 @@ import {
   performContentMutation,
 } from "@/lib/content/client-mutations";
 import type { CardTypeCode, ContentMutationResult, NoteSummary } from "@/lib/content/view-models";
+import { useOffline } from "@/components/offline/offline-provider.client";
 import { DrawingEditor } from "./drawing-editor.client";
 import { MediaUploader, type UploadedMediaAsset } from "./media-uploader.client";
 import { RichEditor } from "./rich-editor.client";
@@ -2289,6 +2290,7 @@ export function NoteEditor({
   readonly note?: NoteSummary;
 }) {
   const router = useRouter();
+  const offline = useOffline();
   const [data, setData] = useState<CardAuthoringData>(
     note?.authoringData ?? initialData(initialKind),
   );
@@ -2424,6 +2426,43 @@ export function NoteEditor({
     setState("saving");
     setMessage(null);
     try {
+      if (!navigator.onLine) {
+        const localNoteId = await offline.queueCardMutation({
+          authoringData: parsed.data as unknown as Readonly<Record<string, unknown>>,
+          baseSnapshot: note ? (note as unknown as Readonly<Record<string, unknown>>) : null,
+          deckId,
+          expectedVersion: creating ? null : currentVersion,
+          noteId: creating ? null : savedNoteId,
+          source,
+          tags: command.tags,
+        });
+        setCurrentVersion(creating ? 0 : currentVersion);
+        setSavedNoteId(localNoteId);
+        setConflictVersion(null);
+        setReloadAfterVersion(null);
+        lastSavedDraft.current = submittedDraft;
+        const hasNewerDraft = latestDraft.current !== submittedDraft;
+        setState(hasNewerDraft ? "dirty" : "saved");
+        setMessage(
+          hasNewerDraft
+            ? "This version is saved on this browser; newer changes are waiting."
+            : "Card saved on this browser and waiting to sync.",
+        );
+        if (continuation === "another") {
+          firstRender.current = true;
+          setData(initialData(data.kind));
+          setTags("");
+          setSource("");
+          setCurrentVersion(0);
+          setSavedNoteId(null);
+          lastSavedDraft.current = null;
+          setValidationAttempted(false);
+          setValidationIssues([]);
+          setState("dirty");
+          setMessage("Saved on this browser. Add another card.");
+        }
+        return;
+      }
       const result = await performContentMutation<ContentMutationResult<NoteSummary>>({
         body: command,
         fallbackMessage: "The card could not be saved.",
@@ -2476,6 +2515,20 @@ export function NoteEditor({
     setDeleting(true);
     setDeleteError(null);
     try {
+      if (!navigator.onLine) {
+        await offline.queueContentMutation({
+          baseSnapshot: note ? (note as unknown as Readonly<Record<string, unknown>>) : null,
+          baseVersion: currentVersion,
+          changes: { deckId, noteId: savedNoteId, tombstone: true },
+          entityId: savedNoteId,
+          mutationType: "delete",
+          operation: "content.card_entry.delete",
+        });
+        setDeleteOpen(false);
+        setState("saved");
+        setMessage("Deletion saved on this browser and waiting to sync.");
+        return;
+      }
       await performContentMutation<{ readonly data: { readonly id: string } }>({
         body: { expectedVersion: currentVersion },
         fallbackMessage: "The card could not be deleted.",

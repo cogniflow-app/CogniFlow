@@ -1,14 +1,127 @@
 # Implementation status
 
-**Current phase:** Phase 04 — Adaptive Learn and guided study experience  
-**Status:** Phase 03 redesign and Learn polish are merged through PRs #13 and #14; Phase 04 is
-merged through PR #15 and fully verified locally and on its exact protected Preview deployment.
-The `codex/phase-04-match-test-visual-polish` follow-up now contains the completed Match board,
-scrollable Test paper, and practice-mode visual polish described below.  
-**Evidence date:** 2026-07-22  
-**Next phase:** Phase 05 has not started
+**Current phase:** Phase 05 — Offline PWA and synchronization  
+**Status:** Phase 04 and its Match/Test follow-up are merged through PRs #15 and #16. `main`,
+Vercel Production, and Beta Supabase are synchronized to
+`c6821238da4202b260c68bb8413603e55f3aa786` / the 52-migration Phase 04 schema. The Phase 05
+feature branch completes the version-one PWA, private IndexedDB projections, typed outboxes,
+server-authoritative reconciliation, private media pinning, offline UI, and guarded Preview
+acceptance described below. The single additive migration is applied only to Preview; exact-commit
+Vercel acceptance and disposable-data cleanup pass.  
+**Evidence date:** 2026-07-23  
+**Next phase:** Phase 06 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
+
+## Phase 05 offline PWA and synchronization
+
+Branch `codex/phase-05-offline-pwa-sync` began from clean fetched `origin/main` at `c682123`.
+Phase 04 and its follow-up were present in Git history; Production health returned the same full
+commit, `vercelEnvironment: production`, `deploymentProfile: vercel_beta`, Beta project
+`qccbaynfvtyxigiikpmq`, and every child/social/OAuth safety gate disabled. The fixed Beta database
+verifier passed before a Phase 05 migration was added. Docker and local Supabase were healthy;
+`apps/web/.env.local` remains ignored/untracked and was never printed.
+
+### Completed Phase 05 scope
+
+- Added framework-independent `@lumen/offline` protocol version 1 and local schema version 1 with
+  strict Zod contracts, deterministic canonical serialization/SHA-256 payload binding, causal
+  ordering, lossless decimal cursors, deterministic bounded retry/jitter, dead letters, temporary
+  IDs, and a project-owned Dexie repository.
+- Added 25 IndexedDB stores for namespace metadata, pins/projections/schedules/media, five typed
+  outboxes, local sessions, cursors, device state, receipts, conflicts, capabilities/flags, cache
+  and LRU metadata, temporary mappings, and worker-update state. Every private row is keyed by
+  immutable account/learner UUID namespace; sign-out/account/profile/guardian boundaries clear it
+  across tabs while public cache policy remains separate.
+- Added an original installable manifest, generated 192/512/maskable icons, production-only service
+  worker registration, versioned static/public caches, explicit no-cache private/API/auth/settings
+  classes, neutral fail-closed offline shell, deliberate updates, background-sync request
+  forwarding, install/update/status prompts, and a loopback-only production PWA test harness that
+  cannot relax hosted HTTPS validation.
+- Added authorized 10,000-card private pin projections, browser quota checks, content-hash verified
+  image/audio Blob storage, reference-counted hash deduplication, selected-media preferences,
+  atomic ready manifests, unpin cleanup, persistent-storage request, LRU support, and honest media
+  limitation copy. Signed URLs are fetched with `no-store` and are never persisted.
+- Added offline canonical Review/undo events with complete before-state/base version, optimistic
+  `@lumen/srs` projection, causal prior-operation links, canonical server replay, exact retry
+  receipts, typed conflict/retry/dead-letter outcomes, and authoritative reconciliation. Offline
+  learners can undo a still-pending review; the dependent compensating event cannot dispatch
+  before its review predecessor is acknowledged. Offline Flashcards/Learn/Write/Test/Match
+  practice uses local `@lumen/grading` evidence and never mutates canonical schedules implicitly;
+  the server regrades accepted attempts.
+- Added stable-ID offline deck creation, server ID mapping, conservative schema-aware three-way
+  merge for independent deck/card fields and rich-document nodes, safe merge receipts/history,
+  typed overlapping content/media conflict retention, first-class Conflict Center, per-operation
+  retry/abandon, per-type pending counts, preferences, storage/pin/device cleanup controls, and ten
+  contextual guide extensions.
+- Added the guarded `test:hosted:preview:offline` runner/config/spec. It reuses fixed Preview
+  ownership attestation, keeps the provider key in the parent, gives Playwright no provider or
+  bypass credential, provisions one disposable adult identity, and always invokes canonical
+  deletion/minimization and recursive Storage verification.
+- Reconciled the stale hosted runbook to current Phase 04 `main`/Production/Beta reality and added a
+  Preview-only Phase 05 deployment/acceptance procedure. No Beta, Production, Auth, SMTP, OAuth,
+  consent, child, public-child, chat, analytics, or provider configuration changed.
+
+The complete architecture, cache matrix, IndexedDB model, protocol behavior, browser fallbacks,
+conflict rules, and limitations are in [OFFLINE_PWA_AND_SYNC.md](./OFFLINE_PWA_AND_SYNC.md).
+
+### Phase 05 migration
+
+| Migration                                | Purpose                                                                                                                                                                                                 |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20260723000000_phase05_sync_schema.sql` | Minimal RLS-protected device/profile checkpoints and preferences, private payload-bound operation receipts, privacy-minimized monotonic change references, and fixed-search-path service-only sync RPCs |
+
+Every earlier migration remains unchanged. A fresh reset applies all 53 migrations in order and
+the seed inserts no application data. Generated database types include the four Phase 05 RPCs and
+match the reset schema.
+
+### Phase 05 local evidence
+
+| Command or evidence                                       | Result                                                                                                                                                                                                                                         |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`                          | Exit 0; all 13 workspace projects are current under Node `24.18.0` / pnpm `11.13.0`                                                                                                                                                            |
+| `pnpm format:check` / `pnpm secret:scan`                  | Exit 0; formatting accepted and no credential finding                                                                                                                                                                                          |
+| `pnpm lint` / `pnpm typecheck`                            | Exit 0; dependency boundaries and all 12 strict TypeScript workspaces pass                                                                                                                                                                     |
+| `pnpm test`                                               | Exit 0; 93 files / 742 tests; coverage 73.29% statements, 62.01% branches, 70.71% functions, 76.52% lines                                                                                                                                      |
+| `pnpm --filter @lumen/offline test`                       | Exit 0; 3 files / 27 tests cover protocol/fingerprint/causality/cursor/retry/dead-letter, namespace isolation/cleanup, 10k reads, media dedup/refcounts, receipts, and conservative structured merge                                           |
+| `pnpm db:reset` / `pnpm test:db`                          | Exit 0; fresh 53-migration reset; 23 files / 971 pgTAP assertions plus SRS concurrency (1 commit, 1 typed stale conflict, 1 immutable log, 25.646 ms)                                                                                          |
+| `pnpm db:types:check`                                     | Exit 0 after canonical regeneration; committed generated types match the reset schema                                                                                                                                                          |
+| SRS performance                                           | Domain queue 10.675 ms; database queue 97.510 ms; Today 96.016 ms; resume 0.295 ms; Statistics 66.928 ms at 10,000-card scale                                                                                                                  |
+| `pnpm build:verify` / verification-wrapped portable build | Exit 0; optimized Next.js produces 90 route/static entries and OpenNext emits `.open-next/worker.js`; direct unwrapped builds correctly reject the local HTTP production URL                                                                   |
+| `pnpm test:pwa`                                           | Exit 0; 4/4 production-mode scenarios cover verified pin/offline shell, Review undo + practice/content replay + exact retry + sign-out purge, different-field content auto-merge, two-device review conflict, and the responsive visual matrix |
+| `pnpm test:e2e`                                           | Exit 0; 36 pass / 21 intentional cross-project skips across desktop, mobile, reduced-motion, authoring, practice, study, identity, and layout workflows                                                                                        |
+| `pnpm test:a11y`                                          | Exit 0; 30/30 axe, keyboard, focus, theme, serious/reduced-motion, offline-dashboard, and authenticated checks pass                                                                                                                            |
+| `pnpm test:lighthouse`                                    | Assertions pass; scores 98/100/96/100; FCP 0.761 s, LCP 2.314 s, TBT 1.5 ms, CLS 0                                                                                                                                                             |
+| `pnpm test:load`                                          | Exit 0; 15/15 checks, 0% request failures, request-duration p95 7.25 ms                                                                                                                                                                        |
+| `pnpm verify`                                             | Exit 0; the aggregate CI-equivalent gate reran every practical local check above against the final Phase 05 tree                                                                                                                               |
+| PWA performance                                           | 10,000 local card projections read in under the 2,000 ms budget; database queue/Today/resume/Statistics timings remain under their Phase 03 budgets                                                                                            |
+| Real visual QA                                            | 11 required viewports plus 125%/150% zoom, 200% text, mobile light/dark/reduced-motion, and 320×568 offline shell; no overflow or clipped action detected                                                                                      |
+
+### Hosted Phase 05 evidence (2026-07-23 17:11 UTC)
+
+Commit `3948f14a31e4b2bb808bce09dd83e3a7e0a05439` reached Ready as deployment
+`dpl_3dWN3eGk71nzQEzsZWky3AdZeJqd` at the exact protected Preview URL
+`https://cogniflow-5oqnp9sj3-cogniflow-app-3471s-projects.vercel.app`. The branch alias was not used
+as evidence. Health and the guarded runner both confirmed Vercel Preview uses fixed Preview
+Supabase project `cfwddajyjbueggpzfomh`.
+
+| Command or evidence                   | Result                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm db:deploy:preview`              | Exit 0; applied only `20260723000000_phase05_sync_schema.sql` to fixed Preview after the complete local gate; no seed or fixture was deployed                                                                                                                                                                                                                 |
+| Initial `pnpm db:verify:preview`      | Exit 0; remote history current, migration dry run empty, hosted invariants pass, public/private schema diff empty, generated types match, and Storage empty; previously documented legacy function-volatility warnings remain warnings only                                                                                                                   |
+| Exact Vercel deployment               | Commit and deployment above reached Ready; 90 application route/static entries were built, Preview ownership/protection attestation passed, and Production aliases were rejected by the runner                                                                                                                                                                |
+| `pnpm test:hosted:preview`            | Exit 0; 11/11 protected baseline checks passed in 11.8 seconds against the exact immutable deployment                                                                                                                                                                                                                                                         |
+| `pnpm test:hosted:preview:offline`    | Exit 0; 1/1 in 1.0 minute proved adult onboarding, manifest/icons/worker, private pin and offline navigation, canonical Review plus exact duplicate, two fresh-device-context stale conflict and resolution, offline practice, offline deck/card creation, typed synchronization, sign-out IndexedDB purge, and anonymous isolation                           |
+| Cleanup proof                         | Exit 0; the guarded parent retained provider credentials, Playwright received none, canonical deletion removed Auth and active disposable content/schedule/review/practice/sync/guide/publication state, the minimization query returned `rows: []`, recursive content Storage was empty, the temporary browser profile was removed, and Preview was unlinked |
+| Post-cleanup `pnpm db:verify:preview` | Exit 0; remote migration dry run remains empty, hosted invariants pass, public/private schema diff remains empty, linked generated types match, Storage remains empty, and Preview was unlinked                                                                                                                                                               |
+
+Every diagnostic hosted run used the same `finally` cleanup boundary and also returned `rows: []`;
+no persistent test fixture or Storage object was retained. Hosted-only harness hardening after the
+aggregate local gate passed Prettier, ESLint, the 12-workspace strict typecheck, and repeated guarded
+acceptance. Phase 05 adds no owner-only environment, provider, credential, Auth, SMTP, OAuth,
+domain, bucket, analytics, or paid-service setup action. Beta Supabase, Production Supabase,
+Vercel Production, `recallflash.com`, and all Phase 00–04 safety gates remain unchanged. Phase 06
+has not started.
 
 ## Phase 04 adaptive Learn and guided study experience
 

@@ -30,7 +30,11 @@ export async function createSrsRuntimeContext(
   request: NextRequest,
 ): Promise<SrsRuntimeContext | Response> {
   try {
-    assertTrustedMutationRequest(request);
+    if (request.method === "GET" || request.method === "HEAD") {
+      // Safe reads still require the authenticated account/device/profile checks below.
+    } else {
+      assertTrustedMutationRequest(request);
+    }
     const database = createNextRouteDatabaseContext(request);
     const { data, error } = await database.client.auth.getUser();
     if (error || !data.user) {
@@ -92,7 +96,14 @@ export async function createSrsRuntimeContext(
         return applyDeviceCookie(database.applyCookies(response), deviceId);
       },
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "DEVICE_ACCESS_REVOKED") {
+      return apiError(403, {
+        code: "FORBIDDEN",
+        message: "This device no longer has access. Sign in again to continue.",
+        retryable: false,
+      });
+    }
     return apiError(400, {
       code: "INVALID_INPUT",
       message: "The study request could not be verified.",

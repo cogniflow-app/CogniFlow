@@ -102,6 +102,7 @@ for (const route of [
   "/auth/profile-locked",
   "/auth/update-password",
   "/onboarding",
+  "/offline",
   "/privacy",
   "/terms",
   "/safety",
@@ -350,4 +351,27 @@ test("the authenticated library, deck creation, and card editor are accessible b
   await expect(page.getByRole("dialog", { name: "Delete this deck?" })).toBeVisible();
   await page.getByRole("button", { name: "Delete deck" }).click();
   await expect(page).toHaveURL(/\/app$/u);
+});
+
+test("Offline & sync has accessible status, storage, preference, and cleanup controls", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await provisionAndSignInLocalAuthor(page, {
+    displayName: "Offline accessibility learner",
+    emailPrefix: "phase05-offline-a11y",
+    handlePrefix: "offlinea11y",
+    returnTo: "/app/offline",
+  });
+  const invitation = page.getByRole("dialog", { name: /Make Lumen yours/i });
+  if (await invitation.isVisible().catch(() => false)) {
+    await invitation.getByRole("button", { name: "Explore on my own" }).click();
+  }
+  await expect(page.getByRole("heading", { level: 1, name: "Offline & sync" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Conflict Center" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sync now" })).toBeVisible();
+  await expect(page.getByLabel("Metered connection")).toBeVisible();
+  await expect(page.getByLabel("Default media download")).toBeVisible();
+  await expectNoDocumentOverflow(page);
+  await expectNoSeriousOrCriticalViolations(page);
 });

@@ -85,7 +85,9 @@ export async function registerRequestDevice(
     p_platform: description.platform,
   });
   if (error || !data?.id) {
-    throw new Error("DEVICE_REGISTRATION_FAILED");
+    throw new Error(
+      error?.code === "42501" ? "DEVICE_ACCESS_REVOKED" : "DEVICE_REGISTRATION_FAILED",
+    );
   }
   return data.id;
 }

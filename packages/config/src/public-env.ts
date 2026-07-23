@@ -84,7 +84,12 @@ export function parsePublicEnvironment(source: EnvironmentSource): PublicEnviron
     ),
   });
 
-  if (readNodeEnvironment(source) === "production") {
+  const localProductionTestMode =
+    source.NEXT_PUBLIC_LOCAL_PWA_TEST_MODE === "true" &&
+    source.DEPLOYMENT_PROFILE === "test" &&
+    environment.appUrl === LOCAL_APP_URL &&
+    environment.supabaseUrl === LOCAL_SUPABASE_URL;
+  if (readNodeEnvironment(source) === "production" && !localProductionTestMode) {
     if (new URL(environment.appUrl).protocol !== "https:") {
       throw new Error("NEXT_PUBLIC_APP_URL must use HTTPS in production");
     }
@@ -104,6 +109,8 @@ export function readPublicEnvironment(): PublicEnvironment {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    NEXT_PUBLIC_LOCAL_PWA_TEST_MODE: process.env.NEXT_PUBLIC_LOCAL_PWA_TEST_MODE,
+    DEPLOYMENT_PROFILE: process.env.NEXT_PUBLIC_LOCAL_PWA_TEST_MODE === "true" ? "test" : undefined,
     VERCEL: process.env.VERCEL,
     VERCEL_ENV: process.env.VERCEL_ENV,
     VERCEL_URL: process.env.VERCEL_URL,

@@ -40,6 +40,7 @@ export function validateNextEnvironment(phase: string, source: EnvironmentSource
     NEXT_PUBLIC_APP_URL: source.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_SUPABASE_URL: source.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: source.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    NEXT_PUBLIC_LOCAL_PWA_TEST_MODE: source.NEXT_PUBLIC_LOCAL_PWA_TEST_MODE,
     AUTH_EMAIL_CONFIRMATION_REQUIRED: source.AUTH_EMAIL_CONFIRMATION_REQUIRED,
     AUTH_OAUTH_AZURE_ENABLED: source.AUTH_OAUTH_AZURE_ENABLED,
     AUTH_OAUTH_GITHUB_ENABLED: source.AUTH_OAUTH_GITHUB_ENABLED,
@@ -73,21 +74,21 @@ export function validateNextEnvironment(phase: string, source: EnvironmentSource
   });
 }
 
-function createContentSecurityPolicy(isDevelopment: boolean, isEmbed: boolean): string {
+function createContentSecurityPolicy(localConnectivity: boolean, isEmbed: boolean): string {
   return [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'unsafe-inline'${localConnectivity ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob:${isDevelopment ? " http://127.0.0.1:*" : ""} https://*.supabase.co`,
+    `img-src 'self' data: blob:${localConnectivity ? " http://127.0.0.1:*" : ""} https://*.supabase.co`,
     "font-src 'self' data:",
     "connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* https://*.supabase.co wss://*.supabase.co",
-    `media-src 'self' blob:${isDevelopment ? " http://127.0.0.1:*" : ""} https://*.supabase.co`,
+    `media-src 'self' blob:${localConnectivity ? " http://127.0.0.1:*" : ""} https://*.supabase.co`,
     "frame-src https://www.youtube-nocookie.com https://player.vimeo.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     isEmbed ? "frame-ancestors 'self' https:" : "frame-ancestors 'none'",
-    ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
+    ...(localConnectivity ? [] : ["upgrade-insecure-requests"]),
   ].join("; ");
 }
 
@@ -101,8 +102,13 @@ export function createNextConfigForEnvironment(
     enabled: source.ANALYZE === "true",
   });
   const isDevelopment = phase === PHASE_DEVELOPMENT_SERVER;
-  const contentSecurityPolicy = createContentSecurityPolicy(isDevelopment, false);
-  const embedContentSecurityPolicy = createContentSecurityPolicy(isDevelopment, true);
+  const localConnectivity =
+    isDevelopment ||
+    (source.NEXT_PUBLIC_LOCAL_PWA_TEST_MODE === "true" &&
+      environment.public.appUrl === "http://127.0.0.1:3100" &&
+      environment.public.supabaseUrl === "http://127.0.0.1:54321");
+  const contentSecurityPolicy = createContentSecurityPolicy(localConnectivity, false);
+  const embedContentSecurityPolicy = createContentSecurityPolicy(localConnectivity, true);
   const sharedSecurityHeaders = [
     { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -135,6 +141,7 @@ export function createNextConfigForEnvironment(
       "@lumen/config",
       "@lumen/database",
       "@lumen/domain",
+      "@lumen/offline",
       "@lumen/ui",
     ],
     typedRoutes: true,
