@@ -138,6 +138,12 @@ browser diagnostic also proved the authorization boundary correctly rejects an A
 provisional account; the harness was corrected to exercise the real adult sign-up age gate before
 confirmation, and its `finally` cleanup returned `rows: []` before the successful rerun.
 
+Final GitHub CI on Linux exposed a font-metric-specific 200%-text overflow in the print toolbar:
+the back link and print controls could not wrap at the 1,280 px desktop viewport. The toolbar and
+control group now wrap within the viewport while retaining the narrow-screen column layout; the
+focused desktop and reduced-motion import/export/print workflow passes 2/2 with both normal and
+200% text overflow assertions.
+
 Phase 06 adds no owner-only environment, provider, credential, Auth, SMTP, OAuth, domain, analytics,
 or paid-service setup action. Beta Supabase, Production Supabase, Vercel Production,
 `recallflash.com`, and every prior safety gate remain unchanged. The branch remains a draft and

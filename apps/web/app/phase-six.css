@@ -931,6 +931,7 @@
     top: 0;
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 1rem;
     padding: 0.75rem clamp(1rem, 3vw, 2rem);
@@ -941,7 +942,11 @@
 
   .portability-print-toolbar > div {
     display: flex;
+    min-width: 0;
+    max-width: 100%;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 1rem;
   }
 
@@ -967,8 +972,11 @@
   }
 
   .portability-print-toolbar a {
+    min-width: 0;
+    max-width: 100%;
     color: #264f9e;
     font-weight: 700;
+    overflow-wrap: anywhere;
   }
 
   .portability-print-toolbar span {
