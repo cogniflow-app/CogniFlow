@@ -28,7 +28,7 @@ async function dismissGuideInvitation(page: Page): Promise<void> {
   const invitation = page.getByRole("dialog", { name: /Make Lumen yours/i });
   if (!(await invitation.isVisible().catch(() => false))) return;
   await invitation.getByRole("button", { name: "Explore on my own" }).click();
-  await expect(invitation).toHaveCount(0);
+  await expect(invitation).toBeHidden();
 }
 
 async function openDeckReview(page: Page, deckTitle: string): Promise<void> {
