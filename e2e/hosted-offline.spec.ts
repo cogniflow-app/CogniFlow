@@ -24,6 +24,23 @@ async function goOffline(context: BrowserContext): Promise<void> {
   await context.setOffline(true);
 }
 
+async function dismissGuideInvitation(page: Page): Promise<void> {
+  const invitation = page.getByRole("dialog", { name: /Make Lumen yours/i });
+  if (!(await invitation.isVisible().catch(() => false))) return;
+  await invitation.getByRole("button", { name: "Explore on my own" }).click();
+  await expect(invitation).toHaveCount(0);
+}
+
+async function openDeckReview(page: Page, deckTitle: string): Promise<void> {
+  await dismissGuideInvitation(page);
+  const study = page
+    .locator(".study-deck-row")
+    .filter({ hasText: deckTitle })
+    .getByRole("button", { name: "Study" });
+  await study.focus();
+  await study.press("Enter");
+}
+
 async function reconnectAndWaitForSync(
   context: BrowserContext,
   page: Page,
@@ -74,10 +91,7 @@ test("Preview keeps private offline work isolated and reconciles typed outboxes"
   await page.getByRole("textbox", { name: "Handle" }).fill(`offline_${compactRunId.slice(0, 10)}`);
   await page.getByRole("button", { name: "Finish account setup" }).click();
 
-  const invitation = page.getByRole("dialog", { name: /Make Lumen yours/i });
-  if (await invitation.isVisible().catch(() => false)) {
-    await invitation.getByRole("button", { name: "Explore on my own" }).click();
-  }
+  await dismissGuideInvitation(page);
   await page.getByRole("textbox", { name: "Deck title" }).fill(deckTitle);
   await page.getByRole("button", { name: "Continue" }).click();
   const deckResponse = page.waitForResponse(
@@ -129,11 +143,7 @@ test("Preview keeps private offline work isolated and reconciles typed outboxes"
   await context.setOffline(false);
 
   await page.goto("/app/study");
-  await page
-    .locator(".study-deck-row")
-    .filter({ hasText: deckTitle })
-    .getByRole("button", { name: "Study" })
-    .click();
+  await openDeckReview(page, deckTitle);
   await expect(page.getByText("Offline hosted prompt")).toBeVisible();
   await goOffline(context);
   await page.getByRole("button", { name: /Show answer/u }).click();
@@ -178,11 +188,7 @@ test("Preview keeps private offline work isolated and reconciles typed outboxes"
 
     for (const candidate of [page, secondPage]) {
       await candidate.goto("/app/study");
-      await candidate
-        .locator(".study-deck-row")
-        .filter({ hasText: deckTitle })
-        .getByRole("button", { name: "Study" })
-        .click();
+      await openDeckReview(candidate, deckTitle);
       await expect(candidate.getByText("Offline hosted prompt")).toBeVisible();
     }
     await context.setOffline(true);
@@ -214,6 +220,7 @@ test("Preview keeps private offline work isolated and reconciles typed outboxes"
   }
 
   await page.goto("/app/study");
+  await dismissGuideInvitation(page);
   await page.locator('[data-guide-id="mode-flashcards"]').click();
   await page.getByLabel("Questions").fill("1");
   await page.getByRole("button", { name: "Start Flashcards" }).click();
