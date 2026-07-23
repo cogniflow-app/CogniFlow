@@ -4,9 +4,10 @@
 **Status:** Phase 04 and its Match/Test follow-up are merged through PRs #15 and #16. `main`,
 Vercel Production, and Beta Supabase are synchronized to
 `c6821238da4202b260c68bb8413603e55f3aa786` / the 52-migration Phase 04 schema. The Phase 05
-feature branch implements the version-one PWA, private IndexedDB projections, typed outboxes,
+feature branch completes the version-one PWA, private IndexedDB projections, typed outboxes,
 server-authoritative reconciliation, private media pinning, offline UI, and guarded Preview
-acceptance described below; local and Preview evidence is updated as each gate completes.  
+acceptance described below. The single additive migration is applied only to Preview; exact-commit
+Vercel acceptance and disposable-data cleanup pass.  
 **Evidence date:** 2026-07-23  
 **Next phase:** Phase 06 has not started
 
@@ -96,8 +97,31 @@ match the reset schema.
 | PWA performance                                           | 10,000 local card projections read in under the 2,000 ms budget; database queue/Today/resume/Statistics timings remain under their Phase 03 budgets                                                                                            |
 | Real visual QA                                            | 11 required viewports plus 125%/150% zoom, 200% text, mobile light/dark/reduced-motion, and 320×568 offline shell; no overflow or clipped action detected                                                                                      |
 
-The full aggregate validation and Preview-only hosted rows are completed and recorded before this
-phase is reported done.
+### Hosted Phase 05 evidence (2026-07-23 17:11 UTC)
+
+Commit `3948f14a31e4b2bb808bce09dd83e3a7e0a05439` reached Ready as deployment
+`dpl_3dWN3eGk71nzQEzsZWky3AdZeJqd` at the exact protected Preview URL
+`https://cogniflow-5oqnp9sj3-cogniflow-app-3471s-projects.vercel.app`. The branch alias was not used
+as evidence. Health and the guarded runner both confirmed Vercel Preview uses fixed Preview
+Supabase project `cfwddajyjbueggpzfomh`.
+
+| Command or evidence                   | Result                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm db:deploy:preview`              | Exit 0; applied only `20260723000000_phase05_sync_schema.sql` to fixed Preview after the complete local gate; no seed or fixture was deployed                                                                                                                                                                                                                 |
+| Initial `pnpm db:verify:preview`      | Exit 0; remote history current, migration dry run empty, hosted invariants pass, public/private schema diff empty, generated types match, and Storage empty; previously documented legacy function-volatility warnings remain warnings only                                                                                                                   |
+| Exact Vercel deployment               | Commit and deployment above reached Ready; 90 application route/static entries were built, Preview ownership/protection attestation passed, and Production aliases were rejected by the runner                                                                                                                                                                |
+| `pnpm test:hosted:preview`            | Exit 0; 11/11 protected baseline checks passed in 11.8 seconds against the exact immutable deployment                                                                                                                                                                                                                                                         |
+| `pnpm test:hosted:preview:offline`    | Exit 0; 1/1 in 1.0 minute proved adult onboarding, manifest/icons/worker, private pin and offline navigation, canonical Review plus exact duplicate, two fresh-device-context stale conflict and resolution, offline practice, offline deck/card creation, typed synchronization, sign-out IndexedDB purge, and anonymous isolation                           |
+| Cleanup proof                         | Exit 0; the guarded parent retained provider credentials, Playwright received none, canonical deletion removed Auth and active disposable content/schedule/review/practice/sync/guide/publication state, the minimization query returned `rows: []`, recursive content Storage was empty, the temporary browser profile was removed, and Preview was unlinked |
+| Post-cleanup `pnpm db:verify:preview` | Exit 0; remote migration dry run remains empty, hosted invariants pass, public/private schema diff remains empty, linked generated types match, Storage remains empty, and Preview was unlinked                                                                                                                                                               |
+
+Every diagnostic hosted run used the same `finally` cleanup boundary and also returned `rows: []`;
+no persistent test fixture or Storage object was retained. Hosted-only harness hardening after the
+aggregate local gate passed Prettier, ESLint, the 12-workspace strict typecheck, and repeated guarded
+acceptance. Phase 05 adds no owner-only environment, provider, credential, Auth, SMTP, OAuth,
+domain, bucket, analytics, or paid-service setup action. Beta Supabase, Production Supabase,
+Vercel Production, `recallflash.com`, and all Phase 00–04 safety gates remain unchanged. Phase 06
+has not started.
 
 ## Phase 04 adaptive Learn and guided study experience
 
