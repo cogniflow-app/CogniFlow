@@ -91,6 +91,7 @@ test("Preview keeps private offline work isolated and reconciles typed outboxes"
   await page.getByRole("textbox", { name: "Handle" }).fill(`offline_${compactRunId.slice(0, 10)}`);
   await page.getByRole("button", { name: "Finish account setup" }).click();
 
+  await expect(page.getByRole("dialog", { name: /Make Lumen yours/i })).toBeVisible();
   await dismissGuideInvitation(page);
   await page.getByRole("textbox", { name: "Deck title" }).fill(deckTitle);
   await page.getByRole("button", { name: "Continue" }).click();
@@ -100,15 +101,25 @@ test("Preview keeps private offline work isolated and reconciles typed outboxes"
   );
   await page.getByRole("button", { name: "Create deck and add cards" }).click();
   const deckId = ((await (await deckResponse).json()) as { data: { id: string } }).data.id;
-  await page.getByRole("textbox", { name: "Front / prompt" }).fill("Offline hosted prompt");
-  await page.getByRole("textbox", { name: "Back / answer" }).fill("Offline hosted answer");
-  const noteResponse = page.waitForResponse(
-    (response) =>
-      response.url().endsWith(`/api/content/decks/${deckId}/notes`) &&
-      response.request().method() === "POST",
-  );
-  await page.getByRole("button", { name: "Save card" }).click();
-  expect((await noteResponse).status()).toBe(201);
+  const cardPairs = [
+    ["Offline hosted conflict prompt", "Offline hosted conflict answer"],
+    ["Offline hosted prompt", "Offline hosted answer"],
+  ] as const;
+  for (const [index, [prompt, answer]] of cardPairs.entries()) {
+    await page.getByRole("textbox", { name: "Front / prompt" }).fill(prompt);
+    await page.getByRole("textbox", { name: "Back / answer" }).fill(answer);
+    const noteResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/content/decks/${deckId}/notes`) &&
+        response.request().method() === "POST",
+    );
+    await page
+      .getByRole("button", {
+        name: index === cardPairs.length - 1 ? "Save card" : "Save and add another",
+      })
+      .click();
+    expect((await noteResponse).status()).toBe(201);
+  }
 
   const manifest = await page.request.get("/manifest.webmanifest");
   expect(manifest.status()).toBe(200);
@@ -137,14 +148,22 @@ test("Preview keeps private offline work isolated and reconciles typed outboxes"
   await page.goto("/app/library?hosted-offline=1");
   await expect(page.getByRole("heading", { name: "Pinned library" })).toBeVisible();
   await page.getByRole("button", { name: new RegExp(deckTitle, "u") }).click();
-  await expect(page.getByText("Offline hosted prompt")).toBeVisible();
+  const offlinePrompt = await page.getByRole("heading", { level: 2 }).textContent();
+  const offlinePair = cardPairs.find(([prompt]) => prompt === offlinePrompt);
+  if (!offlinePair) throw new Error("The pinned projection presented an unexpected card.");
   await page.getByRole("button", { name: "Reveal answer" }).click();
-  await expect(page.getByText("Offline hosted answer")).toBeVisible();
+  await expect(page.getByText(offlinePair[1], { exact: true })).toBeVisible();
   await context.setOffline(false);
 
   await page.goto("/app/study");
   await openDeckReview(page, deckTitle);
-  await expect(page.getByText("Offline hosted prompt")).toBeVisible();
+  const reviewPrompt = page.getByText(/^Offline hosted (?:conflict )?prompt$/u, { exact: true });
+  await expect(reviewPrompt).toBeVisible();
+  const reviewPromptText = await reviewPrompt.textContent();
+  const reviewedPair = cardPairs.find(([prompt]) => prompt === reviewPromptText);
+  if (!reviewedPair) throw new Error("The review queue presented an unexpected card.");
+  const remainingPair = cardPairs.find(([prompt]) => prompt !== reviewedPair[0]);
+  if (!remainingPair) throw new Error("The review fixture did not retain a second card.");
   await goOffline(context);
   await page.getByRole("button", { name: /Show answer/u }).click();
   await page.getByRole("button", { name: /Good/u }).click();
@@ -172,24 +191,17 @@ test("Preview keeps private offline work isolated and reconciles typed outboxes"
     }),
   );
 
-  const secondContext = await browser.newContext({ baseURL });
+  const secondContext = await browser.newContext({ baseURL: baseUrl });
   try {
-    const protectionCookie = (await context.cookies(baseURL)).find(
-      (cookie) => cookie.name === "_vercel_jwt",
-    );
-    if (protectionCookie) await secondContext.addCookies([protectionCookie]);
+    await secondContext.addCookies(await context.cookies(baseUrl));
     const secondPage = await secondContext.newPage();
-    await secondPage.setExtraHTTPHeaders({ "X-Forwarded-For": "192.0.2.242" });
-    await secondPage.goto("/auth/sign-in?returnTo=%2Fapp%2Fstudy");
-    await secondPage.getByRole("textbox", { name: "Email address" }).fill(email);
-    await secondPage.getByLabel("Password").fill(password);
-    await secondPage.getByRole("button", { name: "Sign in" }).click();
+    await secondPage.goto("/app/study");
     await expect(secondPage).toHaveURL("/app/study");
 
     for (const candidate of [page, secondPage]) {
       await candidate.goto("/app/study");
       await openDeckReview(candidate, deckTitle);
-      await expect(candidate.getByText("Offline hosted prompt")).toBeVisible();
+      await expect(candidate.getByText(remainingPair[0], { exact: true })).toBeVisible();
     }
     await context.setOffline(true);
     await secondContext.setOffline(true);
@@ -225,8 +237,10 @@ test("Preview keeps private offline work isolated and reconciles typed outboxes"
   await page.getByLabel("Questions").fill("1");
   await page.getByRole("button", { name: "Start Flashcards" }).click();
   await expect(page).toHaveURL(/\/app\/practice\/session\//u);
+  const practiceShowAnswer = page.getByRole("button", { name: /Show answer/u });
+  await expect(practiceShowAnswer).toBeVisible();
   await goOffline(context);
-  await page.getByRole("button", { name: /Show answer/u }).click();
+  await practiceShowAnswer.click();
   await page.getByRole("button", { name: /Know it/u }).click();
   const practiceSync = await reconnectAndWaitForSync(context, page);
   expect(practiceSync.response).toEqual(
@@ -236,10 +250,10 @@ test("Preview keeps private offline work isolated and reconciles typed outboxes"
   );
 
   await page.goto("/app/decks/new");
+  const offlineDeckTitle = page.getByRole("textbox", { name: "Deck title" });
+  await expect(offlineDeckTitle).toBeVisible();
   await goOffline(context);
-  await page
-    .getByRole("textbox", { name: "Deck title" })
-    .fill(`Offline draft ${compactRunId.slice(0, 8)}`);
+  await offlineDeckTitle.fill(`Offline draft ${compactRunId.slice(0, 8)}`);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Create deck and add cards" }).click();
   await page.getByRole("textbox", { name: "Front / prompt" }).fill("Hosted offline-created prompt");
