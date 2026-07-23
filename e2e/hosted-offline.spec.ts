@@ -27,12 +27,22 @@ async function goOffline(context: BrowserContext): Promise<void> {
 async function dismissGuideInvitation(page: Page): Promise<void> {
   const invitation = page.getByRole("dialog", { name: /Make Lumen yours/i });
   if (!(await invitation.isVisible().catch(() => false))) return;
-  const persisted = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/guides/progress") && response.request().method() === "POST",
-  );
-  await invitation.getByRole("button", { name: "Explore on my own" }).click();
-  expect((await persisted).status()).toBe(200);
+  const status = await page.evaluate(async () => {
+    const response = await fetch("/api/guides/progress", {
+      body: JSON.stringify({
+        currentStep: 0,
+        guideKey: "global-tour",
+        guideVersion: 1,
+        metadata: { lastPath: window.location.pathname },
+        progressId: crypto.randomUUID(),
+        status: "dismissed",
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    return response.status;
+  });
+  expect(status).toBe(200);
   await page.reload();
   await expect(invitation).toBeHidden();
 }
