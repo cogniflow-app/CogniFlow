@@ -75,17 +75,18 @@ rules are in [IMPORT_EXPORT_AND_PORTABILITY.md](./IMPORT_EXPORT_AND_PORTABILITY.
 
 ### Phase 06 migrations
 
-| Migration                                                    | Purpose                                                                                                                                                                  |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `20260724000000_phase06_portability_schema.sql`              | Owner-RLS job/artifact metadata, private queue/upload/receipt state, idempotent owner/service RPCs, account-deletion integration, and private Storage bucket             |
-| `20260724001000_phase06_portability_resume_and_evidence.sql` | Durable item/checkpoint evidence, retry/resume boundaries, artifact/object lifecycle, and expanded privacy-export integration                                            |
-| `20260724002000_phase06_portability_chunk_yield.sql`         | Initial append-only continuation-yield revision; superseded by the later corrective migration rather than edited after application testing                               |
-| `20260724003000_phase06_portability_upload_cleanup.sql`      | Upload cleanup and cancellation/expiry object eligibility                                                                                                                |
-| `20260724004000_phase06_portability_chunk_yield_fix.sql`     | Correct fixed-search-path continuation-yield implementation                                                                                                              |
-| `20260724005000_phase06_account_audit_export.sql`            | Service-only complete account audit/export projection used by lossless archives                                                                                          |
-| `20260724006000_phase06_storage_cleanup_confirmation.sql`    | Two-phase object cleanup claim/confirm contract so metadata becomes deleted only after successful physical Storage removal; account deletion safely expedites tombstones |
+| Migration                                                     | Purpose                                                                                                                                                                  |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20260724000000_phase06_portability_schema.sql`               | Owner-RLS job/artifact metadata, private queue/upload/receipt state, idempotent owner/service RPCs, account-deletion integration, and private Storage bucket             |
+| `20260724001000_phase06_portability_resume_and_evidence.sql`  | Durable item/checkpoint evidence, retry/resume boundaries, artifact/object lifecycle, and expanded privacy-export integration                                            |
+| `20260724002000_phase06_portability_chunk_yield.sql`          | Initial append-only continuation-yield revision; superseded by the later corrective migration rather than edited after application testing                               |
+| `20260724003000_phase06_portability_upload_cleanup.sql`       | Upload cleanup and cancellation/expiry object eligibility                                                                                                                |
+| `20260724004000_phase06_portability_chunk_yield_fix.sql`      | Correct fixed-search-path continuation-yield implementation                                                                                                              |
+| `20260724005000_phase06_account_audit_export.sql`             | Service-only complete account audit/export projection used by lossless archives                                                                                          |
+| `20260724006000_phase06_storage_cleanup_confirmation.sql`     | Two-phase object cleanup claim/confirm contract so metadata becomes deleted only after successful physical Storage removal; account deletion safely expedites tombstones |
+| `20260724007000_phase06_sql_expression_qualification_fix.sql` | Append-only correction for three restore/queue routines that incorrectly qualified PostgreSQL `LEAST`/`GREATEST` SQL expressions as catalog functions                    |
 
-Every earlier migration is unchanged. A fresh reset applies all 60 migrations in order and the
+Every earlier migration is unchanged. A fresh reset applies all 61 migrations in order and the
 seed inserts no application data. Generated database types match the reset schema.
 
 ### Phase 06 local evidence
@@ -98,7 +99,7 @@ seed inserts no application data. Generated database types match the reset schem
 | `pnpm test`                                               | Exit 0; 100 files / 794 tests; coverage 71.01% statements, 58.15% branches, 70.96% functions, 73.94% lines                                                                                                                         |
 | `pnpm --filter @lumen/import-export test`                 | Exit 0; 35 deterministic adapter/archive/encryption/Anki/adversarial/performance tests                                                                                                                                             |
 | `pnpm --filter @lumen/worker test`                        | Exit 0; 16 job claim/checkpoint/cancel/crash/retry/exhaustion/bounds/Storage-cleanup tests                                                                                                                                         |
-| `pnpm db:reset` / `pnpm test:db`                          | Exit 0; fresh 60-migration reset; 24 files / 1,028 pgTAP assertions plus SRS concurrency (1 commit, 1 typed stale conflict, 1 immutable log, 25.94 ms)                                                                             |
+| `pnpm db:reset` / `pnpm test:db`                          | Exit 0; fresh 61-migration reset; 24 files / 1,029 pgTAP assertions plus SRS concurrency (1 commit, 1 typed stale conflict, 1 immutable log, 27.617 ms)                                                                            |
 | `pnpm db:types:check`                                     | Exit 0 after canonical regeneration; committed generated types match the reset schema                                                                                                                                              |
 | `pnpm build:verify` / verification-wrapped portable build | Exit 0; optimized Next.js produces 96 route/static entries and OpenNext emits `.open-next/worker.js`; the real browser Anki round trip proves the traced `sql.js` WASM boundary                                                    |
 | `pnpm test:pwa`                                           | Exit 0; 4/4 production-mode service-worker/offline matrix scenarios pass, including portability no-cache exclusions                                                                                                                |

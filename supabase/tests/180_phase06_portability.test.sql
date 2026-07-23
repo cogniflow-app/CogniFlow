@@ -79,6 +79,25 @@ select ok(
 select ok(
   not exists(
     select 1
+    from pg_catalog.pg_proc as proc
+    join pg_catalog.pg_namespace as namespace on namespace.oid = proc.pronamespace
+    where namespace.nspname = 'public'
+      and proc.proname in (
+        'admin_complete_portability_job',
+        'admin_restore_portability_evidence_chunk',
+        'admin_restore_portability_progress_chunk'
+      )
+      and (
+        pg_catalog.strpos(proc.prosrc, 'pg_catalog.least(') > 0
+        or pg_catalog.strpos(proc.prosrc, 'pg_catalog.greatest(') > 0
+      )
+  ),
+  'Phase 06 routines use LEAST and GREATEST as SQL expressions'
+);
+
+select ok(
+  not exists(
+    select 1
     from pg_catalog.pg_proc as procedure
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'public'

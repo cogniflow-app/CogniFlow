@@ -723,9 +723,9 @@ the section remains as the historical Phase 05 procedure.
 
 ## Phase 06 Preview deployment and acceptance
 
-Phase 06 adds the seven additive migrations from
+Phase 06 adds the eight additive migrations from
 `20260724000000_phase06_portability_schema.sql` through
-`20260724006000_phase06_storage_cleanup_confirmation.sql`. They may reach only fixed Preview
+`20260724007000_phase06_sql_expression_qualification_fix.sql`. They may reach only fixed Preview
 project `cfwddajyjbueggpzfomh`, and only after the complete local gate passes and the exact
 migrations/application source are committed. Do not edit or reorder the corrective migration
 chain. The deploy guard requires a clean tracked migration directory:
@@ -736,7 +736,7 @@ pnpm db:verify:preview
 ```
 
 Do not use `db:deploy:beta`, reset, seed deployment, migration repair, configuration push, or any
-Production deploy for Phase 06. The verifier must prove all 60 migrations, an empty push dry run,
+Production deploy for Phase 06. The verifier must prove all 61 migrations, an empty push dry run,
 hosted invariants, clean public/private schema diff, generated-type parity, exactly the reviewed
 private `lumen-content-media` and `lumen-portability` buckets, and no recursive object before
 application acceptance.
