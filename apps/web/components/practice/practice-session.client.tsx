@@ -67,17 +67,26 @@ export function PracticeSessionComplete({
       </main>
     );
   const mode = practiceModeCopy[summary.mode];
+  const heading =
+    summary.mode === "test"
+      ? `${String(Math.round(summary.accuracy * 100))}% on this test`
+      : summary.mode === "match"
+        ? "Board cleared"
+        : "You finished the session";
+  const completionCopy =
+    summary.mode === "test"
+      ? "Your score is ready. Review each question below, then practice the concepts that need another pass."
+      : summary.mode === "match"
+        ? "Every pair is matched. Try again for a faster time, or switch to Write for stronger recall."
+        : "Your progress is saved. Practice builds mastery here; your review schedule changes only when you choose to rate an eligible recall.";
   return (
     <main className="practice-complete" data-guide-id="practice-summary">
       <span aria-hidden="true" className="practice-complete__mark">
         ✓
       </span>
       <p className="eyebrow">{mode.label} complete</p>
-      <h1>You finished the session</h1>
-      <p>
-        Practice mastery was updated. No result here masquerades as a canonical review or changes an
-        SRS schedule without a separate confirmation.
-      </p>
+      <h1>{heading}</h1>
+      <p>{completionCopy}</p>
       <dl className="practice-complete__stats">
         <div>
           <dt>Accuracy</dt>
@@ -526,9 +535,7 @@ export function PracticeSession({
           </a>
           <span>
             <strong>{card.deckTitle}</strong>
-            <small>
-              {modeCopy.label} · {card.item.questionLevel.replaceAll("_", " ")}
-            </small>
+            <small>{modeCopy.label}</small>
           </span>
         </div>
         <div
@@ -548,9 +555,6 @@ export function PracticeSession({
           {remainingSeconds !== null && (
             <time aria-label="Time remaining">{formatTimer(remainingSeconds)}</time>
           )}
-          <span className="practice-online">
-            <i /> Online
-          </span>
           <Button
             disabled={
               pending ||
@@ -624,7 +628,11 @@ export function PracticeSession({
           <span id="practice-question-label">
             {isFlip ? (revealed ? "Answer" : "Prompt") : questionKind.replaceAll("_", " ")}
           </span>
-          <span>Mastery {masteryPercent}%</span>
+          <span>
+            {card.session.mode === "learn" || card.session.mode === "write"
+              ? `Mastery ${String(masteryPercent)}%`
+              : `Question ${String(card.item.position + 1)} of ${String(card.session.total)}`}
+          </span>
         </div>
 
         {isFlip && (
@@ -841,10 +849,12 @@ export function PracticeSession({
           </article>
         )}
 
-        <details className="practice-selection-reason">
-          <summary>Why am I seeing this?</summary>
-          <p>{card.selectionReason}</p>
-        </details>
+        {(card.session.mode === "learn" || card.session.mode === "write") && (
+          <details className="practice-selection-reason">
+            <summary>Why this question?</summary>
+            <p>{card.selectionReason}</p>
+          </details>
+        )}
 
         {!result && !paused && (
           <div className="practice-primary-actions">
@@ -1001,40 +1011,44 @@ export function PracticeSession({
                 <Input onChange={(event) => setRetype(event.target.value)} value={retype} />
               </label>
             )}
-            <div className="practice-mastery-update">
-              <span>Concept mastery</span>
-              <strong>{masteryPercent}%</strong>
-              <i>
-                <b style={{ width: `${String(masteryPercent)}%` }} />
-              </i>
-            </div>
-            <div
-              className={`practice-qualification ${result.qualification.eligible ? "is-eligible" : ""}`}
-            >
-              <p>{result.qualification.reason}</p>
-              {result.qualification.eligible && !qualificationSaved && (
-                <div>
-                  <label>
-                    <span>SRS rating</span>
-                    <select
-                      value={selectedRating}
-                      onChange={(event) =>
-                        setSelectedRating(event.target.value as typeof selectedRating)
-                      }
-                    >
-                      <option value="again">Again</option>
-                      <option value="hard">Hard</option>
-                      <option value="good">Good</option>
-                      <option value="easy">Easy</option>
-                    </select>
-                  </label>
-                  <Button disabled={pending} onClick={() => void qualify()} size="sm">
-                    Apply rating explicitly
-                  </Button>
+            {(card.session.mode === "learn" || card.session.mode === "write") && (
+              <>
+                <div className="practice-mastery-update">
+                  <span>Concept mastery</span>
+                  <strong>{masteryPercent}%</strong>
+                  <i>
+                    <b style={{ width: `${String(masteryPercent)}%` }} />
+                  </i>
                 </div>
-              )}
-              {qualificationSaved && <strong>Canonical SRS review saved and linked.</strong>}
-            </div>
+                <div
+                  className={`practice-qualification ${result.qualification.eligible ? "is-eligible" : ""}`}
+                >
+                  <p>{result.qualification.reason}</p>
+                  {result.qualification.eligible && !qualificationSaved && (
+                    <div>
+                      <label>
+                        <span>Add to review schedule</span>
+                        <select
+                          value={selectedRating}
+                          onChange={(event) =>
+                            setSelectedRating(event.target.value as typeof selectedRating)
+                          }
+                        >
+                          <option value="again">Again</option>
+                          <option value="hard">Hard</option>
+                          <option value="good">Good</option>
+                          <option value="easy">Easy</option>
+                        </select>
+                      </label>
+                      <Button disabled={pending} onClick={() => void qualify()} size="sm">
+                        Save review rating
+                      </Button>
+                    </div>
+                  )}
+                  {qualificationSaved && <strong>Review schedule updated.</strong>}
+                </div>
+              </>
+            )}
             <div className="practice-feedback__actions">
               <Button disabled={!retypeReady || pending} onClick={() => router.refresh()}>
                 Next question →

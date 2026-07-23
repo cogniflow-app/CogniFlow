@@ -2,9 +2,9 @@
 
 **Current phase:** Phase 04 — Adaptive Learn and guided study experience  
 **Status:** Phase 03 redesign and Learn polish are merged through PRs #13 and #14; Phase 04 is
-implemented and fully verified locally and on its exact protected Preview deployment; its three
-Preview migrations, hosted acceptance, cleanup proof, and post-cleanup parity check are complete,
-with draft-PR publication in progress  
+merged through PR #15 and fully verified locally and on its exact protected Preview deployment.
+The `codex/phase-04-match-test-visual-polish` follow-up now contains the completed Match board,
+scrollable Test paper, and practice-mode visual polish described below.  
 **Evidence date:** 2026-07-22  
 **Next phase:** Phase 05 has not started
 
@@ -106,6 +106,47 @@ state, and cap every browser action at 20 seconds. Every diagnostic run still ex
 cleanup and returned `rows: []`. Beta Supabase, Production Supabase, Vercel Production,
 `recallflash.com`, SMTP, OAuth, child-safety flags, and provider secrets were not changed. Phase 05
 has not started.
+
+### Phase 04 Match, Test, and visual follow-up (2026-07-22)
+
+Branch `codex/phase-04-match-test-visual-polish` began from clean merged `origin/main` at `8d037da`.
+This follow-up changes no migration, RLS policy, authentication behavior, environment variable,
+canonical review endpoint, or scheduler calculation.
+
+- Match is now a real deterministic shuffled board containing one term and one definition tile for
+  every remaining session card. Learners can drag one tile onto another or use click, touch, and
+  keyboard selection; matched pairs clear from the board, incorrect pairs remain available, and
+  retry evidence remains part of the practice attempt.
+- Match includes a first-class list alternative with one definition selector per term. Both board
+  and list paths save through the existing authorized practice-attempt boundary, preserve resume
+  behavior and personal-best timing, and never mutate canonical SRS state.
+- Test now renders every remaining seeded question in one scrollable document. Multiple choice,
+  select-all, true/false, typed, list, and ordering questions share one answer sheet, compact
+  progress overview, flags, pause policy, timer, and a single final **Submit test** action.
+- Test drafts are retained in session storage across a same-device reload. Submission is sequential
+  and retry-safe, unanswered questions are scored incorrect, partial submission failures retain
+  answers and skip already-saved items, and the completed page leads with the score and organized
+  question-level review.
+- Practice data reads are batched across session cards, decks, mastery, accepted rules, and
+  schedules instead of issuing one complete server read per visible card. The single-item attempt
+  authorization path remains unchanged.
+- The Study mode chooser, setup cards, focus headers, prompts, completion summaries, Match board,
+  and Test paper now use restrained purple/teal/amber/rose accents, stronger grouping, real gutters,
+  shorter learner-facing copy, and fewer repeated scheduling disclaimers. Learn and Flashcards keep
+  the answer out of the DOM until the flip midpoint, while the card height is reduced to remove the
+  reported empty slab. Serious and reduced-motion modes remove nonessential movement.
+
+| Command or evidence                                | Result                                                                                                                                                |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm lint` / `pnpm typecheck`                     | Exit 0; dependency boundaries and all 11 strict TypeScript workspaces pass                                                                            |
+| `pnpm test`                                        | Exit 0; 89 files / 708 tests; coverage 72.85% statements, 61.84% branches, 69.50% functions, 76.06% lines                                             |
+| focused `phase-four-practice.spec.ts` desktop run  | Exit 0; 2/2 full-data flows pass, including the three-pair board, three-type single-submit Test, score/review, and no canonical review request        |
+| focused Match/Test mobile and reduced-motion runs  | Exit 0; 2/2 runs pass with no horizontal overflow                                                                                                     |
+| focused `phase-four-layout.spec.ts` desktop matrix | Exit 0; 1/1 test passes across all 12 viewports, 125%/150% zoom, 200% text, dark, serious, and reduced-motion states                                  |
+| Match/Test inline axe checks                       | Exit 0; no serious or critical WCAG 2 A/AA/2.1 AA violations on the populated board or mixed Test paper                                               |
+| `pnpm build:verify`                                | Exit 0; optimized Next.js production build generates all 86 route/static entries                                                                      |
+| direct `pnpm build` in the developer environment   | Correctly rejected the local HTTP `NEXT_PUBLIC_APP_URL`; the verification-wrapped production build above passed                                       |
+| `pnpm test:db`                                     | Not rerun: the unchanged database suite could not start because Docker Desktop was unavailable; this follow-up adds no migration or database contract |
 
 ## Phase 03 Study experience redesign
 

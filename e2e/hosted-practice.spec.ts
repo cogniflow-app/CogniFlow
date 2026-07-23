@@ -95,7 +95,7 @@ test("Preview guides practice modes, persists results, and preserves SRS isolati
 
   await page.goto("/app/study");
   await expect(page.getByRole("heading", { name: "Choose how you want to learn" })).toBeVisible();
-  await expect(page.getByText("Practice only · no due-date changes").first()).toBeVisible();
+  await expect(page.getByText(/Due dates change only when you explicitly save/i)).toBeVisible();
   const canonicalReviews: string[] = [];
   page.on("request", (request) => {
     if (request.url().endsWith("/api/study/reviews") && request.method() === "POST") {
@@ -113,12 +113,11 @@ test("Preview guides practice modes, persists results, and preserves SRS isolati
 
   await page.goto("/app/study/mode/test");
   await page.getByLabel("Questions").fill("1");
-  await page.getByText("Test behavior", { exact: true }).click();
-  await page.getByLabel("Test layout").selectOption("one_page");
   await page.getByRole("button", { name: "Start Test" }).click();
-  await expect(page.getByRole("navigation", { name: "Test questions" })).toBeVisible();
-  await finishCurrentPracticeItem(page);
-  await expect(page.getByRole("heading", { name: "You finished the session" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Show what you know" })).toBeVisible();
+  await page.locator(".practice-test-question input").first().check();
+  await page.getByRole("button", { name: "Submit test" }).click();
+  await expect(page.getByRole("heading", { name: "100% on this test" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Review every question" })).toBeVisible();
   expect(canonicalReviews).toEqual([]);
 

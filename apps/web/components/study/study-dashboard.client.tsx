@@ -289,8 +289,8 @@ export function StudyDashboard({
             <p className="eyebrow">Practice lab</p>
             <h2 id="practice-modes-heading">Choose how you want to learn</h2>
             <p>
-              Practice builds separate mastery evidence. Your SRS schedule changes only after an
-              eligible recall and your explicit confirmation.
+              Pick a mode that fits the moment. Due dates change only when you explicitly save an
+              eligible recall.
             </p>
           </div>
           <dl className="practice-mastery-glance" aria-label="Practice mastery overview">
@@ -335,13 +335,6 @@ export function StudyDashboard({
                 <span className="practice-mode-card__eyebrow">{copy.eyebrow}</span>
                 <strong>{copy.label}</strong>
                 <p>{copy.description}</p>
-                <span className="practice-mode-card__effect">
-                  {mode === "flashcards" || mode === "match" || mode === "test"
-                    ? "Practice only · no due-date changes"
-                    : mode === "pronunciation"
-                      ? "Self-assessment · no silent schedule changes"
-                      : "Builds mastery · schedule only after confirmation"}
-                </span>
                 <small>
                   {copy.shortcut} · {selectedDeck?.total ?? snapshot.total} available
                 </small>

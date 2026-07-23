@@ -77,7 +77,7 @@ function practiceConfig(value: unknown): PracticeSessionConfig {
     ),
     testOptions: {
       layout:
-        testOptions.layout === "one_page" ? ("one_page" as const) : ("one_at_a_time" as const),
+        testOptions.layout === "one_at_a_time" ? ("one_at_a_time" as const) : ("one_page" as const),
       partialCredit: boolean(testOptions.partialCredit, true),
       pauseAllowed: boolean(testOptions.pauseAllowed, true),
       reviewPolicy:
@@ -217,12 +217,12 @@ export async function readPracticeModePreference(
   return data ? Object.freeze({ config: record(data.config), version: data.version }) : null;
 }
 
-export async function readPracticeCard(
+async function readPracticeCardsInternal(
   sessionId: string,
   accountId: string,
   learnerProfileId: string,
   requestedPosition?: number,
-): Promise<PracticeCardView | null> {
+): Promise<readonly PracticeCardView[]> {
   const client = await createNextServerDatabaseClient();
   const { data: session, error: sessionError } = await client
     .from("practice_sessions")
@@ -231,7 +231,7 @@ export async function readPracticeCard(
     .eq("learner_profile_id", learnerProfileId)
     .maybeSingle();
   if (sessionError || !session || session.status === "completed" || session.status === "abandoned")
-    return null;
+    return [];
   const { data: items, error: itemError } = await client
     .from("practice_session_items")
     .select("position,card_id,question_level,question_kind,attempt_count,status")
@@ -240,153 +240,206 @@ export async function readPracticeCard(
   const availableItems = (items ?? []).filter(
     (candidate) => candidate.status === "pending" || candidate.status === "shown",
   );
-  const item =
-    (requestedPosition === undefined
-      ? undefined
-      : availableItems.find((candidate) => candidate.position === requestedPosition)) ??
-    availableItems[0];
-  if (itemError || !item) return null;
-  const { data: card, error: cardError } = await client
+  if (itemError || availableItems.length === 0) return [];
+  const firstAvailable = availableItems[0];
+  if (!firstAvailable) return [];
+  const selectedItems =
+    requestedPosition === undefined
+      ? availableItems
+      : [
+          availableItems.find((candidate) => candidate.position === requestedPosition) ??
+            firstAvailable,
+        ];
+  const cardIds = [...new Set(selectedItems.map((item) => item.card_id))];
+  const { data: cards, error: cardError } = await client
     .from("cards")
     .select("id,note_id,content_version,notes!inner(deck_id)")
-    .eq("id", item.card_id)
+    .in("id", cardIds)
     .eq("active", true)
-    .is("deleted_at", null)
-    .maybeSingle();
-  if (cardError || !card) return null;
-  const joinedNote = Array.isArray(card.notes) ? card.notes[0] : card.notes;
-  const deckId = joinedNote?.deck_id;
-  if (!deckId) return null;
-  const deck = await readDeckDetail(deckId, accountId);
-  const rendered = deck?.cards.find((candidate) => candidate.id === card.id && candidate.active);
-  if (!deck || !rendered) return null;
+    .is("deleted_at", null);
+  if (cardError || !cards?.length) return [];
+  const cardById = new Map(cards.map((card) => [card.id, card]));
+  const deckIdByCard = new Map(
+    cards.flatMap((card) => {
+      const joinedNote = Array.isArray(card.notes) ? card.notes[0] : card.notes;
+      return joinedNote?.deck_id ? ([[card.id, joinedNote.deck_id]] as const) : [];
+    }),
+  );
+  const deckEntries = await Promise.all(
+    [...new Set(deckIdByCard.values())].map(
+      async (deckId) => [deckId, await readDeckDetail(deckId, accountId)] as const,
+    ),
+  );
+  const deckById = new Map(
+    deckEntries.flatMap(([deckId, deck]) => (deck ? [[deckId, deck] as const] : [])),
+  );
   const [masteryResult, rulesResult, scheduleResult] = await Promise.all([
     client
       .from("concept_mastery")
       .select("*")
       .eq("learner_profile_id", learnerProfileId)
-      .eq("card_id", card.id)
-      .maybeSingle(),
+      .in("card_id", cardIds),
     client
       .from("accepted_answer_rules")
-      .select("rules")
-      .eq("card_id", card.id)
-      .is("deleted_at", null)
-      .maybeSingle(),
+      .select("card_id,rules")
+      .in("card_id", cardIds)
+      .is("deleted_at", null),
     client
       .from("card_schedules")
-      .select("due,state,starred,version")
+      .select("card_id,due,state,starred,version")
       .eq("learner_profile_id", learnerProfileId)
-      .eq("card_id", card.id)
-      .maybeSingle(),
+      .in("card_id", cardIds),
   ]);
   if (masteryResult.error || rulesResult.error || scheduleResult.error)
     throw new Error("PRACTICE_CARD_STATE_UNAVAILABLE");
   const config = practiceConfig(session.config);
-  const reverse =
-    config.answerDirection === "answer_prompt" ||
-    (config.answerDirection === "mixed" && item.position % 2 === 1);
-  const basePrompt = reverse ? rendered.previewBack : rendered.previewFront;
-  const baseAnswer = reverse ? rendered.previewFront : rendered.previewBack;
-  const generatedChoices = buildChoiceQuestion(
-    {
-      answer: baseAnswer,
-      cardId: rendered.id,
-      difficulty: masteryResult.data?.overall ?? 0.5,
-      siblingKey: rendered.noteId,
-    },
-    deck.cards
-      .filter((candidate) => candidate.active)
-      .map((candidate) => ({
-        answer: reverse ? candidate.previewFront : candidate.previewBack,
-        cardId: candidate.id,
-        difficulty: 0.5,
-        siblingKey: candidate.noteId,
-      })),
-    `${sessionId}:${String(item.position)}`,
-  ).options.map((choice) => choice.answer);
-  const authoredChoices =
-    rendered.renderer.kind === "multiple_choice" || rendered.renderer.kind === "select_all"
-      ? rendered.renderer.choices.map((choice) => extractRichDocumentText(choice.content))
-      : null;
-  const choices = authoredChoices?.length ? authoredChoices : generatedChoices;
-  const trueFalseAnswer =
-    item.question_kind === "true_false"
-      ? item.position % 2 === 0
-        ? baseAnswer
-        : (choices.find((option) => option !== baseAnswer) ?? `${baseAnswer} (changed)`)
-      : null;
-  const prompt =
-    trueFalseAnswer === null ? basePrompt : `${basePrompt}\n\nClaim: ${trueFalseAnswer}`;
-  const answer =
-    trueFalseAnswer === null ? baseAnswer : trueFalseAnswer === baseAnswer ? "True" : "False";
-  const storedRules = record(rulesResult.data?.rules);
-  const derivedRules: Readonly<Record<string, unknown>> =
-    rendered.renderer.kind === "typed_answer"
-      ? { aliases: rendered.renderer.acceptedAnswers }
-      : rendered.renderer.kind === "list_answer"
-        ? {
-            list: {
-              items: rendered.renderer.items.map((entry) => ({
-                aliases: entry.aliases,
-                answer: entry.answer,
-                required: entry.required,
-              })),
-              orderMatters: rendered.renderer.orderMatters,
-            },
-          }
-        : {};
-  return Object.freeze({
-    answer,
-    answerRules: Object.freeze({ ...derivedRules, ...storedRules }),
-    cardId: card.id,
-    choices: item.question_kind === "true_false" ? ["True", "False"] : choices,
-    correctChoices:
-      item.question_kind === "select_all" && rendered.renderer.kind === "select_all"
-        ? rendered.renderer.choices
-            .filter((choice) => choice.isCorrect)
-            .map((choice) => extractRichDocumentText(choice.content))
-        : item.question_kind === "select_all"
-          ? [answer]
-          : [],
-    contentVersion: card.content_version,
-    deckId,
-    deckTitle: deck.title,
-    item: {
-      attemptCount: item.attempt_count,
-      position: item.position,
-      questionKind: item.question_kind,
-      questionLevel: item.question_level as PracticeCardView["item"]["questionLevel"],
-    },
-    mastery: mastery(masteryResult.data, card.content_version),
-    noteId: card.note_id,
-    prompt,
-    renderer: rendered.renderer,
-    schedule: scheduleResult.data
-      ? {
-          due: scheduleResult.data.due,
-          starred: scheduleResult.data.starred,
-          state: scheduleResult.data.state,
-          version: scheduleResult.data.version,
-        }
-      : null,
-    selectionReason: questionReason(item.question_level, item.attempt_count),
-    session: {
-      completed: session.completed_items,
-      config,
-      id: session.id,
-      items: Object.freeze(
-        (items ?? []).map((candidate) => ({
-          position: candidate.position,
-          status: candidate.status,
-        })),
-      ),
-      mode: session.mode as PracticeMode,
-      status: session.status as "active" | "paused",
-      total: session.total_items,
-      version: session.version,
-    },
+  const masteryByCard = new Map((masteryResult.data ?? []).map((row) => [row.card_id, row]));
+  const rulesByCard = new Map((rulesResult.data ?? []).map((row) => [row.card_id, row.rules]));
+  const scheduleByCard = new Map((scheduleResult.data ?? []).map((row) => [row.card_id, row]));
+  const sessionItems = Object.freeze(
+    (items ?? []).map((candidate) => ({
+      position: candidate.position,
+      status: candidate.status,
+    })),
+  );
+  const sessionView = Object.freeze({
+    completed: session.completed_items,
+    config,
+    id: session.id,
+    items: sessionItems,
+    mode: session.mode as PracticeMode,
+    status: session.status as "active" | "paused",
+    total: session.total_items,
+    version: session.version,
   });
+  return Object.freeze(
+    selectedItems.flatMap((item) => {
+      const card = cardById.get(item.card_id);
+      const deckId = deckIdByCard.get(item.card_id);
+      const deck = deckId ? deckById.get(deckId) : null;
+      const rendered = deck?.cards.find(
+        (candidate) => candidate.id === item.card_id && candidate.active,
+      );
+      if (!card || !deckId || !deck || !rendered) return [];
+      const masteryRow = masteryByCard.get(card.id);
+      const reverse =
+        config.answerDirection === "answer_prompt" ||
+        (config.answerDirection === "mixed" && item.position % 2 === 1);
+      const basePrompt = reverse ? rendered.previewBack : rendered.previewFront;
+      const baseAnswer = reverse ? rendered.previewFront : rendered.previewBack;
+      const generatedChoices = buildChoiceQuestion(
+        {
+          answer: baseAnswer,
+          cardId: rendered.id,
+          difficulty: masteryRow?.overall ?? 0.5,
+          siblingKey: rendered.noteId,
+        },
+        deck.cards
+          .filter((candidate) => candidate.active)
+          .map((candidate) => ({
+            answer: reverse ? candidate.previewFront : candidate.previewBack,
+            cardId: candidate.id,
+            difficulty: 0.5,
+            siblingKey: candidate.noteId,
+          })),
+        `${sessionId}:${String(item.position)}`,
+      ).options.map((choice) => choice.answer);
+      const authoredChoices =
+        rendered.renderer.kind === "multiple_choice" || rendered.renderer.kind === "select_all"
+          ? rendered.renderer.choices.map((choice) => extractRichDocumentText(choice.content))
+          : null;
+      const choices = authoredChoices?.length ? authoredChoices : generatedChoices;
+      const trueFalseAnswer =
+        item.question_kind === "true_false"
+          ? item.position % 2 === 0
+            ? baseAnswer
+            : (choices.find((option) => option !== baseAnswer) ?? `${baseAnswer} (changed)`)
+          : null;
+      const prompt =
+        trueFalseAnswer === null ? basePrompt : `${basePrompt}\n\nClaim: ${trueFalseAnswer}`;
+      const answer =
+        trueFalseAnswer === null ? baseAnswer : trueFalseAnswer === baseAnswer ? "True" : "False";
+      const storedRules = record(rulesByCard.get(card.id));
+      const derivedRules: Readonly<Record<string, unknown>> =
+        rendered.renderer.kind === "typed_answer"
+          ? { aliases: rendered.renderer.acceptedAnswers }
+          : rendered.renderer.kind === "list_answer"
+            ? {
+                list: {
+                  items: rendered.renderer.items.map((entry) => ({
+                    aliases: entry.aliases,
+                    answer: entry.answer,
+                    required: entry.required,
+                  })),
+                  orderMatters: rendered.renderer.orderMatters,
+                },
+              }
+            : {};
+      const schedule = scheduleByCard.get(card.id);
+      return [
+        Object.freeze({
+          answer,
+          answerRules: Object.freeze({ ...derivedRules, ...storedRules }),
+          cardId: card.id,
+          choices: item.question_kind === "true_false" ? ["True", "False"] : choices,
+          correctChoices:
+            item.question_kind === "select_all" && rendered.renderer.kind === "select_all"
+              ? rendered.renderer.choices
+                  .filter((choice) => choice.isCorrect)
+                  .map((choice) => extractRichDocumentText(choice.content))
+              : item.question_kind === "select_all"
+                ? [answer]
+                : [],
+          contentVersion: card.content_version,
+          deckId,
+          deckTitle: deck.title,
+          item: {
+            attemptCount: item.attempt_count,
+            position: item.position,
+            questionKind: item.question_kind,
+            questionLevel: item.question_level as PracticeCardView["item"]["questionLevel"],
+          },
+          mastery: mastery(masteryRow, card.content_version),
+          noteId: card.note_id,
+          prompt,
+          renderer: rendered.renderer,
+          schedule: schedule
+            ? {
+                due: schedule.due,
+                starred: schedule.starred,
+                state: schedule.state,
+                version: schedule.version,
+              }
+            : null,
+          selectionReason: questionReason(item.question_level, item.attempt_count),
+          session: sessionView,
+        } satisfies PracticeCardView),
+      ];
+    }),
+  );
+}
+
+export async function readPracticeCards(
+  sessionId: string,
+  accountId: string,
+  learnerProfileId: string,
+): Promise<readonly PracticeCardView[]> {
+  return readPracticeCardsInternal(sessionId, accountId, learnerProfileId);
+}
+
+export async function readPracticeCard(
+  sessionId: string,
+  accountId: string,
+  learnerProfileId: string,
+  requestedPosition?: number,
+): Promise<PracticeCardView | null> {
+  const cards = await readPracticeCardsInternal(
+    sessionId,
+    accountId,
+    learnerProfileId,
+    requestedPosition ?? 0,
+  );
+  return cards[0] ?? null;
 }
 
 export async function readPracticeSessionSummary(
@@ -477,22 +530,50 @@ export async function readPracticeSessionSummary(
     const reverse =
       config.answerDirection === "answer_prompt" ||
       (config.answerDirection === "mixed" && attempt.item_position % 2 === 1);
+    const basePrompt = rendered
+      ? reverse
+        ? rendered.previewBack
+        : rendered.previewFront
+      : "Question unavailable";
+    const baseAnswer = rendered
+      ? reverse
+        ? rendered.previewFront
+        : rendered.previewBack
+      : "Answer unavailable";
+    const expectedAnswer =
+      item?.question_kind === "true_false"
+        ? attempt.item_position % 2 === 0
+          ? "True"
+          : "False"
+        : item?.question_kind === "select_all" && rendered?.renderer.kind === "select_all"
+          ? rendered.renderer.choices
+              .filter((choice) => choice.isCorrect)
+              .map((choice) => extractRichDocumentText(choice.content))
+              .join(", ")
+          : baseAnswer;
+    const response =
+      item?.question_kind === "select_all" && attempt.response_text
+        ? (() => {
+            try {
+              const selected: unknown = JSON.parse(attempt.response_text);
+              return Array.isArray(selected)
+                ? selected
+                    .filter((choice): choice is string => typeof choice === "string")
+                    .join(", ")
+                : attempt.response_text;
+            } catch {
+              return attempt.response_text;
+            }
+          })()
+        : attempt.response_text;
     return Object.freeze({
       correctness: attempt.correctness,
-      expectedAnswer: rendered
-        ? reverse
-          ? rendered.previewFront
-          : rendered.previewBack
-        : "Answer unavailable",
+      expectedAnswer,
       explanation: attempt.explanation,
       position: attempt.item_position,
-      prompt: rendered
-        ? reverse
-          ? rendered.previewBack
-          : rendered.previewFront
-        : "Question unavailable",
+      prompt: item?.question_kind === "true_false" ? `${basePrompt} (true or false)` : basePrompt,
       questionKind: item?.question_kind ?? "question",
-      response: attempt.response_text,
+      response,
       verdict: attempt.verdict,
     });
   });

@@ -106,7 +106,7 @@ export function PracticeSetup({
     Array.isArray(saved.questionTypes)
       ? saved.questionTypes.filter((item): item is string => typeof item === "string")
       : mode === "test"
-        ? ["multiple_choice", "typed", "true_false"]
+        ? ["multiple_choice", "select_all", "true_false", "typed", "ordering", "list"]
         : ["flashcard", "multiple_choice", "typed"],
   );
   const [hints, setHints] = useState<"off" | "on_request">(
@@ -138,12 +138,6 @@ export function PracticeSetup({
   );
   const [timerMinutes, setTimerMinutes] = useState(Math.max(1, Math.round(savedTimer / 60)));
   const savedTestOptions = preferenceRecord(saved.testOptions);
-  const [reviewPolicy, setReviewPolicy] = useState<"after_each" | "end">(
-    savedTestOptions.reviewPolicy === "after_each" ? "after_each" : "end",
-  );
-  const [testLayout, setTestLayout] = useState<"one_at_a_time" | "one_page">(
-    savedTestOptions.layout === "one_page" ? "one_page" : "one_at_a_time",
-  );
   const [partialCredit, setPartialCredit] = useState(
     preferenceBoolean(savedTestOptions.partialCredit, true),
   );
@@ -200,10 +194,10 @@ export function PracticeSetup({
       tags: selectedTags,
       targetCount,
       testOptions: {
-        layout: testLayout,
+        layout: "one_page" as const,
         partialCredit,
         pauseAllowed,
-        reviewPolicy,
+        reviewPolicy: "end" as const,
       },
       timerSeconds: timed ? timerMinutes * 60 : null,
     };
@@ -476,30 +470,6 @@ export function PracticeSetup({
               <summary>Test behavior</summary>
               <div className="practice-inline-options">
                 <label>
-                  <span>Test layout</span>
-                  <select
-                    value={testLayout}
-                    onChange={(event) =>
-                      setTestLayout(event.target.value as "one_at_a_time" | "one_page")
-                    }
-                  >
-                    <option value="one_at_a_time">One question at a time</option>
-                    <option value="one_page">Answer sheet with question navigation</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Answer review</span>
-                  <select
-                    value={reviewPolicy}
-                    onChange={(event) =>
-                      setReviewPolicy(event.target.value as "after_each" | "end")
-                    }
-                  >
-                    <option value="end">After the test</option>
-                    <option value="after_each">After each answer</option>
-                  </select>
-                </label>
-                <label>
                   <input
                     checked={partialCredit}
                     onChange={(event) => setPartialCredit(event.target.checked)}
@@ -515,6 +485,10 @@ export function PracticeSetup({
                   />{" "}
                   Allow pause and resume
                 </label>
+                <p>
+                  Questions appear together on one scrollable page. Scoring and answer review happen
+                  after you submit.
+                </p>
               </div>
             </details>
           )}
