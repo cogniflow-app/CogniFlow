@@ -20,6 +20,7 @@ const child = spawn(executable, arguments_, {
     ENABLE_PUBLIC_CHILD_CONTENT: "false",
     ENABLE_FREE_TEXT_GAME_CHAT: "false",
     NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+    NEXT_PUBLIC_LOCAL_PWA_TEST_MODE: "true",
     PARENTAL_CONSENT_MODE: "disabled",
   },
   stdio: "inherit",

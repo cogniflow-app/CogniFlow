@@ -28,6 +28,7 @@ import {
   PendingContentMutations,
   performContentMutation,
 } from "@/lib/content/client-mutations";
+import { useOffline } from "@/components/offline/offline-provider.client";
 import type {
   DeckDetail,
   DeckSummary,
@@ -61,6 +62,7 @@ export function DeckCommandBar({ deck }: { readonly deck: DeckSummary }) {
 
 function DeckCommandBarSnapshot({ deck }: { readonly deck: DeckSummary }) {
   const router = useRouter();
+  const offline = useOffline();
   const [title, setTitle] = useState(deck.title);
   const [version, setVersion] = useState(deck.version);
   const [busy, setBusy] = useState(false);
@@ -101,6 +103,36 @@ function DeckCommandBarSnapshot({ deck }: { readonly deck: DeckSummary }) {
     setMessage(null);
     setConflict(null);
     try {
+      if (!navigator.onLine && action !== "duplicate") {
+        const mutationType =
+          action === "archive"
+            ? "archive"
+            : action === "delete"
+              ? "delete"
+              : action === "restore"
+                ? "restore"
+                : "update_deck";
+        await offline.queueContentMutation({
+          baseSnapshot: deck as unknown as Readonly<Record<string, unknown>>,
+          baseVersion: version,
+          changes:
+            action === "archive"
+              ? { archived: true }
+              : action === "restore"
+                ? { archived: false }
+                : action === "delete"
+                  ? { tombstone: true }
+                  : extra,
+          entityId: deck.id,
+          mutationType,
+          operation: `content.deck.${action}`,
+        });
+        setMessage(
+          `${action[0]?.toUpperCase() ?? ""}${action.slice(1)} saved on this browser and waiting to sync.`,
+        );
+        if (action === "delete") router.replace("/app");
+        return;
+      }
       const result = await mutate<{ data: DeckSummary }>({
         body: { action, expectedVersion: version, ...extra },
         operation: `deck-command:${deck.id}:${action}`,
@@ -752,6 +784,7 @@ export function DeckSettingsEditor({ deck }: { readonly deck: DeckDetail }) {
 
 function DeckSettingsSnapshot({ deck }: { readonly deck: DeckDetail }) {
   const router = useRouter();
+  const offline = useOffline();
   const [description, setDescription] = useState(deck.descriptionPlain);
   const [visibility, setVisibility] = useState<DeckVisibility>(deck.visibility);
   const [license, setLicense] = useState(deck.license);
@@ -780,6 +813,30 @@ function DeckSettingsSnapshot({ deck }: { readonly deck: DeckDetail }) {
         license,
         theme,
       };
+      if (!navigator.onLine) {
+        if (action !== "update") {
+          setMessage("Publishing and unpublishing require a connection to verify authorization.");
+          return;
+        }
+        await offline.queueContentMutation({
+          baseSnapshot: deck as unknown as Readonly<Record<string, unknown>>,
+          baseVersion: version,
+          changes: {
+            coverAssetId,
+            descriptionText: description,
+            languageBack: backLanguage,
+            languageFront: frontLanguage,
+            license,
+            theme,
+            visibility,
+          },
+          entityId: deck.id,
+          mutationType: "update_deck",
+          operation: "content.deck.update",
+        });
+        setMessage("Deck details saved on this browser. Publication still requires a connection.");
+        return;
+      }
       const result = await mutate<{ data: DeckSummary }>({
         body: action === "publish" ? { ...settings, visibility } : settings,
         operation: `deck-settings:${deck.id}:${action}`,

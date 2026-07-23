@@ -1,8 +1,11 @@
 # Hosted operations runbook
 
-**Environment:** Phase 02 Preview verified; Production remains on the Phase 01 beta baseline  
-**Last verified:** 2026-07-17  
-**Application phase:** Phase 02 complete on its feature branch; not merged or promoted to Beta
+**Environment:** Production and Beta are synchronized to merged Phase 04; Preview is the only
+permitted Phase 05 proving ground  
+**Last verified:** 2026-07-23  
+**Application phase:** `main`, Vercel Production, and Beta Supabase are at
+`c6821238da4202b260c68bb8413603e55f3aa786` / 52 migrations; Phase 05 remains isolated to its
+feature branch until review and merge
 
 This runbook records the secret-free operating state of the hosted Preview and Production beta
 environments. It is not a public-launch approval. The authoritative variable inventory is
@@ -16,14 +19,14 @@ sessions remain operator-local.
 
 ## Current hosted topology
 
-| Boundary                   | Preview                                                                                                              | Production beta                                                       |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Supabase project reference | `cfwddajyjbueggpzfomh`                                                                                               | `qccbaynfvtyxigiikpmq`                                                |
-| Database role              | Phase 02 feature-branch migration proving ground                                                                     | Post-merge beta database                                              |
-| Vercel deployment          | `https://cogniflow-emqndkvn7-cogniflow-app-3471s-projects.vercel.app`                                                | Canonical: `https://recallflash.com`                                  |
-| Canonical redirects        | Not applicable                                                                                                       | `www` and `cogniflow-pearl.vercel.app` use `308` to the apex          |
-| Application data           | No live acceptance identity, publication, or Storage object; minimized tombstones and required audit evidence remain | No seeded, fixture, test-user, identity, or product data              |
-| Search indexing            | Site-wide `noindex`, `nofollow`                                                                                      | Site-wide `noindex`, `nofollow` while the beta profile remains active |
+| Boundary                   | Preview                                                                                                                     | Production beta                                                       |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Supabase project reference | `cfwddajyjbueggpzfomh`                                                                                                      | `qccbaynfvtyxigiikpmq`                                                |
+| Database role              | Feature-branch migration and disposable acceptance proving ground; Phase 05 may be applied here only after local acceptance | Exact 52-migration Phase 04 `main` schema                             |
+| Vercel deployment          | Use the exact immutable URL returned for the current feature-branch commit; never reuse a historical URL as evidence        | Canonical: `https://recallflash.com`                                  |
+| Canonical redirects        | Not applicable                                                                                                              | `www` and `cogniflow-pearl.vercel.app` use `308` to the apex          |
+| Application data           | No persistent fixture is permitted; guarded runs remove Auth/content/practice/sync/Storage state and verify minimization    | No seeded, fixture, test-user, identity, or product data              |
+| Search indexing            | Site-wide `noindex`, `nofollow`                                                                                             | Site-wide `noindex`, `nofollow` while the beta profile remains active |
 
 The two Supabase projects are independent. Vercel Preview always uses the Preview project, and
 Vercel Production, including `recallflash.com`, always uses the Beta project.
@@ -72,35 +75,37 @@ token. Neither Vercel credential is inherited by Playwright.
 
 ## Hosted database state
 
-The unchanged Production beta baseline has 21 migrations, ending with:
+The current Production beta database has 52 migrations, ending with:
 
 ```text
-20260715006900_hosted_grant_parity.sql
+20260722004000_phase04_planning_and_testing_rpcs.sql
 ```
 
-That final additive migration removes broad `service_role` table and sequence privileges and
-unsafe default privileges that the hosted platform restored independently of the migration SQL.
-It does not delete application data. Both remote histories matched that local committed history at
-the Phase 01 verification point. Preview now has twelve additional Phase 02 migrations; Beta was
-not changed.
+On 2026-07-23, the fixed Beta verifier confirmed that migration history exactly matches merged
+`origin/main` through Phase 04. Vercel Production health independently reported build
+`c6821238da4202b260c68bb8413603e55f3aa786`, `vercelEnvironment: production`,
+`deploymentProfile: vercel_beta`, and Beta project `qccbaynfvtyxigiikpmq`. Child profiles, public
+child content, free-text game chat, OAuth, and external consent remain disabled. No Phase 05
+migration or application commit has been sent to Beta or Production.
 
-At the Phase 01 verification point, both projects confirmed:
+The current verification contract confirms:
 
 - migration history is an exact local/remote match and a subsequent push dry run is empty;
 - database lint has no errors in `public` or `private`;
 - the hosted invariant suite passes for RLS, policies, function security, grants, and exposed
   schema boundaries;
-- Storage has no bucket or object outside the Phase 01 contract;
+- Storage contains only the reviewed content-media bucket contract and no disposable object;
 - schema diff is empty apart from Supabase's fixed, platform-managed `public.rls_auto_enable()`
   helper with `search_path=pg_catalog`;
 - generated database types match the committed schema; and
-- anonymous and authenticated privileges are no broader than the tested Phase 01 policy matrix.
+- anonymous and authenticated privileges are no broader than the complete Phase 00–04 policy
+  matrix.
 
 The deploy and verify wrappers link only the named project, confirm the resulting link, serialize
 hosted operations with a local lock, and unlink in a `finally` path. They do not read a database
 password from repository configuration.
 
-### Phase 02 Preview checkpoint
+### Historical Phase 02 Preview checkpoint
 
 Phase 02 applies these twelve migration files after the 21-migration baseline in Preview only:
 
@@ -667,3 +672,50 @@ removed the disposable Auth/content/practice/guide state, the guarded residual q
 `rows: []`, and recursive content Storage was empty. The post-cleanup verifier passed with the same
 empty dry run, invariants, clean schema diff, generated-type parity, and empty Storage. Beta and
 Production were not deployed or reconfigured.
+
+## Phase 05 Preview deployment and acceptance
+
+Phase 05 adds one migration,
+`20260723000000_phase05_sync_schema.sql`. It may reach only fixed Preview project
+`cfwddajyjbueggpzfomh`, and only after the complete local gate has passed and the exact migration
+and application source are committed. The deploy guard requires a clean tracked migration
+directory:
+
+```bash
+pnpm db:deploy:preview
+pnpm db:verify:preview
+```
+
+Never use `db:deploy:beta`, database reset, seed deployment, migration repair, or configuration
+push for this feature branch. The Preview verifier must prove 53-file history parity, empty dry
+run, hosted invariants, RLS/grants/fixed-search-path indexes, generated-type parity, clean
+public/private schema diff, and recursively empty content Storage before application acceptance.
+
+Push the exact commit only to `codex/phase-05-offline-pwa-sync`, wait for its immutable protected
+Vercel Preview to report Ready, and require `/api/health` to project
+`deploymentProfile: vercel_beta`, `vercelEnvironment: preview`, and Preview Supabase project
+`cfwddajyjbueggpzfomh`. Then run:
+
+```bash
+HOSTED_PREVIEW_URL=https://<exact-ready-preview>.vercel.app pnpm test:hosted:preview
+HOSTED_PREVIEW_URL=https://<exact-ready-preview>.vercel.app pnpm test:hosted:preview:offline
+```
+
+The Phase 05 wrapper reuses the fixed-project ownership attestation, short-lived provider-key
+parent process, credential-scrubbed Playwright sandbox, reserved-address adult fixture, signal-safe
+cleanup, canonical account-deletion minimization, residual-row assertion, and recursive Storage
+proof. `playwright.hosted-offline.config.ts` accepts only this repository's exact protected Preview
+hostname family, requires a parent-generated preflight attestation, enables service workers only
+inside its temporary browser context, and receives neither the Supabase server key nor a Vercel
+bypass secret.
+
+The acceptance must prove manifest/icons, service-worker control, verified private pinning,
+network-loss navigation through the neutral shell, offline review and practice outboxes, offline
+content creation, reconnect synchronization, exact idempotent replay, safe stale-chain conflict
+behavior, Conflict Center resolution, identity-boundary IndexedDB cleanup, and anonymous private
+data isolation. The parent cleanup then removes the disposable Auth user and all active
+content/schedule/review/practice/sync/guide/publication/Storage state while preserving only the
+privacy-minimized tombstones and required audit facts. Rerun `pnpm db:verify:preview` after cleanup
+and record the immutable URL, commit, UTC time, test count, cleanup proof, and final verifier result
+in `IMPLEMENTATION_STATUS.md` and the draft PR. Until that evidence exists, Phase 05 is not
+hosted-verified.

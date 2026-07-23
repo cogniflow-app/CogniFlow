@@ -4,6 +4,7 @@ import { Button, FileIcon, FormField, Input, TrashIcon, UploadIcon } from "@lume
 import { useEffect, useRef, useState } from "react";
 
 import { ContentApiRequestError, PendingContentMutations } from "@/lib/content/client-mutations";
+import { useOffline } from "@/components/offline/offline-provider.client";
 
 export interface UploadedMediaAsset {
   readonly altText: string;
@@ -76,6 +77,7 @@ export function MediaUploader({
   onRemoved,
   onUploaded,
 }: MediaUploaderProps) {
+  const offline = useOffline();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [altText, setAltText] = useState("");
@@ -188,6 +190,42 @@ export function MediaUploader({
       mimeType: file.type,
       transcript: transcript.trim(),
     } as const;
+    if (!navigator.onLine) {
+      try {
+        const temporaryMediaId = await offline.queueMediaUpload({
+          altText: command.altText,
+          blob: file,
+          fileName: command.fileName,
+          kind,
+          mimeType: command.mimeType,
+          sha256: command.hash,
+          transcript: command.transcript,
+        });
+        const asset: UploadedMediaAsset = {
+          altText: command.altText,
+          id: temporaryMediaId,
+          kind,
+          mimeType: command.mimeType,
+          signedUrl: preview,
+          transcript: command.transcript,
+        };
+        setProgress(100);
+        setState("idle");
+        setAttached(asset);
+        setMessage(
+          `${kind === "image" ? "Image" : "Audio"} saved on this browser and waiting to upload.`,
+        );
+        onUploaded(asset);
+      } catch (error) {
+        setState("error");
+        setMessage(
+          error instanceof DOMException && error.name === "QuotaExceededError"
+            ? "Browser storage is full. Clear an offline deck or another local file, then retry."
+            : "This media draft could not be saved on this browser.",
+        );
+      }
+      return;
+    }
     const idempotencyKey = pendingMutations.current.acquire(operation, command);
     const body = new FormData();
     body.set("file", file);

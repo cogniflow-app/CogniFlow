@@ -505,3 +505,25 @@ stays in a browser object URL, is never posted by Phase 04, and is revoked on re
 Text alternatives remain available without microphone or speech APIs. Ordinary practice cannot
 write canonical review state. The only bridge is a server-verified eligible Learn/Write recall,
 learner-selected rating, explicit confirmation, canonical Phase 03 API call, and append-only link.
+
+## Phase 05 browser and synchronization boundary
+
+Private SSR responses are never placed in service-worker Cache Storage. Auth/callback/recovery,
+settings, deletion/export, all mutation APIs, `private`/`no-store`, `Set-Cookie`, opaque, error, and
+cross-origin responses are excluded by allowlist. The neutral offline shell has no user-specific
+server output. Private pinned projections and verified Blobs live only in an exact validated
+account/learner IndexedDB namespace; public content uses a separate cache/namespace.
+
+Every IndexedDB read and sync command is untrusted and runtime-validated. Deterministic
+serialization rejects prototype-pollution keys. Request size, operation count, text/media size,
+cursor count, retries, and conflict summaries are bounded. Server mutation routes reauthorize the
+current Supabase session, registered device, profile, content version, and capability; cached
+capabilities never authorize. Client schedules/mastery, signed media URLs, service keys, database
+credentials, and long-lived custom auth tokens are not stored.
+
+The shared identity-isolation hook clears the active private namespace and profile-bound browser
+state on sign-out, profile switch, guardian exit, account deletion, session expiry, or current
+device revocation, and notifies other tabs. Revocation cannot be learned while fully disconnected;
+the next authorization attempt stops sync. Browser storage is protected only by the browser/OS
+profile—not against a malicious extension, compromised OS, or unlocked shared profile. No
+fingerprinting, behavioral analytics, or offline answer telemetry is added.

@@ -237,3 +237,29 @@ Real visual acceptance covers 1920×1080, 1536×1024, 1440×900, 1366×768, 1280
 1024×768, 768×1024, 430×932, 390×844, 360×800, 320×568, and 1366×640, plus 125% and
 150% zoom, 200% text, long content, dark, serious, and reduced-motion states. Diagnostic captures
 stay under ignored `test-results`; no personal screenshot is committed.
+
+## Phase 05 offline, install, and conflict audit
+
+Phase 05 adds one quiet global text/icon status linking to `/app/offline`; focused Review/Practice
+uses its compact form. Library cards expose **Pin for offline**, verified size/card count, progress,
+failure, and removal without blocking the deck link. The Offline & sync page combines install and
+connection state, typed pending counts, per-deck storage, browser quota/persistence, device media
+preferences, synchronization pause/resume, explicit Sync now, retained failures/dead letters,
+conflicts, and profile/account cleanup.
+
+The neutral `/offline` shell contains no server-rendered identity. It opens only the last validated
+private namespace still present after browser isolation, says authorization was last checked
+online, lists only ready pins, and provides keyboard-operable offline Flashcards. Missing namespace,
+blocked IndexedDB, unpinned content, unavailable media, quota, and upgrade failures fail closed with
+a reconnection/cleanup action. Explicit sign-out removes the namespace so browser Back cannot show
+private deck titles.
+
+Status never relies on color: Offline, Saving locally, Waiting to sync, Syncing, Synced, Needs
+attention, Storage full, and Update available each have text and a symbol plus a live-region
+announcement. Synced is impossible while a critical active-namespace outbox record is pending.
+Install/update prompts are nonblocking, safe-area bounded, dismissible, and absent in standalone
+mode. Conflict and dead-letter rows default to learner language, omit answers/JSON/operation IDs,
+and expose only safe result categories in details. Destructive abandonment and cleanup require
+explicit confirmation. Phase 05 reuses light/dark/serious/reduced-motion tokens and responsive
+single-column fallbacks; production-like PWA and axe/browser matrix evidence is recorded in
+[TESTING.md](./TESTING.md).

@@ -14,8 +14,11 @@ export default defineConfig({
     "**/a11y.spec.ts",
     "**/hosted.spec.ts",
     "**/hosted-content.spec.ts",
+    "**/hosted-offline.spec.ts",
     "**/hosted-practice.spec.ts",
     "**/hosted-srs.spec.ts",
+    "**/phase-five-pwa.spec.ts",
+    "**/phase-five-visual.spec.ts",
   ],
   timeout: 30_000,
   // Local Supabase Auth and PostgREST are a single disposable integration target.

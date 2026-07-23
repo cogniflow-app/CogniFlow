@@ -41,6 +41,7 @@ async function clearMatchingCachesBestEffort(): Promise<void> {
 }
 
 export async function isolateBrowserLearnerContext(reason: string): Promise<void> {
+  const pendingCleanup: Promise<unknown>[] = [];
   clearMatchingStorageBestEffort(() => window.localStorage);
   clearMatchingStorageBestEffort(() => window.sessionStorage);
   try {
@@ -50,7 +51,17 @@ export async function isolateBrowserLearnerContext(reason: string): Promise<void
   }
   await clearMatchingCachesBestEffort();
   try {
-    window.dispatchEvent(new CustomEvent("lumen:identity-boundary", { detail: { reason } }));
+    window.dispatchEvent(
+      new CustomEvent("lumen:identity-boundary", {
+        detail: {
+          reason,
+          waitUntil(promise: Promise<unknown>) {
+            pendingCleanup.push(promise);
+          },
+        },
+      }),
+    );
+    await Promise.allSettled(pendingCleanup);
   } catch {
     // Navigation remains the final authority if an observer rejects the event.
   }

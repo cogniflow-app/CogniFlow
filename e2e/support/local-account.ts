@@ -42,7 +42,7 @@ function serviceHeaders(secretKey: string): HeadersInit {
 export async function provisionAndSignInLocalAuthor(
   page: Page,
   options: LocalAccountOptions,
-): Promise<void> {
+): Promise<{ readonly email: string; readonly password: string }> {
   const { secretKey, supabaseUrl } = requireLocalTestEnvironment();
   const suffix = crypto.randomUUID().replaceAll("-", "");
   const email = `${options.emailPrefix}-${suffix}@example.test`;
@@ -98,4 +98,5 @@ export async function provisionAndSignInLocalAuthor(
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(options.returnTo, { timeout: 20_000 });
+  return { email, password };
 }

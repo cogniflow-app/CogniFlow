@@ -309,3 +309,16 @@ Do not invent environment values for subsystems that do not have a Phase 01/02 v
 Adding a provider or capability later requires a reviewed parser, server-only consumer, validation,
 tests, `.env.example` entry, this inventory update, and provider-secret-store setup. Merely adding a
 value in Vercel does not create a supported integration.
+
+## Phase 05 environment impact
+
+Phase 05 adds no environment variable, provider, credential, bucket, background worker, analytics
+destination, push service, or permanent sync secret. Manifest, service worker, Dexie storage,
+foreground retry, and browser Background Sync are capability-based. `/api/sync/v1` continues to
+use the existing authenticated Supabase client plus the server-only environment-specific
+`SUPABASE_SECRET_KEY` for fixed-search-path RPC execution. Do not pass that key to a service worker,
+browser test, IndexedDB, Cache Storage, or Playwright.
+
+Preview remains bound to Preview Supabase and Production/Beta remains bound to its independent
+project. Only the committed additive Phase 05 migration may be promoted to Preview while the pull
+request is open. No new owner dashboard configuration is required.

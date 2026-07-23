@@ -27,6 +27,7 @@ const primaryItems: readonly WorkspaceNavigationItem[] = [
 const studyItems: readonly WorkspaceNavigationItem[] = [
   { href: "/app/study", icon: PlayIcon, label: "Study" },
   { href: "/app/stats", icon: ListIcon, label: "Statistics" },
+  { href: "/app/offline", icon: LockIcon, label: "Offline & sync" },
   { href: "/app/getting-started", icon: BookOpenIcon, label: "Help & guide" },
 ] as const;
 

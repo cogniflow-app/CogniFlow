@@ -4,6 +4,7 @@ import { Button } from "@lumen/ui";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 
+import { useOffline } from "@/components/offline/offline-provider.client";
 import type { PracticeCardView } from "@/lib/practice/models";
 
 import { recordPracticeAttempt } from "./practice-attempt-client";
@@ -76,6 +77,7 @@ function PracticeMatchBoardReady({
   readonly seriousMode: boolean;
 }) {
   const router = useRouter();
+  const offline = useOffline();
   const [view, setView] = useState<"board" | "list">("board");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [matched, setMatched] = useState<ReadonlySet<number>>(() => new Set());
@@ -194,6 +196,7 @@ function PracticeMatchBoardReady({
         await recordPracticeAttempt({
           card,
           durationMs: performance.now() - (lastMatchAt.current || performance.now()),
+          queueOffline: offline.queuePracticeAttempt,
           response: card.answer,
           responseKind: "match",
           retryCount: mistakes[firstTile.position] ?? 0,
@@ -215,7 +218,16 @@ function PracticeMatchBoardReady({
         setPendingPosition(null);
       }
     },
-    [cardByPosition, cards.length, markWrong, matched, mistakes, pendingPosition, router],
+    [
+      cardByPosition,
+      cards.length,
+      markWrong,
+      matched,
+      mistakes,
+      offline.queuePracticeAttempt,
+      pendingPosition,
+      router,
+    ],
   );
 
   function chooseTile(tile: MatchTile) {
@@ -276,6 +288,7 @@ function PracticeMatchBoardReady({
           durationMs:
             Math.max(0, performance.now() - (lastMatchAt.current || performance.now())) /
             correct.length,
+          queueOffline: offline.queuePracticeAttempt,
           response: card.answer,
           responseKind: "match",
           retryCount: mistakes[card.item.position] ?? 0,

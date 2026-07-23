@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  applyRating,
   createEmptySchedule,
   nextStudyDayBoundary,
   previewRatings,
@@ -29,6 +30,7 @@ import {
 } from "react";
 
 import { StudyCardRenderer } from "@/components/content/study-card-renderer.client";
+import { useOffline } from "@/components/offline/offline-provider.client";
 import type { ReviewCardView, StudySessionSummary } from "@/lib/study/models";
 
 const ratingMeta = [
@@ -50,6 +52,7 @@ export function StudySessionCompletion({
   readonly todayRemaining: number;
 }) {
   const router = useRouter();
+  const offline = useOffline();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const minutes = summary?.durationMs ? Math.max(1, Math.round(summary.durationMs / 60_000)) : 0;
@@ -59,6 +62,11 @@ export function StudySessionCompletion({
     if (!summary?.lastReviewId || submitting) return;
     setSubmitting(true);
     setError(null);
+    if (!navigator.onLine) {
+      await offline.queueReviewUndo(summary.lastReviewId);
+      setSubmitting(false);
+      return;
+    }
     const response = await fetch("/api/study/reviews/undo", {
       body: JSON.stringify({
         idempotencyKey: crypto.randomUUID(),
@@ -205,9 +213,12 @@ export function ReviewSession({
   readonly seriousMode: boolean;
 }) {
   const router = useRouter();
+  const offline = useOffline();
   const [revealed, setRevealed] = useState(false);
   const [flipPhase, setFlipPhase] = useState<"answer" | "prompt" | "turning">("prompt");
   const [submitting, setSubmitting] = useState(false);
+  const [queuedLocally, setQueuedLocally] = useState(false);
+  const [queuedReviewId, setQueuedReviewId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(
     "Prompt ready. Press Space to reveal the answer.",
@@ -300,7 +311,7 @@ export function ReviewSession({
 
   const grade = useCallback(
     async (rating: ReviewRating) => {
-      if (!revealed || submittingRef.current || !online) return;
+      if (!revealed || submittingRef.current || queuedLocally) return;
       const existing = pendingCommand.current;
       const command =
         existing?.rating === rating
@@ -321,12 +332,22 @@ export function ReviewSession({
       setError(null);
       setAnnouncement(`Saving ${rating}…`);
       try {
-        const response = await fetch("/api/study/reviews", {
-          body: JSON.stringify({
+        const transition = applyRating({
+          durationMs: command.durationMs,
+          preset: card.preset,
+          rating,
+          reviewedAt: command.reviewedAt,
+          schedule,
+        });
+        if (!online) {
+          await offline.queueReview({
+            baseScheduleVersion: card.scheduleVersion,
+            beforeSchedule: { ...transition.before },
             cardId: card.cardId,
-            currentScheduleVersion: card.scheduleVersion,
+            deckId: card.deckId,
             durationMs: command.durationMs,
             idempotencyKey: command.idempotencyKey,
+            optimisticSchedule: { ...transition.after },
             rating,
             reviewId: command.reviewId,
             reviewedAt: command.reviewedAt,
@@ -334,10 +355,55 @@ export function ReviewSession({
             studyDayStart: card.session.studyDayStart,
             studySessionId: card.session.id,
             timezone: card.session.timezone,
-          }),
-          headers: { "content-type": "application/json" },
-          method: "POST",
-        });
+          });
+          pendingCommand.current = null;
+          setQueuedLocally(true);
+          setQueuedReviewId(command.reviewId);
+          setAnnouncement(`${rating} saved locally. It is waiting to sync.`);
+          return;
+        }
+        let response: Response;
+        try {
+          response = await fetch("/api/study/reviews", {
+            body: JSON.stringify({
+              cardId: card.cardId,
+              currentScheduleVersion: card.scheduleVersion,
+              durationMs: command.durationMs,
+              idempotencyKey: command.idempotencyKey,
+              rating,
+              reviewId: command.reviewId,
+              reviewedAt: command.reviewedAt,
+              source: normalizedSource(card.session.source),
+              studyDayStart: card.session.studyDayStart,
+              studySessionId: card.session.id,
+              timezone: card.session.timezone,
+            }),
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          });
+        } catch {
+          await offline.queueReview({
+            baseScheduleVersion: card.scheduleVersion,
+            beforeSchedule: { ...transition.before },
+            cardId: card.cardId,
+            deckId: card.deckId,
+            durationMs: command.durationMs,
+            idempotencyKey: command.idempotencyKey,
+            optimisticSchedule: { ...transition.after },
+            rating,
+            reviewId: command.reviewId,
+            reviewedAt: command.reviewedAt,
+            source: normalizedSource(card.session.source),
+            studyDayStart: card.session.studyDayStart,
+            studySessionId: card.session.id,
+            timezone: card.session.timezone,
+          });
+          pendingCommand.current = null;
+          setQueuedLocally(true);
+          setQueuedReviewId(command.reviewId);
+          setAnnouncement(`${rating} saved locally. It is waiting to sync.`);
+          return;
+        }
         const payload = (await response.json().catch(() => ({}))) as {
           readonly error?: { readonly message?: string };
         };
@@ -359,7 +425,7 @@ export function ReviewSession({
         setSubmitting(false);
       }
     },
-    [card, online, revealed, router],
+    [card, offline, online, queuedLocally, revealed, router, schedule],
   );
 
   useEffect(() => {
@@ -391,6 +457,12 @@ export function ReviewSession({
     if (!card.lastReviewId || submitting) return;
     setSubmitting(true);
     setError(null);
+    if (!online) {
+      await offline.queueReviewUndo(card.lastReviewId);
+      setAnnouncement("Undo saved locally and waiting to sync.");
+      setSubmitting(false);
+      return;
+    }
     const response = await fetch("/api/study/reviews/undo", {
       body: JSON.stringify({
         idempotencyKey: crypto.randomUUID(),
@@ -410,6 +482,21 @@ export function ReviewSession({
       router.refresh();
     }
     setSubmitting(false);
+  }
+
+  async function undoPendingReview() {
+    if (!queuedReviewId || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await offline.queueReviewUndo(queuedReviewId);
+      setQueuedReviewId(null);
+      setAnnouncement("Undo saved locally after the pending review. Both will sync in order.");
+    } catch {
+      setError("The pending review undo could not be saved on this browser.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function control(
@@ -776,7 +863,7 @@ export function ReviewSession({
             <RatingGroup>
               {ratingMeta.map((rating) => (
                 <RatingButton
-                  disabled={submitting || !online}
+                  disabled={submitting || queuedLocally}
                   interval={previews?.[rating.key].intervalLabel ?? "Previewing…"}
                   key={rating.key}
                   label={rating.label}
@@ -794,7 +881,7 @@ export function ReviewSession({
 
           {!online && (
             <div className="review-connection-message" role="status">
-              Your card stays here while offline. Reconnect to submit the same rating safely.
+              Ratings save on this browser while offline and remain visible as waiting to sync.
             </div>
           )}
           {swipeSelection && (
@@ -833,6 +920,16 @@ export function ReviewSession({
             {card.lastReviewId && (
               <Button disabled={submitting} onClick={() => void undo()} size="sm" variant="ghost">
                 Undo last
+              </Button>
+            )}
+            {queuedReviewId && (
+              <Button
+                disabled={submitting}
+                onClick={() => void undoPendingReview()}
+                size="sm"
+                variant="ghost"
+              >
+                Undo pending review
               </Button>
             )}
             <a href={`/app/decks/${card.deckId}/edit?note=${card.noteId}`}>Edit card</a>

@@ -125,7 +125,7 @@ test("Phase 04 keeps real gutters, compact cards, and usable guides across the a
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await expectNoHorizontalOverflow(page);
-    const dashboard = page.locator(".study-dashboard");
+    const dashboard = page.locator(".study-dashboard:visible");
     const gutter = await dashboard.evaluate((element) => {
       const style = getComputedStyle(element);
       return Math.min(Number.parseFloat(style.paddingLeft), Number.parseFloat(style.paddingRight));
@@ -151,8 +151,8 @@ test("Phase 04 keeps real gutters, compact cards, and usable guides across the a
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await expectNoHorizontalOverflow(page);
-    const stage = page.locator(".practice-stage");
-    const card = page.locator(".practice-flip-card");
+    const stage = page.locator(".practice-stage:visible");
+    const card = page.locator(".practice-flip-card:visible");
     const [stageBox, cardBox] = await Promise.all([stage.boundingBox(), card.boundingBox()]);
     expect(stageBox).not.toBeNull();
     expect(cardBox).not.toBeNull();

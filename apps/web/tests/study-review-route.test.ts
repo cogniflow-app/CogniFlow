@@ -124,4 +124,92 @@ describe("canonical review route", () => {
       }),
     );
   });
+
+  it("replays a causally later offline rating through the current canonical schedule", async () => {
+    mocks.rpc.mockReset();
+    mocks.rpc
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          buriedUntil: null,
+          preset: { id: ids.preset, version: 1 },
+          rescheduling: true,
+          schedule: {
+            algorithm: "fsrs",
+            difficulty: 5,
+            due: "2026-07-22T00:00:00.000Z",
+            elapsedDays: 1,
+            lapses: 0,
+            lastReviewedAt: "2026-07-21T19:00:00.000Z",
+            learningStep: 0,
+            legacyEaseFactor: null,
+            reps: 2,
+            scheduledDays: 1,
+            schedulerVersion: "lumen-srs/1",
+            stability: 2,
+            state: "review",
+          },
+          scheduleVersion: 2,
+          source: "today",
+          studyDayStart: 240,
+          suspended: false,
+          timezone: "America/Chicago",
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: { scheduleVersion: 3 }, error: null });
+
+    const response = await POST(request(body));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      appliedAfterReplay: true,
+      data: { scheduleVersion: 3 },
+    });
+    expect(mocks.rpc).toHaveBeenNthCalledWith(
+      3,
+      "admin_commit_srs_review_v2",
+      expect.objectContaining({ p_current_schedule_version: 2 }),
+    );
+  });
+
+  it("returns a conflict when an offline event overlaps canonical review time", async () => {
+    mocks.rpc.mockReset();
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: null }).mockResolvedValueOnce({
+      data: {
+        buriedUntil: null,
+        preset: { id: ids.preset, version: 1 },
+        rescheduling: true,
+        schedule: {
+          algorithm: "fsrs",
+          difficulty: 5,
+          due: "2026-07-22T00:00:00.000Z",
+          elapsedDays: 1,
+          lapses: 0,
+          lastReviewedAt: body.reviewedAt,
+          learningStep: 0,
+          legacyEaseFactor: null,
+          reps: 2,
+          scheduledDays: 1,
+          schedulerVersion: "lumen-srs/1",
+          stability: 2,
+          state: "review",
+        },
+        scheduleVersion: 2,
+        source: "today",
+        studyDayStart: 240,
+        suspended: false,
+        timezone: "America/Chicago",
+      },
+      error: null,
+    });
+
+    const response = await POST(request(body));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({ code: "CONFLICT", retryable: false }),
+    );
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+  });
 });

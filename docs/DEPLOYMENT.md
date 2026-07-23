@@ -395,3 +395,23 @@ The first technical prerequisite for any future production child profile is an i
 After that boundary exists, the implemented external verifier still requires reviewed production credentials and live verification against the owner-selected provider. Current hosting, Supabase, email, storage, analytics, monitoring, realtime, and AI terms must be reviewed; parental notice/consent, retention, guardian rights, incident response, and applicable legal obligations must be implemented and reviewed by qualified counsel.
 
 No build, automated test, or generated document can waive either gate.
+
+## Phase 05 PWA deployment
+
+The PWA needs no Next.js plugin or separate deployment. Next serves `/manifest.webmanifest`; the
+checked-in `/sw.js` must be served from the origin root with JavaScript content type and scope `/`.
+The exact deployment must return all three PNG icons and the neutral `/offline` shell before
+installability is accepted. HTTPS is required outside localhost.
+
+Before a Preview application deployment, apply the committed Phase 05 migration only to Preview,
+run `pnpm db:verify:preview`, build the exact branch commit, and run `pnpm test:pwa` locally. After
+Vercel reports the immutable deployment Ready, verify Preview Supabase identity, manifest/icons,
+worker registration/control, pin/offline navigation, reconnect/sync/idempotency, isolation, and
+cleanup through the guarded acceptance process. Never deploy a seed, browser profile, Cache
+Storage directory, IndexedDB dump, or service key. Beta and Production remain unchanged until the
+normal reviewed promotion path.
+
+A worker update is user-applied after critical work is durable. Rollback of application code does
+not roll back IndexedDB; schema changes therefore require backward-compatible additive upgrade
+logic. Recovery and cache-clearing steps are in
+[OFFLINE_PWA_AND_SYNC.md](./OFFLINE_PWA_AND_SYNC.md).

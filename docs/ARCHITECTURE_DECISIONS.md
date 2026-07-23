@@ -1,36 +1,38 @@
 # Architecture decisions
 
 **Project:** Lumen (temporary, configuration-driven brand)  
-**Decision baseline:** Phase 03  
-**Last updated:** 2026-07-21
+**Decision baseline:** Phase 05  
+**Last updated:** 2026-07-23
 
 This file is the architectural decision record (ADR) for implementation choices that affect more than one package or phase. The product target remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md). A later decision must add a new ADR and mark the earlier record superseded; do not silently rewrite a decision after it has shipped.
 
 ## Decision index
 
-| ADR  | Decision                                               | Status                           |
-| ---- | ------------------------------------------------------ | -------------------------------- |
-| 0001 | Pinned Node and pnpm Turborepo workspace               | Accepted                         |
-| 0002 | Mutually compatible dependency baseline                | Accepted                         |
-| 0003 | Framework-independent domain and provider boundaries   | Accepted                         |
-| 0004 | Typed environment and deployment-profile capabilities  | Accepted; qualified by 0015      |
-| 0005 | Accessible, token-driven design system                 | Accepted                         |
-| 0006 | Migration-first Supabase foundation                    | Accepted; qualified by 0012      |
-| 0007 | Vercel beta plus provisional OpenNext portability      | Accepted; qualified by 0015/0016 |
-| 0008 | Layered verification and controlled dependency updates | Accepted                         |
-| 0009 | Account and learner identity are separate boundaries   | Accepted                         |
-| 0010 | Child capability requires a consent-verifier adapter   | Accepted; qualified by 0015      |
-| 0011 | Opaque session, privacy-job, and audit boundaries      | Accepted; qualified by 0015      |
-| 0012 | Narrow public RPC entry points for PostgREST           | Accepted exception               |
-| 0013 | Callback-bound age eligibility                         | Accepted                         |
-| 0014 | Active learner owns the appearance projection          | Accepted; qualified by 0018      |
-| 0015 | Production Auth is HTTPS-only; managed identity is off | Accepted with launch gate        |
-| 0016 | Edge middleware owns portable cookie refresh           | Accepted                         |
-| 0017 | Semantic card identities and frozen publications       | Accepted; qualified by 0019/0020 |
-| 0018 | Mutation-aware appearance and workspace returns        | Accepted; qualifies 0014         |
-| 0019 | Retry-stable atomic authoring and leased media cleanup | Accepted; qualifies 0017         |
-| 0020 | Versioned media graphs and fail-closed projections     | Accepted; qualifies 0017/0019    |
-| 0021 | Trusted SRS calculation plus transactional commit      | Accepted; qualifies 0012         |
+| ADR  | Decision                                                          | Status                           |
+| ---- | ----------------------------------------------------------------- | -------------------------------- |
+| 0001 | Pinned Node and pnpm Turborepo workspace                          | Accepted                         |
+| 0002 | Mutually compatible dependency baseline                           | Accepted                         |
+| 0003 | Framework-independent domain and provider boundaries              | Accepted                         |
+| 0004 | Typed environment and deployment-profile capabilities             | Accepted; qualified by 0015      |
+| 0005 | Accessible, token-driven design system                            | Accepted                         |
+| 0006 | Migration-first Supabase foundation                               | Accepted; qualified by 0012      |
+| 0007 | Vercel beta plus provisional OpenNext portability                 | Accepted; qualified by 0015/0016 |
+| 0008 | Layered verification and controlled dependency updates            | Accepted                         |
+| 0009 | Account and learner identity are separate boundaries              | Accepted                         |
+| 0010 | Child capability requires a consent-verifier adapter              | Accepted; qualified by 0015      |
+| 0011 | Opaque session, privacy-job, and audit boundaries                 | Accepted; qualified by 0015      |
+| 0012 | Narrow public RPC entry points for PostgREST                      | Accepted exception               |
+| 0013 | Callback-bound age eligibility                                    | Accepted                         |
+| 0014 | Active learner owns the appearance projection                     | Accepted; qualified by 0018      |
+| 0015 | Production Auth is HTTPS-only; managed identity is off            | Accepted with launch gate        |
+| 0016 | Edge middleware owns portable cookie refresh                      | Accepted                         |
+| 0017 | Semantic card identities and frozen publications                  | Accepted; qualified by 0019/0020 |
+| 0018 | Mutation-aware appearance and workspace returns                   | Accepted; qualifies 0014         |
+| 0019 | Retry-stable atomic authoring and leased media cleanup            | Accepted; qualifies 0017         |
+| 0020 | Versioned media graphs and fail-closed projections                | Accepted; qualifies 0017/0019    |
+| 0021 | Trusted SRS calculation plus transactional commit                 | Accepted; qualifies 0012         |
+| 0022 | Practice mastery is separate evidence with explicit SRS promotion | Accepted                         |
+| 0023 | Profile-namespaced offline projections and authoritative replay   | Accepted                         |
 
 ## ADR-0001: Pinned Node and pnpm Turborepo workspace
 
@@ -619,3 +621,96 @@ under account/learner RLS. The guide system emits no clickstream and uses no thi
 - Managed/minor answers remain discarded or hash-only; local pronunciation recordings never cross
   the browser boundary.
 - Guide version changes can be offered once without erasing prior completion history.
+
+## ADR-0023: Profile-namespaced offline projections and authoritative replay
+
+**Context.** Phase 05 must make the product useful without a network while preserving the existing
+identity, content, practice, and scheduling authorities. A service worker cache is not an
+authorization system, a browser-computed schedule is not canonical, and a local rich document must
+not overwrite a newer server revision merely because it was edited offline. Shared browsers and
+managed learner sessions also make account/profile isolation a correctness requirement rather than
+an optional cleanup.
+
+**Decision.** Phase 05 uses offline protocol version `1` and IndexedDB schema version `1`.
+`@lumen/offline` owns the framework-independent runtime schemas, deterministic canonical
+serialization and SHA-256 payload fingerprints, causal ordering, retry/dead-letter transitions,
+cursor comparison, merge classification, and the project-owned Dexie repository. The database name
+is a fixed application constant; account IDs and learner-profile IDs are validated UUIDs stored in
+row keys and are never interpolated into database names. Every private record carries the exact
+account/profile namespace. Deliberately public projections use the separate `public` namespace and
+cannot contain learner state, draft fields, membership, or private media locators.
+
+The browser database contains projections and durable commands, never a second authority. Its
+stores cover namespace metadata, pins, deck/card/study-card projections, media manifests/blobs,
+schedule projections, typed outboxes, sessions/items, cursors, device state, receipts, conflicts,
+capabilities/flags, cache/LRU metadata, temporary ID mappings, and worker-update state. Reads are
+validated after IndexedDB returns them. Writes accept only closed schemas. Local schedule and
+mastery values are visibly pending projections; sync submits review/practice evidence, not a trusted
+final schedule or mastery score.
+
+The service worker uses browser-standard APIs and a repository-owned versioned policy rather than a
+Next.js PWA plugin. Next's App Router manifest support supplies install metadata. The worker
+precaches only a deliberately public, user-neutral offline shell and same-origin static assets.
+Authenticated navigation remains network-first and is never written to shared Cache Storage.
+Auth callbacks, recovery/confirmation, account/settings pages, destructive routes, API mutations,
+responses with `Set-Cookie`, and responses marked `private` or `no-store` are never cached. Public
+frozen content may use its own allowlisted stale-while-revalidate cache. Private pinned deck
+content and media live in profile-namespaced IndexedDB. This keeps Cache Storage cleanup simple and
+prevents a private SSR response from surviving sign-out.
+
+One authenticated `/api/sync/v1` boundary negotiates protocol `1`, validates request and operation
+limits, reauthorizes the current account/profile/device, and returns a typed result for every
+operation plus per-stream cursors and server time. It dispatches commands through the same
+canonical Phase 02–04 mutation services/RPCs. A private operation receipt binds account, profile,
+device, operation ID, idempotency key, operation kind, and complete payload fingerprint. Exact
+retries replay the stored result; altered reuse is rejected. Independent operations may partially
+succeed. Causal operations for one entity preserve order and stop behind a retryable predecessor.
+The server may persist only minimal sequence/reference/audit metadata, not duplicate deck,
+schedule, mastery, answer, or media-byte models.
+
+Offline Review stores the acknowledged before-state, base schedule version, rating/time/context,
+and prior local review reference before applying `@lumen/srs` optimistically. Reconnection sends the
+event chain. The server replays through the trusted scheduler and existing locked canonical commit;
+the returned schedule replaces the projection. A stale chain is either deterministically replayed
+or retained as a review conflict. Undo is a compensating event and never deletes review evidence.
+Offline practice stores minimized validated evidence and is regraded/recomputed by the server.
+Ordinary practice cannot create a review; an eligible explicit promotion continues to use the
+existing canonical review path.
+
+Content commands use stable local IDs, base versions, and the existing idempotent atomic authoring
+boundaries. Nonoverlapping scalar fields may auto-merge. Same-field edits, overlapping structured
+rich-document changes, and delete-versus-edit create retained conflicts. Uncertain local work is
+preserved as a recoverable copy; meaningful content never uses silent last-write-wins. Offline
+publication remains prohibited. Media uses content hashes, validated local metadata, quota checks,
+reference-aware LRU cleanup, pending blobs, and the existing server MIME/magic-byte/quota
+validation before temporary IDs are mapped to canonical IDs.
+
+A central namespace manager coordinates tabs using `BroadcastChannel` with storage-event fallback
+and a renewable, expiring leader lease. Sign-out, account deletion, guardian exit, expired session,
+profile switch, or device revocation stop sync, abort foreground work, close transactions, clear
+rendered/query state, delete the affected private IndexedDB rows and Cache Storage entries, and
+notify other tabs. Profile switching adopts the new namespace only after the old namespace is no
+longer renderable. Public cache entries are retained only under explicit public policy. Revocation
+cannot be enforced while a device is disconnected; after the first reconnect, authorization
+failure halts sync, removes inaccessible private data, and explains the outcome.
+
+Worker updates are nonblocking. A waiting worker is activated only after the user accepts and no
+critical study/edit/media/sync transaction is in flight. Durable outbox work survives the update;
+IndexedDB opens/migrates before new application code renders; a failed or future schema version
+fails closed with recovery guidance instead of entering a reload loop. Background Sync is a
+best-effort enhancement. Online, focus, visibility, periodic foreground, and explicit Sync now
+signals provide the required fallback with exponential backoff, bounded deterministic jitter, and
+no busy polling.
+
+**Consequences.**
+
+- Browser storage is protected by the browser/OS account boundary, not encrypted against a
+  malicious extension or compromised operating-system account.
+- Explicit pinning is the only durable offline-availability promise. Optional uncached media is
+  disclosed, and background synchronization is never described as guaranteed.
+- Previously cached public content cannot be remotely erased while the browser remains offline; it
+  is withdrawn on the next authorized reconciliation.
+- Protocol or schema changes require an additive, tested migration and bounded compatibility
+  window. Unsupported future versions fail safely and retain recoverable user work.
+- Phase 06 import/export and Phase 07 collaboration/Yjs remain unstarted; Phase 05 provides only the
+  stable local-ID and structured-merge seams they will consume.

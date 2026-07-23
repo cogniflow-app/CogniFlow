@@ -63,8 +63,12 @@ test("guided learners complete Flashcards and adaptive Learn without a silent SR
 
   await page.goto("/app/study");
   await expect(page.getByRole("heading", { name: "Choose how you want to learn" })).toBeVisible();
-  await expect(page.getByText(/Due dates change only when you explicitly save/i)).toBeVisible();
-  await page.locator('[data-guide-id="mode-flashcards"]').click();
+  await expect(
+    page.locator("main:visible p:visible", {
+      hasText: "Due dates change only when you explicitly save",
+    }),
+  ).toBeVisible();
+  await page.locator('main:visible [data-guide-id="mode-flashcards"]:visible').click();
   await expect(page.getByRole("heading", { name: "Set up Flashcards" })).toBeVisible();
   await page.getByLabel("Questions").fill("1");
   const flashSessionResponse = page.waitForResponse(
@@ -96,7 +100,7 @@ test("guided learners complete Flashcards and adaptive Learn without a silent SR
   await expect(page.getByRole("heading", { name: "You finished the session" })).toBeVisible();
 
   await page.getByRole("link", { name: "Return to Study" }).click();
-  await page.locator('[data-guide-id="mode-learn"]').click();
+  await page.locator('main:visible [data-guide-id="mode-learn"]:visible').click();
   await expect(page.getByRole("heading", { name: "Set up Learn" })).toBeVisible();
   await page.getByLabel("Questions").fill("2");
   const learnSessionResponse = page.waitForResponse(
@@ -144,10 +148,12 @@ test("guided learners complete Flashcards and adaptive Learn without a silent SR
   await expect(page.getByRole("dialog", { name: /Make Lumen yours/i })).toHaveCount(0);
   await page.goto("/app/getting-started");
   await expect(page.getByRole("heading", { name: "Getting started checklist" })).toBeVisible();
-  await expect(page.getByText("Try Flashcards", { exact: true })).toBeVisible();
-  await expect(page.getByText("Complete a short Learn session", { exact: true })).toBeVisible();
+  await expect(page.locator('main:visible strong:visible:text-is("Try Flashcards")')).toBeVisible();
+  await expect(
+    page.locator('main:visible strong:visible:text-is("Complete a short Learn session")'),
+  ).toBeVisible();
   const adaptiveGuide = page
-    .locator(".guide-library article")
+    .locator("main:visible .guide-library article:visible")
     .filter({ hasText: "Use adaptive Learn" });
   await adaptiveGuide.getByRole("button", { name: "Start" }).click();
   const adaptiveGuideDialog = page.getByRole("dialog", { name: "Use adaptive Learn" });

@@ -10,9 +10,9 @@ export const metadata: Metadata = { title: "Sign in" };
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ returnTo?: string }>;
+  searchParams: Promise<{ accessChanged?: string; returnTo?: string }>;
 }) {
-  const { returnTo } = await searchParams;
+  const { accessChanged, returnTo } = await searchParams;
   const safeReturnTo = normalizeAuthenticationReturnUrl(returnTo);
   return (
     <AuthShell
@@ -22,6 +22,12 @@ export default async function SignInPage({
     >
       <div className="auth-card">
         <h2>Sign in</h2>
+        {accessChanged === "1" && (
+          <p role="status">
+            This browser’s access changed while it was disconnected. Private offline data was
+            cleared; sign in again to continue.
+          </p>
+        )}
         <p className="auth-card__intro">
           Use your password, a secure email link, or an available sign-in provider.
         </p>

@@ -15,12 +15,15 @@ import {
 } from "react";
 
 import { StudyCardRenderer } from "@/components/content/study-card-renderer.client";
+import { useOffline } from "@/components/offline/offline-provider.client";
 import {
   practiceModeCopy,
   type PracticeAttemptResult,
   type PracticeCardView,
   type PracticeSessionSummary,
 } from "@/lib/practice/models";
+
+import { recordPracticeAttempt } from "./practice-attempt-client";
 
 interface ApiResponse<T> {
   readonly data?: T;
@@ -190,6 +193,7 @@ export function PracticeSession({
   readonly seriousMode: boolean;
 }) {
   const router = useRouter();
+  const offline = useOffline();
   const startedAt = useRef(performance.now());
   const pointerStart = useRef<number | null>(null);
   const revealTimer = useRef<number | null>(null);
@@ -335,30 +339,20 @@ export function PracticeSession({
     }
     setPending(true);
     setError(null);
-    const attemptId = crypto.randomUUID();
-    const responseRequest = await fetch("/api/practice/attempts", {
-      body: JSON.stringify({
+    let attempt: PracticeAttemptResult;
+    try {
+      attempt = await recordPracticeAttempt({
         answerRevealed: revealed,
-        attemptId,
-        durationMs: Math.max(0, Math.round(performance.now() - startedAt.current)),
+        card,
+        durationMs: performance.now() - startedAt.current,
         hintsUsed: hintUsed ? 1 : 0,
-        idempotencyKey: crypto.randomUUID(),
-        itemPosition: card.item.position,
+        queueOffline: offline.queuePracticeAttempt,
         response: received,
         responseKind,
-        retryCount: 0,
-        selfConfidence: null,
         ...(selfVerdict ? { selfVerdict } : {}),
-        sessionId: card.session.id,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-    const payload = (await responseRequest
-      .json()
-      .catch(() => ({}))) as ApiResponse<PracticeAttemptResult>;
-    if (!responseRequest.ok || !payload.data) {
-      setError(payload.message ?? "The response could not be saved.");
+      });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The response could not be saved.");
       setPending(false);
       return;
     }
@@ -368,11 +362,11 @@ export function PracticeSession({
       router.refresh();
       return;
     }
-    setResult(payload.data);
+    setResult(attempt);
     setRevealed(true);
     setFlipPhase("answer");
-    if (payload.data.qualification.suggestedRating)
-      setSelectedRating(payload.data.qualification.suggestedRating);
+    if (attempt.qualification.suggestedRating)
+      setSelectedRating(attempt.qualification.suggestedRating);
     setPending(false);
   }
 

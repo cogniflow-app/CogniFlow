@@ -4682,6 +4682,73 @@ export type Database = {
           },
         ];
       };
+      sync_device_state: {
+        Row: {
+          account_id: string;
+          created_at: string;
+          device_id: string;
+          last_cursor: number;
+          last_seen_at: string;
+          last_successful_sync_at: string | null;
+          learner_profile_id: string;
+          media_download_preference: string;
+          metered_connection_preference: string;
+          protocol_version: number;
+          synchronization_paused: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          account_id: string;
+          created_at?: string;
+          device_id: string;
+          last_cursor?: number;
+          last_seen_at?: string;
+          last_successful_sync_at?: string | null;
+          learner_profile_id: string;
+          media_download_preference?: string;
+          metered_connection_preference?: string;
+          protocol_version?: number;
+          synchronization_paused?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          account_id?: string;
+          created_at?: string;
+          device_id?: string;
+          last_cursor?: number;
+          last_seen_at?: string;
+          last_successful_sync_at?: string | null;
+          learner_profile_id?: string;
+          media_download_preference?: string;
+          metered_connection_preference?: string;
+          protocol_version?: number;
+          synchronization_paused?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sync_device_state_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sync_device_state_device_id_fkey";
+            columns: ["device_id"];
+            isOneToOne: false;
+            referencedRelation: "devices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sync_device_state_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tags: {
         Row: {
           color: string | null;
@@ -4934,6 +5001,21 @@ export type Database = {
         };
         Returns: Json;
       };
+      admin_begin_sync_operation: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_operation_id: string;
+          p_operation_kind: string;
+          p_payload_fingerprint: string;
+          p_profile_session_id: string;
+          p_protocol_version: number;
+        };
+        Returns: Json;
+      };
       admin_bulk_srs_schedule_control: {
         Args: {
           p_actor_account_id: string;
@@ -5105,6 +5187,23 @@ export type Database = {
           p_lease_token: string;
           p_media_asset_id: string;
           p_succeeded: boolean;
+        };
+        Returns: Json;
+      };
+      admin_complete_sync_operation: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_entity_id: string;
+          p_entity_type: string;
+          p_entity_version: number;
+          p_learner_profile_id: string;
+          p_operation_id: string;
+          p_payload_fingerprint: string;
+          p_profile_session_id: string;
+          p_result: Json;
+          p_tombstone?: boolean;
         };
         Returns: Json;
       };
@@ -5592,6 +5691,18 @@ export type Database = {
         Args: { p_deletion_job_id: string; p_idempotency_key: string };
         Returns: string;
       };
+      admin_pull_sync_changes: {
+        Args: {
+          p_actor_account_id: string;
+          p_after_sequence: number;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_learner_profile_id: string;
+          p_limit?: number;
+          p_profile_session_id: string;
+        };
+        Returns: Json;
+      };
       admin_purge_expired_guest_sessions: {
         Args: { p_before?: string };
         Returns: number;
@@ -6048,6 +6159,19 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      admin_update_sync_device_preferences: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_learner_profile_id: string;
+          p_media_download_preference: string;
+          p_metered_connection_preference: string;
+          p_profile_session_id: string;
+          p_synchronization_paused: boolean;
+        };
+        Returns: Json;
       };
       admin_upsert_accepted_answer_rules: {
         Args: {

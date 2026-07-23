@@ -92,6 +92,9 @@ importers:
       secretlint:
         specifier: 13.0.2
         version: 13.0.2
+      sharp:
+        specifier: 0.34.5
+        version: 0.34.5
       start-server-and-test:
         specifier: 3.0.11
         version: 3.0.11
@@ -143,6 +146,9 @@ importers:
       '@lumen/learning-engine':
         specifier: workspace:*
         version: link:../../packages/learning-engine
+      '@lumen/offline':
+        specifier: workspace:*
+        version: link:../../packages/offline
       '@lumen/srs':
         specifier: workspace:*
         version: link:../../packages/srs
@@ -261,6 +267,19 @@ importers:
       fast-check:
         specifier: 4.9.0
         version: 4.9.0
+
+  packages/offline:
+    dependencies:
+      dexie:
+        specifier: 4.4.4
+        version: 4.4.4
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      fake-indexeddb:
+        specifier: 6.2.5
+        version: 6.2.5
 
   packages/srs:
     dependencies:
@@ -3635,6 +3654,9 @@ packages:
   devtools-protocol@0.0.1608973:
     resolution: {integrity: sha512-Tpm17fxYzt+J7VrGdc1k8YdRqS3YV7se/M6KeemEqvUbq/n7At1rWVuXMxQgpWkdwSdIEKYbU//Bve+Shm4YNQ==}
 
+  dexie@4.4.4:
+    resolution: {integrity: sha512-jIwsYI8Os2hgnqc6O49YwFDKGc5v5QjGx0wPVp543ip1F53VFAKMLthV2pQosQcVTv3eAskTWYspOx195PM0FQ==}
+
   diff-sequences@29.6.3:
     resolution: {integrity: sha512-EjePK1srD3P08o2j4f0ExnylqRs5B9tJjcp9t1krH2qRi8CCdsYfwe9JgSLurFBWwq4uOlipzfk5fHNvwFKr8Q==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
@@ -3987,6 +4009,10 @@ packages:
     resolution: {integrity: sha512-GDhU9ntwuKyGXdZBUgTIe+vXnWj0fppUEtMDL0+idd5Sta8TGpHssn/eusA9mrPr9qNDym6SxAYZjNvCn/9RBg==}
     engines: {node: '>= 10.17.0'}
     hasBin: true
+
+  fake-indexeddb@6.2.5:
+    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
+    engines: {node: '>=18'}
 
   fast-check@4.9.0:
     resolution: {integrity: sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==}
@@ -10005,6 +10031,8 @@ snapshots:
 
   devtools-protocol@0.0.1608973: {}
 
+  dexie@4.4.4: {}
+
   diff-sequences@29.6.3: {}
 
   doctrine@2.1.0:
@@ -10628,6 +10656,8 @@ snapshots:
       '@types/yauzl': 2.10.3
     transitivePeerDependencies:
       - supports-color
+
+  fake-indexeddb@6.2.5: {}
 
   fast-check@4.9.0:
     dependencies:
