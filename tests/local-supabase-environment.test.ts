@@ -2,7 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseSupabaseStatusEnvironment } from "../scripts/local-supabase-environment.mjs";
+import {
+  ensureLocalSupabaseGateway,
+  parseSupabaseStatusEnvironment,
+} from "../scripts/local-supabase-environment.mjs";
 
 describe("local Supabase environment parser", () => {
   it("maps current publishable and secret key names without returning unrelated values", () => {
@@ -39,5 +42,56 @@ SERVICE_ROLE_KEY=legacy-secret
       /required application value/u,
     );
     expect(() => parseSupabaseStatusEnvironment('API_URL="bad\\q"\n')).toThrow(/malformed quoted/u);
+  });
+
+  it("refreshes only the named local gateway when Auth has stale container routing", async () => {
+    const fetchResults = [false, false, true];
+    const executions: Array<{
+      readonly executable: string;
+      readonly arguments_: readonly string[];
+    }> = [];
+
+    const result = await ensureLocalSupabaseGateway(
+      {
+        NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+      },
+      {
+        execFileImplementation: async (executable: string, arguments_: readonly string[]) => {
+          executions.push({ arguments_, executable });
+          return { stderr: "", stdout: "" };
+        },
+        fetchImplementation: async () =>
+          new Response(null, { status: fetchResults.shift() ? 200 : 502 }),
+        readFileImplementation: async () => 'project_id = "lumen-local"\n',
+        waitImplementation: async () => undefined,
+      },
+    );
+
+    expect(result).toEqual({ refreshed: true });
+    expect(executions).toEqual([
+      {
+        arguments_: ["restart", "supabase_kong_lumen-local"],
+        executable: "docker",
+      },
+    ]);
+  });
+
+  it("does not touch Docker when local Auth is already healthy", async () => {
+    let executed = false;
+    const result = await ensureLocalSupabaseGateway(
+      {
+        NEXT_PUBLIC_SUPABASE_URL: "http://localhost:54321",
+      },
+      {
+        execFileImplementation: async () => {
+          executed = true;
+          return { stderr: "", stdout: "" };
+        },
+        fetchImplementation: async () => new Response(null, { status: 200 }),
+      },
+    );
+
+    expect(result).toEqual({ refreshed: false });
+    expect(executed).toBe(false);
   });
 });

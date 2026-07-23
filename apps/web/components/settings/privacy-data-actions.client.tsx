@@ -20,12 +20,38 @@ export function ExportRequestAction() {
         headers: { "Content-Type": "application/json", "X-Lumen-CSRF": "1" },
         method: "POST",
       });
-      const result = (await response.json()) as { message?: string };
+      const result = (await response.json()) as { exportJobId?: string; message?: string };
       if (!response.ok) {
         setMessage(result.message ?? "The export request could not be queued.");
         return;
       }
-      window.location.reload();
+      if (!result.exportJobId) {
+        setMessage("The export request did not return a job.");
+        return;
+      }
+      const archive = await fetch("/api/portability/export", {
+        body: JSON.stringify({
+          adapterCode: "lumen_archive",
+          deckIds: [],
+          fileName: "lumen-account-export",
+          format: "lumen_archive",
+          includeHistory: true,
+          includeMedia: true,
+          includeProgress: true,
+          privacyExportJobId: result.exportJobId,
+          scope: "complete_account",
+          unsupportedCardPolicy: "cancel",
+        }),
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-Lumen-CSRF": "1" },
+        method: "POST",
+      });
+      const archiveResult = (await archive.json()) as { message?: string };
+      if (!archive.ok) {
+        setMessage(archiveResult.message ?? "The account archive could not be generated.");
+        return;
+      }
+      window.location.assign("/app/portability?tab=jobs");
     } catch {
       setMessage("The export service could not be reached.");
     } finally {
@@ -37,11 +63,11 @@ export function ExportRequestAction() {
     <div>
       <Button
         loading={pending}
-        loadingLabel="Requesting export"
+        loadingLabel="Creating archive"
         onClick={() => void requestExport()}
         variant="secondary"
       >
-        Request JSON archive
+        Create account archive
       </Button>
       {message && (
         <p className="mt-2 mb-0 text-sm text-[var(--color-danger)]" role="alert">

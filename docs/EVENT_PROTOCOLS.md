@@ -360,3 +360,14 @@ Exact receipt retries replay; any altered operation/idempotency reuse fails. Raw
 documents, or media bytes are never part of the server change feed or structured logs. Full local
 stores, retry timing, replay, and resolution behavior are in
 [OFFLINE_PWA_AND_SYNC.md](./OFFLINE_PWA_AND_SYNC.md).
+
+## Portability job protocol v1
+
+An owner creates a payload-bound import/export job. A service worker or authenticated bounded
+route claims a 30–900 second lease, validates the stored source fingerprint, records item receipts
+and monotonic checkpoints, then completes, retries, cancels, or yields. Yielding a successful chunk
+releases the lease and removes its running-attempt record so continuation does not spend a retry.
+Changed-payload idempotency replay fails. Cancellation is observed before and between chunks.
+Terminal completion writes one receipt and removes the queue entry. Raw source data and private
+learning payloads never enter queue/attempt logs. See
+[IMPORT_EXPORT_AND_PORTABILITY.md](./IMPORT_EXPORT_AND_PORTABILITY.md).

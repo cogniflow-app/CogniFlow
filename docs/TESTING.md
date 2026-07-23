@@ -5,24 +5,25 @@
 
 ## Test layers
 
-| Layer            | Root command                                               | What it protects                                                                                              | External prerequisite                                                             |
-| ---------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Formatting       | `pnpm format:check`                                        | Deterministic source/config/docs formatting                                                                   | None                                                                              |
-| Secret scan      | `pnpm secret:scan`                                         | Accidental credentials in repository content                                                                  | None                                                                              |
-| Lint/boundaries  | `pnpm lint`                                                | Next/React/a11y rules and forbidden dependency directions                                                     | None                                                                              |
-| Types            | `pnpm typecheck`                                           | Strict package and application contracts                                                                      | None                                                                              |
-| Unit/property/UI | `pnpm test`                                                | Identity plus card/rich/template/generation/media/worker/public-projection contracts and UI behavior          | None                                                                              |
-| Database         | `pnpm test:db`                                             | Migration chain, identity/content grants, RLS actors, version/idempotency/publication/media RPCs, and pgTAP   | Running local Supabase                                                            |
-| Production build | `pnpm build`                                               | Next.js and package production compilation plus fail-fast environment checks                                  | Complete environment values                                                       |
-| Portable build   | `pnpm build:portable`                                      | OpenNext/Cloudflare transform and Edge-middleware compatibility                                               | None for build; no deployment                                                     |
-| End-to-end       | `pnpm test:e2e`                                            | Identity flows plus desktop/mobile deck authoring, publication, preview, cleanup, and appearance persistence  | Local Supabase and pinned Chromium                                                |
-| Accessibility    | `pnpm test:a11y`                                           | axe and keyboard checks across public/Auth plus library, dialogs, rich editor, visual tools, and deck preview | Local Supabase and pinned Chromium                                                |
-| Lighthouse       | `pnpm test:lighthouse`                                     | Public performance/accessibility/best-practice budgets                                                        | Chrome/Chromium                                                                   |
-| Load smoke       | `pnpm test:load`                                           | Real `/api/health` availability and latency threshold                                                         | k6 `2.1.0`                                                                        |
-| Hosted database  | `pnpm db:verify:preview` / `pnpm db:verify:beta`           | Remote migration/grant/RLS/schema/storage/type parity without seed or reset                                   | Authenticated Supabase CLI and explicit operator authority                        |
-| Hosted smoke     | `pnpm test:hosted:preview` / `pnpm test:hosted:production` | Non-mutating public/auth/redirect/neutral-response/header/no-index behavior                                   | Deployed HTTPS URL, Chromium, fresh Vercel auth, and one existing project bypass  |
-| Hosted content   | `pnpm test:hosted:preview:content`                         | Guarded disposable Auth/dashboard/appearance/basic-card/publication flow plus enforced cleanup                | Exact Preview, authenticated Supabase CLI, fresh Vercel auth, and existing bypass |
-| Hosted SRS       | `pnpm test:hosted:preview:srs`                             | Guarded disposable reveal/four-rating/idempotency/undo/resume/statistics/isolation flow plus enforced cleanup | Exact Preview, authenticated Supabase CLI, fresh Vercel auth, and existing bypass |
+| Layer              | Root command                                               | What it protects                                                                                                                        | External prerequisite                                                             |
+| ------------------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Formatting         | `pnpm format:check`                                        | Deterministic source/config/docs formatting                                                                                             | None                                                                              |
+| Secret scan        | `pnpm secret:scan`                                         | Accidental credentials in repository content                                                                                            | None                                                                              |
+| Lint/boundaries    | `pnpm lint`                                                | Next/React/a11y rules and forbidden dependency directions                                                                               | None                                                                              |
+| Types              | `pnpm typecheck`                                           | Strict package and application contracts                                                                                                | None                                                                              |
+| Unit/property/UI   | `pnpm test`                                                | Identity plus card/rich/template/generation/media/worker/public-projection contracts and UI behavior                                    | None                                                                              |
+| Database           | `pnpm test:db`                                             | Migration chain, identity/content grants, RLS actors, version/idempotency/publication/media RPCs, and pgTAP                             | Running local Supabase                                                            |
+| Production build   | `pnpm build`                                               | Next.js and package production compilation plus fail-fast environment checks                                                            | Complete environment values                                                       |
+| Portable build     | `pnpm build:portable`                                      | OpenNext/Cloudflare transform and Edge-middleware compatibility                                                                         | None for build; no deployment                                                     |
+| End-to-end         | `pnpm test:e2e`                                            | Identity flows plus desktop/mobile deck authoring, publication, preview, cleanup, and appearance persistence                            | Local Supabase and pinned Chromium                                                |
+| Accessibility      | `pnpm test:a11y`                                           | axe and keyboard checks across public/Auth plus library, dialogs, rich editor, visual tools, and deck preview                           | Local Supabase and pinned Chromium                                                |
+| Lighthouse         | `pnpm test:lighthouse`                                     | Public performance/accessibility/best-practice budgets                                                                                  | Chrome/Chromium                                                                   |
+| Load smoke         | `pnpm test:load`                                           | Real `/api/health` availability and latency threshold                                                                                   | k6 `2.1.0`                                                                        |
+| Hosted database    | `pnpm db:verify:preview` / `pnpm db:verify:beta`           | Remote migration/grant/RLS/schema/storage/type parity without seed or reset                                                             | Authenticated Supabase CLI and explicit operator authority                        |
+| Hosted smoke       | `pnpm test:hosted:preview` / `pnpm test:hosted:production` | Non-mutating public/auth/redirect/neutral-response/header/no-index behavior                                                             | Deployed HTTPS URL, Chromium, fresh Vercel auth, and one existing project bypass  |
+| Hosted content     | `pnpm test:hosted:preview:content`                         | Guarded disposable Auth/dashboard/appearance/basic-card/publication flow plus enforced cleanup                                          | Exact Preview, authenticated Supabase CLI, fresh Vercel auth, and existing bypass |
+| Hosted SRS         | `pnpm test:hosted:preview:srs`                             | Guarded disposable reveal/four-rating/idempotency/undo/resume/statistics/isolation flow plus enforced cleanup                           | Exact Preview, authenticated Supabase CLI, fresh Vercel auth, and existing bypass |
+| Hosted portability | `pnpm test:hosted:preview:portability`                     | Guarded multi-format import/export, real Anki, encrypted/full archive, clean-account restore, isolation, print, and two-account cleanup | Exact Preview, authenticated Supabase CLI, fresh Vercel auth, and existing bypass |
 
 `pnpm verify` runs the practical local aggregate, including local database reset/tests, database-type drift check, both production builds, browser and accessibility checks, Lighthouse budgets, and the k6 smoke test. It therefore requires Docker/Supabase, Chromium, and k6. The wrapper supplies deterministic, visibly inert configuration values without creating an environment file. Browser/a11y wrappers read the already-running local Supabase URL and generated keys into the child process without printing or writing them. Normal `pnpm build` and deployment builds remain strict and require real configuration. CI invokes the layers explicitly so cleanup and failure-artifact steps are reliable.
 
@@ -558,3 +559,25 @@ migration verification. The guarded parent must retain provider credentials, cre
 adult account, exercise manifest/worker/pin/offline review/practice/content/sync/conflict/isolation,
 run established account-deletion and Storage cleanup, then rerun `pnpm db:verify:preview`. The
 Playwright child must never receive a Supabase service key.
+
+## Phase 06 portability evidence
+
+The import/export package suite covers deterministic format mapping, 100,000-row bounded parsing,
+formula-safe diagnostics, Markdown/Anki media relationships, exact internal archive round-trip,
+encryption, and adversarial ZIP/SQLite/content cases. Worker tests cover claim/checkpoint,
+cancellation, crash/retry, exhausted retry, and operator bounds. Web tests cover every print
+layout/control, private no-cache headers, service-worker exclusions, and portability guides.
+`180_phase06_portability.test.sql` proves RLS, exact grants/search paths, owner/account isolation,
+private object resolution, payload-bound idempotency, leases, checkpoints, continuation yield,
+receipts, cancellation cleanup, expiry/manual deletion, and the private bucket contract. It also
+proves the two-phase service cleanup boundary: claiming never finalizes metadata, only successful
+physical deletion may be confirmed, and account deletion hides/expedites private objects without
+losing retry eligibility.
+
+Final acceptance runs the complete root command matrix from the Phase 06 prompt, not only focused
+tests. The protected hosted parent provisions separate source and clean-restore accounts, keeps
+provider credentials out of Playwright, and always invokes canonical account deletion followed by
+claim/delete/confirm Storage cleanup. Post-cleanup `db:verify:preview` must prove both private
+buckets recursively empty. Visual and hosted Preview evidence is added to
+`IMPLEMENTATION_STATUS.md` only after those runs complete. The format/security/performance fixture
+inventory is in [IMPORT_EXPORT_AND_PORTABILITY.md](./IMPORT_EXPORT_AND_PORTABILITY.md).

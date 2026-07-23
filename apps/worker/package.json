@@ -6,11 +6,13 @@
   "scripts": {
     "lint": "eslint src tests --max-warnings=0",
     "media:deletions": "node src/run-media-deletions.ts",
+    "portability": "node src/run-portability-jobs.ts",
     "test": "vitest run",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
     "@lumen/database": "workspace:*",
+    "@lumen/import-export": "workspace:*",
     "@supabase/supabase-js": "2.110.5"
   }
 }

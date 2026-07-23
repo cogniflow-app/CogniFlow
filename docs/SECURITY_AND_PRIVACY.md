@@ -527,3 +527,17 @@ device revocation, and notifies other tabs. Revocation cannot be learned while f
 the next authorization attempt stops sync. Browser storage is protected only by the browser/OS
 profile—not against a malicious extension, compromised OS, or unlocked shared profile. No
 fingerprinting, behavioral analytics, or offline answer telemetry is added.
+
+## Phase 06 private archives
+
+Portability sources and artifacts use the private `lumen-portability` bucket with no browser
+Storage grants. Every upload/download is owner-authorized at a server boundary; downloads require
+an available, unexpired artifact and return private no-store/anti-sniff headers. The service worker
+bypasses all portability routes. ZIP, SQLite, JSON, template, CSS, MIME/magic, size, checksum,
+encryption, log-minimization, expiration, and cleanup controls are specified in
+[IMPORT_EXPORT_AND_PORTABILITY.md](./IMPORT_EXPORT_AND_PORTABILITY.md).
+
+Complete exports include only data the current owner is entitled to receive. Cross-account restore
+creates fresh identity/session/device state and never restores passwords, provider/server tokens,
+signed URLs, device bypass credentials, consent claims, or access relationships. Archive
+passphrases exist only in request memory.

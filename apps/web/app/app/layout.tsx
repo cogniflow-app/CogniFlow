@@ -3,6 +3,7 @@ import "../phase-two.css";
 import "../product-redesign.css";
 import "../phase-three.css";
 import "../phase-four.css";
+import "../phase-six.css";
 import { brandConfig } from "@lumen/config/brand";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";

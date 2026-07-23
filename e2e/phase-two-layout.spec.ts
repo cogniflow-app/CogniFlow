@@ -303,16 +303,17 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
   await page.goto("/app");
   await expect(page.getByRole("heading", { level: 3, name: "Layout biology" })).toBeVisible();
   const filterBoxes = await page.locator(".library-filter-tabs button").evaluateAll((buttons) =>
-    buttons.map((button) => {
-      const box = button.getBoundingClientRect();
-      return { left: box.left, right: box.right };
-    }),
+    buttons
+      .map((button) => button.getBoundingClientRect())
+      .filter((box) => box.height > 0 && box.width > 0)
+      .map((box) => ({ left: box.left, right: box.right })),
   );
   for (let index = 1; index < filterBoxes.length; index += 1) {
     expect(filterBoxes[index]!.left).toBeGreaterThanOrEqual(filterBoxes[index - 1]!.right);
   }
   const gridWidth = await page
-    .locator(".deck-grid")
+    .locator(".deck-grid:visible")
+    .first()
     .evaluate((grid) => grid.getBoundingClientRect().width);
   expect(gridWidth).toBeGreaterThan(700);
   await capture(page, testInfo, "populated-dashboard-desktop");
@@ -553,11 +554,17 @@ test("Phase 02 product surfaces remain intentional across viewports, themes, and
   await page.evaluate(() => window.scrollTo(0, 0));
   await capture(page, testInfo, "public-player-reduced-motion");
 
-  await page.reload();
   await page.setViewportSize({ height: 568, width: 320 });
-  await page.evaluate(() => {
-    document.documentElement.style.setProperty("font-size", "200%", "important");
+  await page.addInitScript(() => {
+    window.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        document.documentElement.style.setProperty("font-size", "200%", "important");
+      },
+      { once: true },
+    );
   });
+  await page.reload();
   const enlargedPreview = page.getByRole("region", { name: "Flashcard player" });
   await expect(enlargedPreview).toHaveAttribute("data-reduced-motion", "true");
   expect(

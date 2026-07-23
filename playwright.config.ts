@@ -15,6 +15,7 @@ export default defineConfig({
     "**/hosted.spec.ts",
     "**/hosted-content.spec.ts",
     "**/hosted-offline.spec.ts",
+    "**/hosted-portability.spec.ts",
     "**/hosted-practice.spec.ts",
     "**/hosted-srs.spec.ts",
     "**/phase-five-pwa.spec.ts",

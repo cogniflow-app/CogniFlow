@@ -1,17 +1,118 @@
 # Implementation status
 
-**Current phase:** Phase 05 — Offline PWA and synchronization  
-**Status:** Phase 04 and its Match/Test follow-up are merged through PRs #15 and #16. `main`,
-Vercel Production, and Beta Supabase are synchronized to
-`c6821238da4202b260c68bb8413603e55f3aa786` / the 52-migration Phase 04 schema. The Phase 05
-feature branch completes the version-one PWA, private IndexedDB projections, typed outboxes,
-server-authoritative reconciliation, private media pinning, offline UI, and guarded Preview
-acceptance described below. The single additive migration is applied only to Preview; exact-commit
-Vercel acceptance and disposable-data cleanup pass.  
+**Current phase:** Phase 06 — Import, export, and portability  
+**Status:** Phase 05 is merged through PR #17. `main`, Vercel Production, and Beta Supabase are
+synchronized to `2b4e5beb700aa0199831bd024fa2f9fc739d2d0f` / all 53 migrations through
+`20260723000000_phase05_sync_schema.sql`. Production passes the guarded 11-check smoke suite; Beta
+passes migration, invariant, schema-diff, Storage, and generated-type verification. Phase 06 began
+from that clean verified baseline on `codex/phase-06-import-export-portability`; its changes remain
+Preview-only until review and merge.  
 **Evidence date:** 2026-07-23  
-**Next phase:** Phase 06 has not started
+**Next phase:** Phase 07 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
+
+## Phase 06 starting baseline
+
+PR #17 merged at `2b4e5beb700aa0199831bd024fa2f9fc739d2d0f`. Before the Phase 06 branch
+was created, the authorized Phase 05 promotion applied exactly
+`20260723000000_phase05_sync_schema.sql` to fixed Beta project `qccbaynfvtyxigiikpmq`.
+`pnpm db:verify:beta` then confirmed 53 matching migrations, an empty push dry run, 1/1 hosted
+invariants, clean public/private schema diff, generated-type parity, and no unexpected Storage
+object. The previously documented function-volatility diagnostics remain warnings only. Production
+health reported that same full commit, `vercelEnvironment: production`,
+`deploymentProfile: vercel_beta`, and the fixed Beta project; all child/public-child/chat/OAuth
+safety gates remain disabled. `pnpm test:hosted:production --url https://recallflash.com` passed
+11/11 in 11.1 seconds.
+
+The clean merged tree then passed `pnpm install --frozen-lockfile`, a fresh local 53-migration
+`pnpm db:reset`, and `pnpm verify`: formatting, secret scan, dependency/lint boundaries, all 12
+strict TypeScript workspaces, 93 files / 742 unit tests, 23 database files / 971 assertions,
+one-commit/one-stale-conflict SRS concurrency, generated database types, standard and OpenNext
+builds, 36 browser passes / 21 intentional profile skips, 30/30 accessibility checks, Lighthouse
+assertions, and 15/15 k6 checks with 0% failures and 8.85 ms request-duration p95. The dedicated
+`pnpm test:pwa` suite also passed 4/4. Docker `29.6.1` and local Supabase were healthy.
+`apps/web/.env.local` remained ignored/untracked and was never printed. No Phase 06 migration or
+application change has been sent to Beta or Production.
+
+## Phase 06 import, export, and portability
+
+### Completed Phase 06 scope
+
+- Added framework-independent `@lumen/import-export` contracts and a versioned normalized graph
+  spanning folders, decks, note types, templates, notes/cards, media, content history, learner
+  schedules/reviews, practice/mastery, settings, publication metadata, provenance, diagnostics,
+  and explicit loss. Stable lineage IDs and canonical JSON make retries deterministic.
+- Added bounded adapters for pasted/Quizlet-style text, CSV/TSV, generic and versioned JSON,
+  Markdown bundles, real Anki SQLite `.apkg` packages, and lossless Lumen archives. Import offers
+  inspect/map/preview before execution, duplicate and progress policies, row diagnostics, and
+  resumable 500-item mutation chunks; no third-party login, scraping, or credential collection is
+  present.
+- Added canonical ZIP validation, checksum closure, content-addressed media, strict JSON/Markdown
+  boundaries, formula-safe delimited export, bounded in-memory read-only Anki SQLite handling, and
+  authenticated `LUMENENC1` archive encryption. Passphrases remain request-local and are never
+  persisted or logged.
+- Added owner-RLS import/export jobs, private queue leases/checkpoints/receipts, payload-bound
+  idempotency, cancellation/retry/resume, artifact expiry/deletion, and a private
+  `lumen-portability` Storage bucket. Physical cleanup now uses claim, Storage delete, then
+  confirmation; a failed provider deletion remains retryable instead of falsely finalizing
+  metadata.
+- Added the `/app/portability` Import, Export, Backups, Jobs, and Print experience, direct job
+  links, private no-cache download/API behavior, service-worker exclusions, contextual guides,
+  privacy-export integration, clean-account additive restore, complete account archive support,
+  and printable cards/list/table layouts with accessibility and low-stimulation behavior.
+- Added a portable bounded worker/manual cleanup runner and a guarded Preview acceptance harness.
+  The hosted parent provisions separate source and clean-restore adult accounts, retains all
+  provider credentials, tests cross-account artifact isolation, performs canonical account
+  deletion, deletes claimed Storage objects before confirming metadata, and proves both private
+  buckets empty.
+- Hardened the local verification wrapper against post-reset Supabase gateway DNS drift with a
+  loopback-only health probe and an exact-project gateway restart. This recovery cannot target a
+  hosted project or alter provider configuration.
+
+The format capability/loss matrix, hostile-file limits, cleanup protocol, and operational recovery
+rules are in [IMPORT_EXPORT_AND_PORTABILITY.md](./IMPORT_EXPORT_AND_PORTABILITY.md).
+
+### Phase 06 migrations
+
+| Migration                                                    | Purpose                                                                                                                                                                  |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20260724000000_phase06_portability_schema.sql`              | Owner-RLS job/artifact metadata, private queue/upload/receipt state, idempotent owner/service RPCs, account-deletion integration, and private Storage bucket             |
+| `20260724001000_phase06_portability_resume_and_evidence.sql` | Durable item/checkpoint evidence, retry/resume boundaries, artifact/object lifecycle, and expanded privacy-export integration                                            |
+| `20260724002000_phase06_portability_chunk_yield.sql`         | Initial append-only continuation-yield revision; superseded by the later corrective migration rather than edited after application testing                               |
+| `20260724003000_phase06_portability_upload_cleanup.sql`      | Upload cleanup and cancellation/expiry object eligibility                                                                                                                |
+| `20260724004000_phase06_portability_chunk_yield_fix.sql`     | Correct fixed-search-path continuation-yield implementation                                                                                                              |
+| `20260724005000_phase06_account_audit_export.sql`            | Service-only complete account audit/export projection used by lossless archives                                                                                          |
+| `20260724006000_phase06_storage_cleanup_confirmation.sql`    | Two-phase object cleanup claim/confirm contract so metadata becomes deleted only after successful physical Storage removal; account deletion safely expedites tombstones |
+
+Every earlier migration is unchanged. A fresh reset applies all 60 migrations in order and the
+seed inserts no application data. Generated database types match the reset schema.
+
+### Phase 06 local evidence
+
+| Command or evidence                                       | Result                                                                                                                                                                                                                             |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`                          | Exit 0; all 14 workspace projects are current under Node `24.18.0` / pnpm `11.13.0`                                                                                                                                                |
+| `pnpm format:check` / `pnpm secret:scan`                  | Exit 0; formatting accepted and no credential finding                                                                                                                                                                              |
+| `pnpm lint` / `pnpm typecheck`                            | Exit 0; dependency boundaries and all strict TypeScript workspaces pass                                                                                                                                                            |
+| `pnpm test`                                               | Exit 0; 100 files / 794 tests; coverage 71.01% statements, 58.15% branches, 70.96% functions, 73.94% lines                                                                                                                         |
+| `pnpm --filter @lumen/import-export test`                 | Exit 0; 35 deterministic adapter/archive/encryption/Anki/adversarial/performance tests                                                                                                                                             |
+| `pnpm --filter @lumen/worker test`                        | Exit 0; 16 job claim/checkpoint/cancel/crash/retry/exhaustion/bounds/Storage-cleanup tests                                                                                                                                         |
+| `pnpm db:reset` / `pnpm test:db`                          | Exit 0; fresh 60-migration reset; 24 files / 1,028 pgTAP assertions plus SRS concurrency (1 commit, 1 typed stale conflict, 1 immutable log, 25.94 ms)                                                                             |
+| `pnpm db:types:check`                                     | Exit 0 after canonical regeneration; committed generated types match the reset schema                                                                                                                                              |
+| `pnpm build:verify` / verification-wrapped portable build | Exit 0; optimized Next.js produces 96 route/static entries and OpenNext emits `.open-next/worker.js`; the real browser Anki round trip proves the traced `sql.js` WASM boundary                                                    |
+| `pnpm test:pwa`                                           | Exit 0; 4/4 production-mode service-worker/offline matrix scenarios pass, including portability no-cache exclusions                                                                                                                |
+| `pnpm test:e2e`                                           | Exit 0; 40 passed / 23 intentional cross-project skips across desktop, mobile, reduced-motion, authoring, practice, study, identity, portability, and layout workflows                                                             |
+| `pnpm test:a11y`                                          | Exit 0; 30/30 axe, keyboard, focus, theme, serious/reduced-motion, offline-dashboard, and authenticated checks pass                                                                                                                |
+| `pnpm test:lighthouse`                                    | Exit 0; all configured Lighthouse assertions pass                                                                                                                                                                                  |
+| `pnpm test:load`                                          | Exit 0; 15/15 checks, 0% request failures, request-duration p95 7.76 ms                                                                                                                                                            |
+| `pnpm verify`                                             | Exit 0; the aggregate CI-equivalent gate reran every practical local check above against the final Phase 06 tree                                                                                                                   |
+| Portability performance                                   | 10,000-row CSV inspect/map under 5 s; 100,000-row text parse under 10 s; 10,000-note archive create/verify/restore/encrypt under 20 s                                                                                              |
+| Real visual QA                                            | Desktop and mobile import/export/backup/job/print flows, reduced motion, 200% text, and clean-account archive/real-Anki round trips; the mobile stepper was corrected after screenshot/axe inspection and its focused rerun passed |
+
+Hosted Phase 06 evidence is intentionally pending until this exact committed branch passes the
+Preview-only deployment, protected browser suites, canonical cleanup, and post-cleanup database
+verification below. Beta Supabase and Vercel Production remain unchanged.
 
 ## Phase 05 offline PWA and synchronization
 

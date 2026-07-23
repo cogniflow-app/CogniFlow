@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   assertPreviewHealthProjection,
+  cleanupPreviewPortabilityStorage,
   createHostedContentSignalController,
   createHostedAcceptanceCleanupSql,
   createHostedAcceptanceIdentity,
@@ -395,6 +396,50 @@ describe("hosted content acceptance guard", () => {
       "cleaned",
     ]);
     expect(operation).toHaveBeenCalledOnce();
+  });
+
+  it("removes Preview portability bytes before confirming cleanup metadata", async () => {
+    const calls: string[] = [];
+    let claimCount = 0;
+    await expect(
+      cleanupPreviewPortabilityStorage(syntheticModernSecretKey("preview"), {
+        fetchImplementation: async (input, init) => {
+          const url = String(input);
+          calls.push(`${init?.method ?? "GET"} ${new URL(url).pathname}`);
+          const headers = new Headers(init?.headers);
+          expect(headers.get("authorization")).toBe(
+            `Bearer ${syntheticModernSecretKey("preview")}`,
+          );
+          if (url.endsWith("/admin_claim_portability_object_cleanup")) {
+            claimCount += 1;
+            return Response.json(
+              claimCount === 1
+                ? [
+                    {
+                      object_id: "0190d9f0-0000-7000-8000-000000000003",
+                      object_kind: "artifact",
+                      storage_bucket: "lumen-portability",
+                      storage_path: "owner/job/object",
+                    },
+                  ]
+                : [],
+            );
+          }
+          if (url.includes("/storage/v1/object/lumen-portability")) {
+            expect(JSON.parse(String(init?.body))).toEqual({ prefixes: ["owner/job/object"] });
+            return Response.json({ message: "success" });
+          }
+          expect(url).toMatch(/admin_confirm_portability_object_deleted$/u);
+          return Response.json(true);
+        },
+      }),
+    ).resolves.toBeUndefined();
+    expect(calls).toEqual([
+      "POST /rest/v1/rpc/admin_claim_portability_object_cleanup",
+      "DELETE /storage/v1/object/lumen-portability",
+      "POST /rest/v1/rpc/admin_confirm_portability_object_deleted",
+      "POST /rest/v1/rpc/admin_claim_portability_object_cleanup",
+    ]);
   });
 
   it("attempts fixture cleanup exactly once after a signaled Playwright failure", async () => {

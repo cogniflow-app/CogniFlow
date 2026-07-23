@@ -136,11 +136,16 @@ export function createNextConfigForEnvironment(
     },
     poweredByHeader: false,
     reactStrictMode: true,
+    // sql.js locates its reviewed SQLite WASM beside the package at runtime.
+    // Keeping the dependency external preserves that package-relative asset
+    // lookup in Node/serverless bundles instead of rewriting it to a build path.
+    serverExternalPackages: ["sql.js"],
     transpilePackages: [
       "@lumen/auth",
       "@lumen/config",
       "@lumen/database",
       "@lumen/domain",
+      "@lumen/import-export",
       "@lumen/offline",
       "@lumen/ui",
     ],

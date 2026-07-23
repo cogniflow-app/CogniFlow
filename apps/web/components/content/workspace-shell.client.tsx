@@ -75,7 +75,9 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
   const focusMode =
-    pathname.startsWith("/app/study/session/") || pathname.startsWith("/app/practice/session/");
+    pathname.startsWith("/app/study/session/") ||
+    pathname.startsWith("/app/practice/session/") ||
+    pathname.startsWith("/app/portability/print");
 
   if (focusMode) {
     return (

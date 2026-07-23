@@ -263,3 +263,18 @@ and expose only safe result categories in details. Destructive abandonment and c
 explicit confirmation. Phase 05 reuses light/dark/serious/reduced-motion tokens and responsive
 single-column fallbacks; production-like PWA and axe/browser matrix evidence is recorded in
 [TESTING.md](./TESTING.md).
+
+## Phase 06 portability audit
+
+Import & export is an owner-only responsive workspace with Import, Export, Backups, Jobs, and Print
+tabs. Import uses source cards, a six-step semantic stepper, bounded samples, grouped mapping and
+policy controls, a sticky action bar, live progress, expandable warnings, and a downloadable safe
+diagnostic CSV. Job history exposes status, counts, expiration, retry, cancel, download, and file
+deletion without paths or lease details. Print has keyboard-labelled paper, orientation, and margin
+controls and removes application chrome. Contextual guides are restartable and are never
+auto-started for existing users.
+
+The visual acceptance matrix covers the empty/source/mapping/running/result/job/export/backup/print
+states at desktop, tablet, and phone widths in light/dark/serious/reduced-motion modes, plus 200%
+text. Exact evidence is recorded after the final browser run. Format behavior and copy are in
+[IMPORT_EXPORT_AND_PORTABILITY.md](./IMPORT_EXPORT_AND_PORTABILITY.md).
