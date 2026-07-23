@@ -492,3 +492,39 @@ counterpart is `e2e/hosted-srs.spec.ts`, and it may run only through the guarded
 in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). Its final isolation probe uses an independent
 cookie-less transport with only the already-attested, exact-host Vercel bypass cookie; it asserts
 that the streamed sign-in boundary contains no disposable deck title or private statistics.
+
+## Phase 04 practice and guide verification
+
+`packages/grading/tests` covers Unicode/whitespace/case/punctuation/accent normalization, strict/
+moderate/relaxed/custom thresholds, aliases/synonyms/keywords, list and select-all partial credit,
+numeric units/tolerances, bounded arithmetic, edit/token similarity, properties, and the disabled
+semantic-provider boundary. `packages/learning-engine/tests` covers every evidence weight and
+multiplier, decay/content change, stage progression, spaced mastery, candidate scores, anti-repeat/
+sibling/accessibility rules, deterministic distractors, exam feasibility, properties, and
+10,000-candidate selection below 1.5 seconds.
+
+`supabase/tests/160_phase04_practice_and_guides.test.sql` verifies the three migrations, enums,
+constraints, indexes, RLS, exact grants/search paths, account/learner/public isolation, authorized
+session/attempt/test/override/qualification/preference/goal/exam/guide mutations, child response
+minimization, append-only evidence, idempotency/conflicts, account deletion, and the rule that
+ordinary practice cannot create review logs or update schedules.
+
+Web component tests cover staged flip secrecy, reduced motion, practice-only evidence, setup,
+guides, focus/keyboard behavior, persistence, and real completion copy. `phase-four-practice.spec.ts`
+proves guide dismissal/restart, Flashcards, star, Learn pause/resume, adaptive recognition-to-recall,
+explicit qualification, mobile/reduced motion, axe, and zero third-party requests.
+`phase-four-layout.spec.ts` covers the explicit 12-viewport matrix, long data, 125%/150% zoom, 200%
+text, safe gutters, compact cards, guide bounds, dark/serious/reduced states, and no horizontal
+overflow. Its screenshots are ignored diagnostics only.
+
+Hosted Phase 04 acceptance may run only as:
+
+```bash
+HOSTED_PREVIEW_URL=https://<exact-ready-preview>.vercel.app pnpm test:hosted:preview:practice
+```
+
+The guarded parent proves project ownership/health and Preview Supabase identity, keeps credentials
+out of Playwright, provisions one disposable adult identity, exercises first-run guide persistence,
+Flashcards, Test answer-sheet navigation/results, schedule-effect labels, no silent canonical
+review, and anonymous isolation, then always runs established account-deletion/minimization and
+empty-Storage verification. Run `pnpm db:verify:preview` again after cleanup.

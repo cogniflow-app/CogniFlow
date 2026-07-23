@@ -5,6 +5,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { practiceModeCopy, practiceModes, type PracticeHubSnapshot } from "@/lib/practice/models";
 import type { StudyDashboardSnapshot } from "@/lib/study/models";
 
 type StudyMode =
@@ -67,10 +68,12 @@ const wizardModes: readonly StudyMode[] = [
 export function StudyDashboard({
   initialDeckId,
   learnerName,
+  practice,
   snapshot,
 }: {
   readonly initialDeckId?: string | undefined;
   readonly learnerName: string;
+  readonly practice: PracticeHubSnapshot;
   readonly snapshot: StudyDashboardSnapshot;
 }) {
   const router = useRouter();
@@ -276,6 +279,135 @@ export function StudyDashboard({
         />
       </header>
 
+      <section
+        aria-labelledby="practice-modes-heading"
+        className="practice-mode-section"
+        data-guide-id="study-modes"
+      >
+        <div className="practice-mode-section__heading">
+          <div>
+            <p className="eyebrow">Practice lab</p>
+            <h2 id="practice-modes-heading">Choose how you want to learn</h2>
+            <p>
+              Practice builds separate mastery evidence. Your SRS schedule changes only after an
+              eligible recall and your explicit confirmation.
+            </p>
+          </div>
+          <dl className="practice-mastery-glance" aria-label="Practice mastery overview">
+            <div>
+              <dt>Average</dt>
+              <dd>{Math.round(practice.averageMastery * 100)}%</dd>
+            </div>
+            <div>
+              <dt>Mastered</dt>
+              <dd>{practice.masteredCount}</dd>
+            </div>
+            <div>
+              <dt>Needs work</dt>
+              <dd>{practice.weakCount}</dd>
+            </div>
+          </dl>
+        </div>
+        {practice.resumableSession && (
+          <a
+            className="practice-resume-card"
+            href={`/app/practice/session/${practice.resumableSession.id}`}
+          >
+            <span>
+              <strong>Continue {practiceModeCopy[practice.resumableSession.mode].label}</strong>
+              <small>
+                {practice.resumableSession.completed} of {practice.resumableSession.total} complete
+              </small>
+            </span>
+            <span aria-hidden="true">Resume →</span>
+          </a>
+        )}
+        <div className="practice-mode-grid">
+          {practiceModes.map((mode) => {
+            const copy = practiceModeCopy[mode];
+            return (
+              <a
+                className={`practice-mode-card practice-mode-card--${mode}`}
+                data-guide-id={`mode-${mode}`}
+                href={`/app/study/mode/${mode}${initialDeckId ? `?deck=${initialDeckId}` : ""}`}
+                key={mode}
+              >
+                <span className="practice-mode-card__eyebrow">{copy.eyebrow}</span>
+                <strong>{copy.label}</strong>
+                <p>{copy.description}</p>
+                <span className="practice-mode-card__effect">
+                  {mode === "flashcards" || mode === "match" || mode === "test"
+                    ? "Practice only · no due-date changes"
+                    : mode === "pronunciation"
+                      ? "Self-assessment · no silent schedule changes"
+                      : "Builds mastery · schedule only after confirmation"}
+                </span>
+                <small>
+                  {copy.shortcut} · {selectedDeck?.total ?? snapshot.total} available
+                </small>
+              </a>
+            );
+          })}
+        </div>
+        <div className="practice-planning-links">
+          <a href="/app/study/mode/learn?goal=weak">Practice weak areas</a>
+          <a data-guide-id="exam-planning" href="/app/study/plan">
+            Plan for an exam
+          </a>
+          <a data-guide-id="getting-started" href="/app/getting-started">
+            Getting started guide
+          </a>
+          {practice.activeExamPlan && (
+            <span>
+              {practice.activeExamPlan.name} ·{" "}
+              {new Date(practice.activeExamPlan.examAt).toLocaleDateString()}
+            </span>
+          )}
+        </div>
+      </section>
+
+      <section className="practice-progress-strip" aria-labelledby="practice-progress-heading">
+        <div>
+          <p className="eyebrow">Goals & progress</p>
+          <h2 id="practice-progress-heading">Keep the next step useful</h2>
+          <p>
+            {practice.weakCount > 0
+              ? `${String(practice.weakCount)} concept${practice.weakCount === 1 ? " needs" : "s need"} stronger recall.`
+              : "Practice mastery will appear here as you answer real questions."}
+          </p>
+        </div>
+        <div className="practice-progress-strip__actions">
+          <a className="button-link button-link--secondary" href="/app/study/mode/learn?goal=weak">
+            Focus weak areas
+          </a>
+          <a className="button-link button-link--secondary" href="/app/study/plan">
+            {practice.activeExamPlan ? "Adjust exam plan" : "Plan for an exam"}
+          </a>
+        </div>
+        {practice.recentSessions.length > 0 && (
+          <details>
+            <summary>Recent practice ({practice.recentSessions.length})</summary>
+            <ul>
+              {practice.recentSessions.map((session) => (
+                <li key={session.id}>
+                  <span>
+                    <strong>{practiceModeCopy[session.mode].label}</strong>
+                    <small>
+                      {session.completed} of {session.total} completed
+                    </small>
+                  </span>
+                  {session.completedAt && (
+                    <time dateTime={session.completedAt}>
+                      {new Date(session.completedAt).toLocaleDateString()}
+                    </time>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </section>
+
       {snapshot.resumableSession && (
         <section className="study-resume" aria-labelledby="resume-heading">
           <div>
@@ -303,7 +435,11 @@ export function StudyDashboard({
         </p>
       )}
 
-      <section className="study-today-card" aria-labelledby="today-heading">
+      <section
+        className="study-today-card"
+        aria-labelledby="today-heading"
+        data-guide-id="review-today"
+      >
         <div className="study-today-card__lead">
           <div>
             <p className="eyebrow">{selectedDeck ? selectedDeck.name : "Today"}</p>

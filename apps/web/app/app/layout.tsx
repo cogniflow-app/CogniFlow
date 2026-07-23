@@ -2,6 +2,7 @@ import "../phase-one.css";
 import "../phase-two.css";
 import "../product-redesign.css";
 import "../phase-three.css";
+import "../phase-four.css";
 
 import { brandConfig } from "@lumen/config/brand";
 import type { Metadata } from "next";
@@ -11,6 +12,7 @@ import { AccountAppearanceHydrator } from "@/components/account-appearance-hydra
 import { WorkspaceShell } from "@/components/content/workspace-shell.client";
 import { resolveActiveAppearancePreferences } from "@/lib/appearance";
 import { readProtectedReturnTo, requireAccountContext } from "@/lib/server/account-context";
+import { readGlobalGuideProgress } from "@/lib/server/guide-repository";
 
 import { productSans } from "../product-font";
 
@@ -23,15 +25,19 @@ export default async function ProtectedAppLayout({ children }: Readonly<{ childr
     profile: account.profile,
   });
   const learnerName = account.activeLearner.displayName ?? account.activeLearner.pseudonym;
+  const guideProgress = await readGlobalGuideProgress(account.profile.id);
   return (
     <div className={productSans.variable}>
       <AccountAppearanceHydrator preferences={appearance} />
       <WorkspaceShell
         brandName={brandConfig.name}
+        canCreate={account.activeLearner.kind === "self" && account.capabilities.includes("create")}
+        guideProgress={guideProgress}
         learnerContext={
           account.activeLearner.kind === "self" ? "Personal library" : "Managed learner"
         }
         learnerName={learnerName}
+        reducedMotion={appearance.reduceMotion}
         selfMode={account.activeLearner.kind === "self"}
       >
         {children}

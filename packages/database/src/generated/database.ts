@@ -28,6 +28,67 @@ export type Database = {
   };
   public: {
     Tables: {
+      accepted_answer_rules: {
+        Row: {
+          card_id: string;
+          created_at: string;
+          created_by: string;
+          deck_id: string;
+          deleted_at: string | null;
+          id: string;
+          rules: Json;
+          schema_version: number;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          card_id: string;
+          created_at?: string;
+          created_by: string;
+          deck_id: string;
+          deleted_at?: string | null;
+          id: string;
+          rules: Json;
+          schema_version?: number;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          card_id?: string;
+          created_at?: string;
+          created_by?: string;
+          deck_id?: string;
+          deleted_at?: string | null;
+          id?: string;
+          rules?: Json;
+          schema_version?: number;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "accepted_answer_rules_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "accepted_answer_rules_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "accepted_answer_rules_deck_id_fkey";
+            columns: ["deck_id"];
+            isOneToOne: false;
+            referencedRelation: "decks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       account_capabilities: {
         Row: {
           account_id: string;
@@ -63,6 +124,61 @@ export type Database = {
             columns: ["granted_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      answer_overrides: {
+        Row: {
+          actor_account_id: string;
+          created_at: string;
+          id: string;
+          learner_profile_id: string;
+          practice_attempt_id: string;
+          previous_verdict: Database["public"]["Enums"]["practice_verdict"];
+          reason_code: string;
+          replacement_verdict: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Insert: {
+          actor_account_id: string;
+          created_at?: string;
+          id: string;
+          learner_profile_id: string;
+          practice_attempt_id: string;
+          previous_verdict: Database["public"]["Enums"]["practice_verdict"];
+          reason_code: string;
+          replacement_verdict: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Update: {
+          actor_account_id?: string;
+          created_at?: string;
+          id?: string;
+          learner_profile_id?: string;
+          practice_attempt_id?: string;
+          previous_verdict?: Database["public"]["Enums"]["practice_verdict"];
+          reason_code?: string;
+          replacement_verdict?: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "answer_overrides_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "answer_overrides_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "answer_overrides_practice_attempt_id_fkey";
+            columns: ["practice_attempt_id"];
+            isOneToOne: true;
+            referencedRelation: "practice_attempts";
             referencedColumns: ["id"];
           },
         ];
@@ -570,6 +686,66 @@ export type Database = {
             columns: ["note_id"];
             isOneToOne: false;
             referencedRelation: "notes";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      concept_mastery: {
+        Row: {
+          card_id: string;
+          content_version: number;
+          evidence_count: number;
+          last_evidence_at: string | null;
+          learner_profile_id: string;
+          overall: number;
+          recall: number;
+          recognition: number;
+          spaced_recall_successes: number;
+          stage: Database["public"]["Enums"]["mastery_stage"];
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          card_id: string;
+          content_version: number;
+          evidence_count?: number;
+          last_evidence_at?: string | null;
+          learner_profile_id: string;
+          overall?: number;
+          recall?: number;
+          recognition?: number;
+          spaced_recall_successes?: number;
+          stage?: Database["public"]["Enums"]["mastery_stage"];
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          card_id?: string;
+          content_version?: number;
+          evidence_count?: number;
+          last_evidence_at?: string | null;
+          learner_profile_id?: string;
+          overall?: number;
+          recall?: number;
+          recognition?: number;
+          spaced_recall_successes?: number;
+          stage?: Database["public"]["Enums"]["mastery_stage"];
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "concept_mastery_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "concept_mastery_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -1433,6 +1609,72 @@ export type Database = {
           },
         ];
       };
+      exam_plans: {
+        Row: {
+          actor_account_id: string;
+          assumptions: Json;
+          config_schema_version: number;
+          created_at: string;
+          exam_at: string;
+          id: string;
+          learner_profile_id: string;
+          name: string;
+          plan: Json;
+          scope: Json;
+          status: Database["public"]["Enums"]["exam_plan_status"];
+          timezone: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          actor_account_id: string;
+          assumptions: Json;
+          config_schema_version?: number;
+          created_at?: string;
+          exam_at: string;
+          id: string;
+          learner_profile_id: string;
+          name: string;
+          plan: Json;
+          scope: Json;
+          status?: Database["public"]["Enums"]["exam_plan_status"];
+          timezone: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          actor_account_id?: string;
+          assumptions?: Json;
+          config_schema_version?: number;
+          created_at?: string;
+          exam_at?: string;
+          id?: string;
+          learner_profile_id?: string;
+          name?: string;
+          plan?: Json;
+          scope?: Json;
+          status?: Database["public"]["Enums"]["exam_plan_status"];
+          timezone?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "exam_plans_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "exam_plans_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       folder_items: {
         Row: {
           created_at: string;
@@ -1791,6 +2033,66 @@ export type Database = {
             columns: ["owner_account_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      learning_goals: {
+        Row: {
+          actor_account_id: string;
+          completed_at: string | null;
+          created_at: string;
+          goal_type: string;
+          id: string;
+          learner_profile_id: string;
+          name: string;
+          progress: Json;
+          status: Database["public"]["Enums"]["learning_goal_status"];
+          target: Json;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          actor_account_id: string;
+          completed_at?: string | null;
+          created_at?: string;
+          goal_type: string;
+          id: string;
+          learner_profile_id: string;
+          name: string;
+          progress?: Json;
+          status?: Database["public"]["Enums"]["learning_goal_status"];
+          target: Json;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          actor_account_id?: string;
+          completed_at?: string | null;
+          created_at?: string;
+          goal_type?: string;
+          id?: string;
+          learner_profile_id?: string;
+          name?: string;
+          progress?: Json;
+          status?: Database["public"]["Enums"]["learning_goal_status"];
+          target?: Json;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "learning_goals_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "learning_goals_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -2493,6 +2795,634 @@ export type Database = {
           },
         ];
       };
+      personal_bests: {
+        Row: {
+          achieved_at: string;
+          higher_is_better: boolean;
+          learner_profile_id: string;
+          metric: string;
+          mode: Database["public"]["Enums"]["practice_mode"];
+          scope_hash: string;
+          source_practice_session_id: string | null;
+          source_test_attempt_id: string | null;
+          updated_at: string;
+          value: number;
+        };
+        Insert: {
+          achieved_at: string;
+          higher_is_better: boolean;
+          learner_profile_id: string;
+          metric: string;
+          mode: Database["public"]["Enums"]["practice_mode"];
+          scope_hash: string;
+          source_practice_session_id?: string | null;
+          source_test_attempt_id?: string | null;
+          updated_at?: string;
+          value: number;
+        };
+        Update: {
+          achieved_at?: string;
+          higher_is_better?: boolean;
+          learner_profile_id?: string;
+          metric?: string;
+          mode?: Database["public"]["Enums"]["practice_mode"];
+          scope_hash?: string;
+          source_practice_session_id?: string | null;
+          source_test_attempt_id?: string | null;
+          updated_at?: string;
+          value?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "personal_bests_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "personal_bests_source_practice_session_id_fkey";
+            columns: ["source_practice_session_id"];
+            isOneToOne: false;
+            referencedRelation: "practice_sessions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "personal_bests_source_test_attempt_id_fkey";
+            columns: ["source_test_attempt_id"];
+            isOneToOne: false;
+            referencedRelation: "practice_test_attempts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      practice_attempts: {
+        Row: {
+          actor_account_id: string;
+          answer_revealed: boolean;
+          card_id: string;
+          command_hash: string;
+          confidence: number;
+          content_version: number;
+          correctness: number;
+          created_at: string;
+          device_id: string | null;
+          duration_ms: number;
+          explanation: string;
+          hints_used: number;
+          id: string;
+          idempotency_key: string;
+          item_position: number;
+          learner_profile_id: string;
+          matched_rule: string;
+          mode: Database["public"]["Enums"]["practice_mode"];
+          occurred_at: string;
+          practice_session_id: string;
+          qualification_status: Database["public"]["Enums"]["practice_qualification_status"];
+          response_hash: string | null;
+          response_kind: string;
+          response_text: string | null;
+          retention: Database["public"]["Enums"]["answer_retention"];
+          retry_count: number;
+          self_confidence: number | null;
+          suggested_rating: Database["public"]["Enums"]["review_rating"] | null;
+          verdict: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Insert: {
+          actor_account_id: string;
+          answer_revealed?: boolean;
+          card_id: string;
+          command_hash: string;
+          confidence: number;
+          content_version: number;
+          correctness: number;
+          created_at?: string;
+          device_id?: string | null;
+          duration_ms?: number;
+          explanation: string;
+          hints_used?: number;
+          id: string;
+          idempotency_key: string;
+          item_position: number;
+          learner_profile_id: string;
+          matched_rule: string;
+          mode: Database["public"]["Enums"]["practice_mode"];
+          occurred_at: string;
+          practice_session_id: string;
+          qualification_status?: Database["public"]["Enums"]["practice_qualification_status"];
+          response_hash?: string | null;
+          response_kind: string;
+          response_text?: string | null;
+          retention: Database["public"]["Enums"]["answer_retention"];
+          retry_count?: number;
+          self_confidence?: number | null;
+          suggested_rating?: Database["public"]["Enums"]["review_rating"] | null;
+          verdict: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Update: {
+          actor_account_id?: string;
+          answer_revealed?: boolean;
+          card_id?: string;
+          command_hash?: string;
+          confidence?: number;
+          content_version?: number;
+          correctness?: number;
+          created_at?: string;
+          device_id?: string | null;
+          duration_ms?: number;
+          explanation?: string;
+          hints_used?: number;
+          id?: string;
+          idempotency_key?: string;
+          item_position?: number;
+          learner_profile_id?: string;
+          matched_rule?: string;
+          mode?: Database["public"]["Enums"]["practice_mode"];
+          occurred_at?: string;
+          practice_session_id?: string;
+          qualification_status?: Database["public"]["Enums"]["practice_qualification_status"];
+          response_hash?: string | null;
+          response_kind?: string;
+          response_text?: string | null;
+          retention?: Database["public"]["Enums"]["answer_retention"];
+          retry_count?: number;
+          self_confidence?: number | null;
+          suggested_rating?: Database["public"]["Enums"]["review_rating"] | null;
+          verdict?: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_attempts_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_attempts_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_attempts_device_id_fkey";
+            columns: ["device_id"];
+            isOneToOne: false;
+            referencedRelation: "devices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_attempts_item_fk";
+            columns: ["practice_session_id", "item_position"];
+            isOneToOne: false;
+            referencedRelation: "practice_session_items";
+            referencedColumns: ["practice_session_id", "position"];
+          },
+          {
+            foreignKeyName: "practice_attempts_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_attempts_practice_session_id_fkey";
+            columns: ["practice_session_id"];
+            isOneToOne: false;
+            referencedRelation: "practice_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      practice_mode_preferences: {
+        Row: {
+          config: Json;
+          config_schema_version: number;
+          learner_profile_id: string;
+          mode: Database["public"]["Enums"]["practice_mode"];
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          config: Json;
+          config_schema_version?: number;
+          learner_profile_id: string;
+          mode: Database["public"]["Enums"]["practice_mode"];
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          config?: Json;
+          config_schema_version?: number;
+          learner_profile_id?: string;
+          mode?: Database["public"]["Enums"]["practice_mode"];
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_mode_preferences_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      practice_session_items: {
+        Row: {
+          attempt_count: number;
+          card_id: string;
+          completed_at: string | null;
+          position: number;
+          practice_session_id: string;
+          question_kind: string;
+          question_level: string;
+          seed_fragment: string;
+          shown_at: string | null;
+          status: Database["public"]["Enums"]["practice_item_status"];
+        };
+        Insert: {
+          attempt_count?: number;
+          card_id: string;
+          completed_at?: string | null;
+          position: number;
+          practice_session_id: string;
+          question_kind: string;
+          question_level: string;
+          seed_fragment: string;
+          shown_at?: string | null;
+          status?: Database["public"]["Enums"]["practice_item_status"];
+        };
+        Update: {
+          attempt_count?: number;
+          card_id?: string;
+          completed_at?: string | null;
+          position?: number;
+          practice_session_id?: string;
+          question_kind?: string;
+          question_level?: string;
+          seed_fragment?: string;
+          shown_at?: string | null;
+          status?: Database["public"]["Enums"]["practice_item_status"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_session_items_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_session_items_practice_session_id_fkey";
+            columns: ["practice_session_id"];
+            isOneToOne: false;
+            referencedRelation: "practice_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      practice_sessions: {
+        Row: {
+          actor_account_id: string;
+          command_hash: string;
+          completed_at: string | null;
+          completed_items: number;
+          config: Json;
+          config_schema_version: number;
+          id: string;
+          last_activity_at: string;
+          learner_profile_id: string;
+          mode: Database["public"]["Enums"]["practice_mode"];
+          queue_seed: string;
+          scope: Json;
+          started_at: string;
+          status: Database["public"]["Enums"]["practice_session_status"];
+          total_items: number;
+          version: number;
+        };
+        Insert: {
+          actor_account_id: string;
+          command_hash: string;
+          completed_at?: string | null;
+          completed_items?: number;
+          config?: Json;
+          config_schema_version?: number;
+          id: string;
+          last_activity_at?: string;
+          learner_profile_id: string;
+          mode: Database["public"]["Enums"]["practice_mode"];
+          queue_seed: string;
+          scope?: Json;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["practice_session_status"];
+          total_items?: number;
+          version?: number;
+        };
+        Update: {
+          actor_account_id?: string;
+          command_hash?: string;
+          completed_at?: string | null;
+          completed_items?: number;
+          config?: Json;
+          config_schema_version?: number;
+          id?: string;
+          last_activity_at?: string;
+          learner_profile_id?: string;
+          mode?: Database["public"]["Enums"]["practice_mode"];
+          queue_seed?: string;
+          scope?: Json;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["practice_session_status"];
+          total_items?: number;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_sessions_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_sessions_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      practice_srs_qualifications: {
+        Row: {
+          actor_account_id: string;
+          created_at: string;
+          explicitly_accepted_at: string;
+          id: string;
+          learner_profile_id: string;
+          practice_attempt_id: string;
+          review_log_id: string;
+          selected_rating: Database["public"]["Enums"]["review_rating"];
+          suggested_rating: Database["public"]["Enums"]["review_rating"];
+        };
+        Insert: {
+          actor_account_id: string;
+          created_at?: string;
+          explicitly_accepted_at: string;
+          id: string;
+          learner_profile_id: string;
+          practice_attempt_id: string;
+          review_log_id: string;
+          selected_rating: Database["public"]["Enums"]["review_rating"];
+          suggested_rating: Database["public"]["Enums"]["review_rating"];
+        };
+        Update: {
+          actor_account_id?: string;
+          created_at?: string;
+          explicitly_accepted_at?: string;
+          id?: string;
+          learner_profile_id?: string;
+          practice_attempt_id?: string;
+          review_log_id?: string;
+          selected_rating?: Database["public"]["Enums"]["review_rating"];
+          suggested_rating?: Database["public"]["Enums"]["review_rating"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_srs_qualifications_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_srs_qualifications_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_srs_qualifications_practice_attempt_id_fkey";
+            columns: ["practice_attempt_id"];
+            isOneToOne: true;
+            referencedRelation: "practice_attempts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_srs_qualifications_review_log_id_fkey";
+            columns: ["review_log_id"];
+            isOneToOne: true;
+            referencedRelation: "review_logs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      practice_test_attempts: {
+        Row: {
+          actor_account_id: string;
+          answered_count: number;
+          available_points: number;
+          awarded_points: number;
+          completed_at: string | null;
+          definition_id: string;
+          id: string;
+          learner_profile_id: string;
+          practice_session_id: string | null;
+          question_count: number;
+          seed: string;
+          started_at: string;
+          status: Database["public"]["Enums"]["practice_test_status"];
+        };
+        Insert: {
+          actor_account_id: string;
+          answered_count?: number;
+          available_points: number;
+          awarded_points?: number;
+          completed_at?: string | null;
+          definition_id: string;
+          id: string;
+          learner_profile_id: string;
+          practice_session_id?: string | null;
+          question_count: number;
+          seed: string;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["practice_test_status"];
+        };
+        Update: {
+          actor_account_id?: string;
+          answered_count?: number;
+          available_points?: number;
+          awarded_points?: number;
+          completed_at?: string | null;
+          definition_id?: string;
+          id?: string;
+          learner_profile_id?: string;
+          practice_session_id?: string | null;
+          question_count?: number;
+          seed?: string;
+          started_at?: string;
+          status?: Database["public"]["Enums"]["practice_test_status"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_test_attempts_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_test_attempts_definition_id_fkey";
+            columns: ["definition_id"];
+            isOneToOne: false;
+            referencedRelation: "practice_test_definitions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_test_attempts_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_test_attempts_practice_session_id_fkey";
+            columns: ["practice_session_id"];
+            isOneToOne: false;
+            referencedRelation: "practice_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      practice_test_definitions: {
+        Row: {
+          actor_account_id: string;
+          config: Json;
+          config_schema_version: number;
+          created_at: string;
+          deleted_at: string | null;
+          id: string;
+          learner_profile_id: string;
+          name: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          actor_account_id: string;
+          config: Json;
+          config_schema_version?: number;
+          created_at?: string;
+          deleted_at?: string | null;
+          id: string;
+          learner_profile_id: string;
+          name: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          actor_account_id?: string;
+          config?: Json;
+          config_schema_version?: number;
+          created_at?: string;
+          deleted_at?: string | null;
+          id?: string;
+          learner_profile_id?: string;
+          name?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_test_definitions_actor_account_id_fkey";
+            columns: ["actor_account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_test_definitions_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      practice_test_responses: {
+        Row: {
+          available_points: number;
+          awarded_points: number;
+          card_id: string;
+          created_at: string;
+          id: string;
+          learner_profile_id: string;
+          position: number;
+          practice_attempt_id: string | null;
+          practice_test_attempt_id: string;
+          question_kind: string;
+          verdict: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Insert: {
+          available_points: number;
+          awarded_points: number;
+          card_id: string;
+          created_at?: string;
+          id: string;
+          learner_profile_id: string;
+          position: number;
+          practice_attempt_id?: string | null;
+          practice_test_attempt_id: string;
+          question_kind: string;
+          verdict: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Update: {
+          available_points?: number;
+          awarded_points?: number;
+          card_id?: string;
+          created_at?: string;
+          id?: string;
+          learner_profile_id?: string;
+          position?: number;
+          practice_attempt_id?: string | null;
+          practice_test_attempt_id?: string;
+          question_kind?: string;
+          verdict?: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "practice_test_responses_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_test_responses_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_test_responses_practice_attempt_id_fkey";
+            columns: ["practice_attempt_id"];
+            isOneToOne: false;
+            referencedRelation: "practice_attempts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "practice_test_responses_practice_test_attempt_id_fkey";
+            columns: ["practice_test_attempt_id"];
+            isOneToOne: false;
+            referencedRelation: "practice_test_attempts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       privacy_preferences: {
         Row: {
           account_id: string;
@@ -2577,6 +3507,75 @@ export type Database = {
             columns: ["account_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      product_guide_progress: {
+        Row: {
+          account_id: string;
+          completed_at: string | null;
+          created_at: string;
+          current_step: number;
+          dismissed_at: string | null;
+          guide_key: string;
+          guide_version: number;
+          id: string;
+          last_seen_at: string;
+          learner_profile_id: string | null;
+          metadata: Json;
+          metadata_schema_version: number;
+          started_at: string | null;
+          status: Database["public"]["Enums"]["product_guide_status"];
+          updated_at: string;
+        };
+        Insert: {
+          account_id: string;
+          completed_at?: string | null;
+          created_at?: string;
+          current_step?: number;
+          dismissed_at?: string | null;
+          guide_key: string;
+          guide_version: number;
+          id: string;
+          last_seen_at?: string;
+          learner_profile_id?: string | null;
+          metadata?: Json;
+          metadata_schema_version?: number;
+          started_at?: string | null;
+          status?: Database["public"]["Enums"]["product_guide_status"];
+          updated_at?: string;
+        };
+        Update: {
+          account_id?: string;
+          completed_at?: string | null;
+          created_at?: string;
+          current_step?: number;
+          dismissed_at?: string | null;
+          guide_key?: string;
+          guide_version?: number;
+          id?: string;
+          last_seen_at?: string;
+          learner_profile_id?: string | null;
+          metadata?: Json;
+          metadata_schema_version?: number;
+          started_at?: string | null;
+          status?: Database["public"]["Enums"]["product_guide_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "product_guide_progress_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "product_guide_progress_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -4135,6 +5134,19 @@ export type Database = {
           retry_after_seconds: number;
         }[];
       };
+      admin_control_practice_session: {
+        Args: {
+          p_action: string;
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_expected_version: number;
+          p_learner_profile_id: string;
+          p_practice_session_id: string;
+          p_profile_session_id: string;
+        };
+        Returns: Json;
+      };
       admin_control_study_session: {
         Args: {
           p_action: string;
@@ -4196,6 +5208,42 @@ export type Database = {
           guest_session_id: string;
           nickname: string;
         }[];
+      };
+      admin_create_practice_session: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_command_hash: string;
+          p_config: Json;
+          p_config_schema_version: number;
+          p_device_id: string;
+          p_items: Json;
+          p_learner_profile_id: string;
+          p_mode: Database["public"]["Enums"]["practice_mode"];
+          p_practice_session_id: string;
+          p_profile_session_id: string;
+          p_queue_seed: string;
+          p_scope: Json;
+          p_started_at: string;
+        };
+        Returns: Json;
+      };
+      admin_create_practice_test_attempt: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_available_points: number;
+          p_definition_id: string;
+          p_device_id: string;
+          p_learner_profile_id: string;
+          p_practice_session_id: string;
+          p_profile_session_id: string;
+          p_question_count: number;
+          p_seed: string;
+          p_started_at: string;
+          p_test_attempt_id: string;
+        };
+        Returns: Json;
       };
       admin_create_profile_session: {
         Args: {
@@ -4513,6 +5561,21 @@ export type Database = {
         };
         Returns: string;
       };
+      admin_link_practice_srs_qualification: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_explicitly_accepted_at: string;
+          p_learner_profile_id: string;
+          p_practice_attempt_id: string;
+          p_profile_session_id: string;
+          p_qualification_id: string;
+          p_review_log_id: string;
+          p_selected_rating: Database["public"]["Enums"]["review_rating"];
+        };
+        Returns: Json;
+      };
       admin_preview_srs_algorithm_migration: {
         Args: {
           p_actor_account_id: string;
@@ -4532,6 +5595,20 @@ export type Database = {
       admin_purge_expired_guest_sessions: {
         Args: { p_before?: string };
         Returns: number;
+      };
+      admin_record_answer_override: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_learner_profile_id: string;
+          p_override_id: string;
+          p_practice_attempt_id: string;
+          p_profile_session_id: string;
+          p_reason_code: string;
+          p_replacement_verdict: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Returns: Json;
       };
       admin_record_audit_event: {
         Args: {
@@ -4559,6 +5636,79 @@ export type Database = {
           p_verification_method: Database["public"]["Enums"]["consent_verification_method"];
         };
         Returns: string;
+      };
+      admin_record_personal_best: {
+        Args: {
+          p_achieved_at: string;
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_higher_is_better: boolean;
+          p_learner_profile_id: string;
+          p_metric: string;
+          p_mode: Database["public"]["Enums"]["practice_mode"];
+          p_profile_session_id: string;
+          p_scope_hash: string;
+          p_source_practice_session_id: string;
+          p_source_test_attempt_id: string;
+          p_value: number;
+        };
+        Returns: Json;
+      };
+      admin_record_practice_attempt: {
+        Args: {
+          p_actor_account_id: string;
+          p_answer_revealed: boolean;
+          p_auth_session_id: string;
+          p_command_hash: string;
+          p_complete_item: boolean;
+          p_confidence: number;
+          p_content_version: number;
+          p_correctness: number;
+          p_device_id: string;
+          p_duration_ms: number;
+          p_expected_mastery_version: number;
+          p_explanation: string;
+          p_hints_used: number;
+          p_idempotency_key: string;
+          p_item_position: number;
+          p_learner_profile_id: string;
+          p_matched_rule: string;
+          p_new_mastery: Json;
+          p_occurred_at: string;
+          p_practice_attempt_id: string;
+          p_practice_session_id: string;
+          p_profile_session_id: string;
+          p_response_hash: string;
+          p_response_kind: string;
+          p_response_text: string;
+          p_retention: Database["public"]["Enums"]["answer_retention"];
+          p_retry_count: number;
+          p_self_confidence: number;
+          p_suggested_rating: Database["public"]["Enums"]["review_rating"];
+          p_verdict: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Returns: Json;
+      };
+      admin_record_practice_test_response: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_available_points: number;
+          p_awarded_points: number;
+          p_card_id: string;
+          p_device_id: string;
+          p_learner_profile_id: string;
+          p_occurred_at: string;
+          p_position: number;
+          p_practice_attempt_id: string;
+          p_profile_session_id: string;
+          p_question_kind: string;
+          p_response_id: string;
+          p_test_attempt_id: string;
+          p_verdict: Database["public"]["Enums"]["practice_verdict"];
+        };
+        Returns: Json;
       };
       admin_register_device: {
         Args: {
@@ -4898,6 +6048,109 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      admin_upsert_accepted_answer_rules: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_card_id: string;
+          p_device_id: string;
+          p_expected_version: number;
+          p_learner_profile_id: string;
+          p_profile_session_id: string;
+          p_rule_id: string;
+          p_rules: Json;
+          p_schema_version: number;
+        };
+        Returns: Json;
+      };
+      admin_upsert_exam_plan: {
+        Args: {
+          p_actor_account_id: string;
+          p_assumptions: Json;
+          p_auth_session_id: string;
+          p_config_schema_version: number;
+          p_device_id: string;
+          p_exam_at: string;
+          p_exam_plan_id: string;
+          p_expected_version: number;
+          p_learner_profile_id: string;
+          p_name: string;
+          p_occurred_at: string;
+          p_plan: Json;
+          p_profile_session_id: string;
+          p_scope: Json;
+          p_status: Database["public"]["Enums"]["exam_plan_status"];
+          p_timezone: string;
+        };
+        Returns: Json;
+      };
+      admin_upsert_learning_goal: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_device_id: string;
+          p_expected_version: number;
+          p_goal_id: string;
+          p_goal_type: string;
+          p_learner_profile_id: string;
+          p_name: string;
+          p_occurred_at: string;
+          p_profile_session_id: string;
+          p_progress: Json;
+          p_status: Database["public"]["Enums"]["learning_goal_status"];
+          p_target: Json;
+        };
+        Returns: Json;
+      };
+      admin_upsert_practice_mode_preference: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_config: Json;
+          p_config_schema_version: number;
+          p_device_id: string;
+          p_expected_version: number;
+          p_learner_profile_id: string;
+          p_mode: Database["public"]["Enums"]["practice_mode"];
+          p_profile_session_id: string;
+        };
+        Returns: Json;
+      };
+      admin_upsert_practice_test_definition: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_config: Json;
+          p_config_schema_version: number;
+          p_definition_id: string;
+          p_device_id: string;
+          p_expected_version: number;
+          p_learner_profile_id: string;
+          p_name: string;
+          p_occurred_at: string;
+          p_profile_session_id: string;
+        };
+        Returns: Json;
+      };
+      admin_upsert_product_guide_progress: {
+        Args: {
+          p_actor_account_id: string;
+          p_auth_session_id: string;
+          p_context_learner_profile_id: string;
+          p_current_step: number;
+          p_device_id: string;
+          p_guide_key: string;
+          p_guide_version: number;
+          p_learner_profile_id: string;
+          p_metadata: Json;
+          p_metadata_schema_version: number;
+          p_profile_session_id: string;
+          p_progress_id: string;
+          p_seen_at: string;
+          p_status: Database["public"]["Enums"]["product_guide_status"];
+        };
+        Returns: Json;
       };
       admin_verify_learner_profile_credentials: {
         Args: {
@@ -6204,6 +7457,7 @@ export type Database = {
       account_capability: "learn" | "create" | "host" | "teach";
       account_status: "onboarding" | "active" | "pending_deletion" | "suspended" | "deleted";
       age_band: "under_13" | "teen" | "adult" | "unknown";
+      answer_retention: "discarded" | "hash_only" | "minimized_text";
       audit_actor_type: "account" | "learner_profile" | "guest" | "system";
       card_kind:
         | "basic"
@@ -6243,6 +7497,7 @@ export type Database = {
       deck_status: "active" | "archived" | "moderated" | "deleted";
       deck_visibility: "private" | "unlisted" | "public";
       diagram_prompt_direction: "hotspot_to_label" | "label_to_hotspot" | "bidirectional";
+      exam_plan_status: "active" | "completed" | "archived";
       folder_status: "active" | "deleted";
       geometry_kind: "rectangle" | "ellipse" | "polygon";
       guardian_relationship_status: "pending" | "active" | "revoked";
@@ -6258,6 +7513,15 @@ export type Database = {
         | "observe";
       learner_profile_kind: "self" | "child" | "school_managed";
       learner_profile_status: "pending_consent" | "active" | "locked" | "suspended" | "deleted";
+      learning_goal_status: "active" | "completed" | "archived";
+      mastery_stage:
+        | "unseen"
+        | "introduced"
+        | "recognition"
+        | "guided_recall"
+        | "free_recall"
+        | "mastered"
+        | "needs_refresh";
       media_kind: "image" | "audio";
       media_reference_purpose:
         "cover" | "inline" | "attachment" | "prompt" | "answer" | "reference";
@@ -6275,7 +7539,15 @@ export type Database = {
       new_review_mix: "before" | "after" | "interleave";
       note_field_type: "rich_text" | "plain_text" | "boolean" | "number" | "list" | "media";
       occlusion_mode: "hide_one_reveal_others" | "hide_all_reveal_one";
+      practice_item_status: "pending" | "shown" | "answered" | "skipped";
+      practice_mode:
+        "flashcards" | "learn" | "write" | "test" | "match" | "spell" | "pronunciation" | "diagram";
+      practice_qualification_status: "not_eligible" | "eligible" | "qualified";
+      practice_session_status: "active" | "paused" | "completed" | "abandoned";
+      practice_test_status: "active" | "completed" | "abandoned";
+      practice_verdict: "correct" | "partial" | "incorrect" | "needs_review";
       privacy_request_type: "access" | "export" | "deletion" | "correction";
+      product_guide_status: "not_started" | "in_progress" | "completed" | "dismissed";
       reauthentication_purpose: "account_deletion" | "security_change";
       request_status: "queued" | "processing" | "completed" | "failed" | "cancelled";
       review_card_order: "due" | "relative_overdueness" | "retrievability" | "random";
@@ -6456,6 +7728,7 @@ export const Constants = {
       account_capability: ["learn", "create", "host", "teach"],
       account_status: ["onboarding", "active", "pending_deletion", "suspended", "deleted"],
       age_band: ["under_13", "teen", "adult", "unknown"],
+      answer_retention: ["discarded", "hash_only", "minimized_text"],
       audit_actor_type: ["account", "learner_profile", "guest", "system"],
       card_kind: [
         "basic",
@@ -6506,6 +7779,7 @@ export const Constants = {
       deck_status: ["active", "archived", "moderated", "deleted"],
       deck_visibility: ["private", "unlisted", "public"],
       diagram_prompt_direction: ["hotspot_to_label", "label_to_hotspot", "bidirectional"],
+      exam_plan_status: ["active", "completed", "archived"],
       folder_status: ["active", "deleted"],
       geometry_kind: ["rectangle", "ellipse", "polygon"],
       guardian_relationship_status: ["pending", "active", "revoked"],
@@ -6522,6 +7796,16 @@ export const Constants = {
       ],
       learner_profile_kind: ["self", "child", "school_managed"],
       learner_profile_status: ["pending_consent", "active", "locked", "suspended", "deleted"],
+      learning_goal_status: ["active", "completed", "archived"],
+      mastery_stage: [
+        "unseen",
+        "introduced",
+        "recognition",
+        "guided_recall",
+        "free_recall",
+        "mastered",
+        "needs_refresh",
+      ],
       media_kind: ["image", "audio"],
       media_reference_purpose: ["cover", "inline", "attachment", "prompt", "answer", "reference"],
       media_reference_type: [
@@ -6539,7 +7823,23 @@ export const Constants = {
       new_review_mix: ["before", "after", "interleave"],
       note_field_type: ["rich_text", "plain_text", "boolean", "number", "list", "media"],
       occlusion_mode: ["hide_one_reveal_others", "hide_all_reveal_one"],
+      practice_item_status: ["pending", "shown", "answered", "skipped"],
+      practice_mode: [
+        "flashcards",
+        "learn",
+        "write",
+        "test",
+        "match",
+        "spell",
+        "pronunciation",
+        "diagram",
+      ],
+      practice_qualification_status: ["not_eligible", "eligible", "qualified"],
+      practice_session_status: ["active", "paused", "completed", "abandoned"],
+      practice_test_status: ["active", "completed", "abandoned"],
+      practice_verdict: ["correct", "partial", "incorrect", "needs_review"],
       privacy_request_type: ["access", "export", "deletion", "correction"],
+      product_guide_status: ["not_started", "in_progress", "completed", "dismissed"],
       reauthentication_purpose: ["account_deletion", "security_change"],
       request_status: ["queued", "processing", "completed", "failed", "cancelled"],
       review_card_order: ["due", "relative_overdueness", "retrievability", "random"],

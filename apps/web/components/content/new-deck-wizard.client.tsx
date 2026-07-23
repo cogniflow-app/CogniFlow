@@ -93,7 +93,7 @@ export function NewDeckWizard({ folders = [] }: { readonly folders?: readonly Fo
   }
 
   return (
-    <ProductPage className="editor-shell deck-creation-shell">
+    <ProductPage className="editor-shell deck-creation-shell" data-guide-id="new-deck-wizard">
       <header className="editor-titlebar deck-creation-header">
         <div>
           <ol aria-label="Breadcrumb" className="breadcrumb-list">

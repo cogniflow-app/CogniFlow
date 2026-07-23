@@ -100,7 +100,7 @@ export function StatisticsDashboard({ stats }: { readonly stats: StudyStatistics
 
   if (stats.reviewCount === 0) {
     return (
-      <div className="stats-dashboard stats-dashboard--empty">
+      <div className="stats-dashboard stats-dashboard--empty" data-guide-id="statistics-overview">
         <header className="study-page-header">
           <div>
             <p className="eyebrow">Private statistics</p>
@@ -366,7 +366,7 @@ export function StatisticsDashboard({ stats }: { readonly stats: StudyStatistics
   );
 
   return (
-    <div className="stats-dashboard">
+    <div className="stats-dashboard" data-guide-id="statistics-overview">
       <header className="study-page-header">
         <div>
           <p className="eyebrow">Private statistics</p>

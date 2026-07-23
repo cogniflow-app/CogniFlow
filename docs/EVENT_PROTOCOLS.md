@@ -314,3 +314,27 @@ suspend, bury, sibling bury, star, leech, forget, rebuild, content decision, bul
 algorithm migration emit `srs_schedule_operations` evidence. These commands use expected versions
 and cannot mutate another learner. Phase 05 may deliver the same review envelope from an outbox but
 may not change its idempotency or authorization semantics.
+
+## Phase 04 practice and guide facts
+
+Practice-session creation is a command containing a client UUID, mode, bounded configuration,
+scope, goal, and test identifiers where required. The server resolves authorized cards, calculates
+a seeded immutable item list, and commits the session through one guarded RPC. Resume reads the
+saved items; it never regenerates questions from current iteration order.
+
+A practice-attempt command carries client attempt/idempotency UUIDs, session/item position,
+response kind, response, assistance/reveal/retry state, optional self verdict, content version, and
+bounded duration. The server reloads the exact authorized item, grades it, calculates mastery and
+possible qualification, hashes/minimizes the response, and commits one append-only fact plus one
+version-checked projection update. A Test response is appended in the same transaction. Match
+completion may emit a lower-is-better scoped personal-best fact. Stale session/mastery/content
+state fails closed.
+
+An override command appends a reasoned correction without rewriting the attempt. A qualification
+command is valid only for an eligible unlinked attempt, requires a selected rating and explicit
+confirmation, calls the canonical Phase 03 review route, then appends the practice-to-review link.
+No other practice command can produce `review_logs` or mutate `card_schedules`.
+
+Guide progress commands contain a stable key/version, status, current step, expected version, and
+bounded metadata. They record resume/suppression state only, are isolated by account/learner RLS,
+and do not emit an interaction stream. Definitions and copy remain checked-in code.

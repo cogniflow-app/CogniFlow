@@ -626,3 +626,44 @@ resume, statistics, and unauthenticated private-data isolation. Cleanup returned
 the post-cleanup verifier passed. Draft PR #12 must be reviewed and merged before the Beta guard may
 promote the 16 Phase 03 migrations. Until then, Beta/Production remain unchanged. Do not substitute
 Beta/Production or weaken the fixed-project guards.
+
+## Phase 04 Preview deployment and acceptance
+
+Phase 04 has three additive migrations. Complete `pnpm verify` locally, commit the exact feature
+branch, and only then run `pnpm db:deploy:preview`. Follow with `pnpm db:verify:preview`; it must
+prove full remote-history parity, an empty dry run, database lint/invariants, generated-type parity,
+and empty Storage. Do not deploy to Beta or Production while the draft PR is open.
+
+After the exact commit's Vercel Preview is Ready and `/api/health` reports `vercel_beta`,
+`vercelEnvironment: preview`, and Supabase project `cfwddajyjbueggpzfomh`, run:
+
+```bash
+HOSTED_PREVIEW_URL=https://<exact-ready-preview>.vercel.app pnpm test:hosted:preview
+HOSTED_PREVIEW_URL=https://<exact-ready-preview>.vercel.app pnpm test:hosted:preview:practice
+```
+
+The Phase 04 wrapper reuses the hardened Phase 02/03 ownership, credential-sandbox, fixture, signal,
+and cleanup implementation. `playwright.hosted-practice.config.ts` accepts only this repository's
+protected Vercel Preview hostname and a parent-generated preflight attestation. The browser receives
+no Supabase server key or Vercel bypass secret. Cleanup deletes Auth, withdraws/minimizes content and
+practice/guide state through the canonical account-deletion path, verifies no active disposable
+rows, and asserts recursively empty content Storage even after interruption. Rerun
+`pnpm db:verify:preview` after cleanup and record the URL/commit/time/evidence in the PR and
+`IMPLEMENTATION_STATUS.md`.
+
+### Phase 04 checkpoint on 2026-07-22 UTC
+
+Commit `0e473c11738144f32bf56de2b6c903989fafb73e` reached Ready at immutable protected Preview
+`https://cogniflow-qkegtuai1-cogniflow-app-3471s-projects.vercel.app`. Only the three additive Phase
+04 migrations were applied to fixed Preview project `cfwddajyjbueggpzfomh`; no seed was deployed.
+The initial verifier proved an empty migration dry run, hosted invariants, an empty public/private
+schema diff, generated-type parity, and empty Storage. Its existing/known function-volatility
+diagnostics remained warnings only.
+
+The protected baseline passed 11/11. The complete Phase 04 disposable acceptance passed 1/1 and
+proved guide persistence, Flashcards, one-page Test completion and review, Getting Started,
+unauthenticated private-data isolation, and zero canonical SRS review writes. Canonical cleanup
+removed the disposable Auth/content/practice/guide state, the guarded residual query returned
+`rows: []`, and recursive content Storage was empty. The post-cleanup verifier passed with the same
+empty dry run, invariants, clean schema diff, generated-type parity, and empty Storage. Beta and
+Production were not deployed or reconfigured.

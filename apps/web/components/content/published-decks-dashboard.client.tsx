@@ -108,7 +108,7 @@ export function PublishedDecksDashboard({
   }
 
   return (
-    <ProductPage className="library-shell published-library">
+    <ProductPage className="library-shell published-library" data-guide-id="published-decks">
       <header className="library-hero">
         <div className="library-hero__copy">
           <h1>Published</h1>

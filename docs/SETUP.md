@@ -607,3 +607,16 @@ Use `/app/settings/scheduling` for learner presets and deck assignment. The opti
 by default and has no owner setup action. Preview migration and hosted acceptance use only the
 guarded commands in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md); never copy hosted credentials
 into `apps/web/.env.local`.
+
+## Phase 04 practice setup
+
+Phase 04 adds no environment variable, paid service, provider credential, hosted worker, or seed
+data. The deterministic `@lumen/grading` and `@lumen/learning-engine` packages install from the
+frozen workspace. Browser speech/recording are capability-detected and always have a text fallback;
+no cloud speech or semantic-grading provider is enabled.
+
+Run `pnpm db:reset` to apply the three `20260722002000`–`20260722004000` migrations and use
+`pnpm db:types` only after schema changes. Product guide definitions and versions are checked-in
+under `apps/web/lib/guides`; there is no guide administration or analytics service to configure.
+Preview deployment/cleanup is governed by [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md). Keep the
+existing ignored local environment file unchanged and never copy hosted credentials into it.

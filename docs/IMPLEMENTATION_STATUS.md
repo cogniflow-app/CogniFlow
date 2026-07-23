@@ -1,12 +1,111 @@
 # Implementation status
 
-**Current phase:** Phase 03 — Study experience redesign  
-**Status:** Frontend redesign merged through PR #13; Learn polish is locally accepted and published
-for review in draft PR #14  
-**Evidence date:** 2026-07-21  
-**Next phase:** Phase 04 has not started
+**Current phase:** Phase 04 — Adaptive Learn and guided study experience  
+**Status:** Phase 03 redesign and Learn polish are merged through PRs #13 and #14; Phase 04 is
+implemented and fully verified locally and on its exact protected Preview deployment; its three
+Preview migrations, hosted acceptance, cleanup proof, and post-cleanup parity check are complete,
+with draft-PR publication in progress  
+**Evidence date:** 2026-07-22  
+**Next phase:** Phase 05 has not started
 
 This record describes implemented repository behavior and verified local and hosted evidence. Product intent remains canonical in [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md), cross-cutting decisions are recorded in [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md), and provider operations are documented in [HOSTED_OPERATIONS.md](./HOSTED_OPERATIONS.md) and [SETUP.md](./SETUP.md).
+
+## Phase 04 adaptive Learn and guided study experience
+
+Branch `codex/phase-04-adaptive-learn-and-guided-experience` began at merged `origin/main`
+`54d7946`. The pre-existing Phase 03 prompt whitespace stash remains untouched. Docker and local
+Supabase were healthy; `apps/web/.env.local` remains ignored/untracked and its values were never
+printed. No Beta/Production provider, SMTP, OAuth, child-safety flag, seed, or secret changed.
+
+### Completed scope
+
+- Added `@lumen/grading`: deterministic normalization, aliases/synonyms/keywords, list/select-all
+  partial credit, numeric units/tolerances, safe math, typo/token similarity, four strictness
+  profiles, properties, and a disabled optional semantic boundary.
+- Added `@lumen/learning-engine`: separate recognition/recall mastery, weighted/decayed evidence,
+  staged Learn progression, deterministic adaptive selection/distractors, anti-repeat/sibling and
+  accessibility rules, exam planning, property tests, and a 10,000-candidate budget.
+- Added learner-private practice sessions/items/attempts/mastery, accepted rules, audited overrides,
+  explicit SRS links, goals, exams, test definitions/attempts/responses, personal bests, preferences,
+  and guide progress. RLS, fixed-search-path RPCs, idempotency/version/content checks, response
+  minimization, append-only evidence, and account deletion are database-tested.
+- Rebuilt Study as one coherent Review + Practice hub with schedule-effect badges, mode availability,
+  practice resume, mastery glance, weak-area practice, exam planning, and Help & guide. Added shared
+  setup/focus/completion patterns for Flashcards, Learn, Write, Test, Match, Spell, Pronunciation,
+  and Diagram.
+- Added the bounded 3D practice flip, explicit no-silent-SRS qualification, deterministic feedback,
+  delayed mastery progression, pause/resume, star/audio/hints/retype, audited answer correction,
+  Test answer navigation/flags/timer/review/print, Match personal bests, local-only pronunciation
+  recording, diagram zoom/text alternative, and real private summaries.
+- Added a versioned seven-step first-run guide, fourteen contextual mini-guides, a non-blocking
+  invitation, desktop coach/mobile sheet, focus/Escape/fallback behavior, persistence across
+  reloads/devices, role/learner awareness, and `/app/getting-started` with real checklist evidence,
+  glossary, recommendations, mode effects, and restartable tours. No clickstream or third-party
+  analytics was added.
+- Repaired the reported visual defects: every Phase 04 surface now uses valid design tokens; Study
+  retains 16/24/32 px gutters; the stage is capped at 896 px, cards at 440 px desktop/352 px mobile;
+  mobile guide positioning is bounded; and intrinsic-width overflow at 320 px is removed. The
+  flip matches the published player's staged rhythm and becomes immediate under serious/reduced
+  motion.
+- Added a guarded Preview practice acceptance wrapper/config/spec that inherits the established
+  ownership attestation, credential sandbox, disposable identity, account-deletion minimization,
+  interruption cleanup, and empty-Storage proof.
+
+The exact formulas, evidence boundaries, guide model, mode contract, privacy rules, and performance
+limits are in [PRACTICE_AND_GUIDES.md](./PRACTICE_AND_GUIDES.md). The complete route/state visual
+audit is in [PRODUCT_UX_AUDIT.md](./PRODUCT_UX_AUDIT.md#phase-04-adaptive-practice-and-guide-audit).
+
+### Phase 04 migrations
+
+| Migration                                              | Purpose                                                                                                                                                      |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20260722002000_phase04_practice_schema.sql`           | Private practice/mastery/rules/overrides/goals/exams/tests/bests/preferences/guides schema, constraints, indexes, RLS, grants, append-only/deletion triggers |
+| `20260722003000_phase04_practice_rpcs.sql`             | Authorized session/control/attempt/override/explicit-SRS/preference/guide transaction boundaries                                                             |
+| `20260722004000_phase04_planning_and_testing_rpcs.sql` | Authorized goal/exam/test-definition/test-attempt/test-response/personal-best transaction boundaries                                                         |
+
+Every earlier migration remains unchanged. A fresh reset applied all 52 migrations in order and
+the seed inserted no application data. Generated database types match that fresh schema.
+
+### Local Phase 04 evidence (2026-07-22)
+
+| Command or evidence                      | Result                                                                                                                                                    |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`         | Exit 0; all 12 workspace projects and the lockfile are current under Node `24.18.0` / pnpm `11.13.0`                                                      |
+| `pnpm format:check` / `pnpm secret:scan` | Exit 0; repository formatting accepted and no credential finding                                                                                          |
+| `pnpm lint` / `pnpm typecheck`           | Exit 0; dependency boundaries and all 11 strict TypeScript workspaces pass                                                                                |
+| `pnpm test`                              | Exit 0; 89 files / 705 tests; coverage 73.40% statements, 62.32% branches, 70.54% functions, 76.63% lines                                                 |
+| `pnpm db:reset`                          | Exit 0; empty rebuild through all 52 migrations; no application seed data                                                                                 |
+| `pnpm test:db`                           | Exit 0; 22 files / 953 assertions plus SRS concurrency (1 commit, 1 typed stale conflict, 1 immutable log, 24.493 ms)                                     |
+| `pnpm db:types:check`                    | Exit 0; committed generated types match the reset schema                                                                                                  |
+| SRS performance                          | Domain queue 17.736 ms; database queue 99.506 ms; Today 100.214 ms; resume 0.346 ms; Statistics 69.427 ms at 10,000-card scale                            |
+| `pnpm build` / `pnpm build:portable`     | Exit 0; optimized Next build produces 86 route/static entries and OpenNext emits `.open-next/worker.js`                                                   |
+| `pnpm test:e2e`                          | Exit 0; 33 pass / 21 intentional cross-project skips across desktop, mobile, and reduced-motion; Phase 04 functional and explicit 12-viewport matrix pass |
+| `pnpm test:a11y`                         | Exit 0; 28/28 axe, keyboard, focus, theme, serious-mode, and reduced-motion checks pass                                                                   |
+| `pnpm test:lighthouse`                   | Assertions pass; scores 99/100/96/100; FCP 0.758 s, LCP 2.160 s, TBT 2 ms, CLS 0                                                                          |
+| `pnpm test:load`                         | 15/15 checks pass; 0 failed; request-duration p95 6.94 ms                                                                                                 |
+| `pnpm verify`                            | Exit 0; aggregate CI-equivalent gate reran every practical local check above after guide/browser synchronization hardening                                |
+
+### Hosted Phase 04 evidence (2026-07-22 08:16 UTC)
+
+Commit `0e473c11738144f32bf56de2b6c903989fafb73e` reached Ready at the exact protected Preview URL
+`https://cogniflow-qkegtuai1-cogniflow-app-3471s-projects.vercel.app`. The branch alias was not used
+as evidence because it redirects to the immutable deployment URL above.
+
+| Command or evidence                   | Result                                                                                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm db:deploy:preview`              | Exit 0; applied only the three additive Phase 04 migrations to fixed Preview project `cfwddajyjbueggpzfomh`; no seed data                                                      |
+| Initial `pnpm db:verify:preview`      | Exit 0; remote history current, empty dry run, hosted invariants pass, public/private schema diff empty, generated types match; warnings-only volatility diagnostics unchanged |
+| `pnpm test:hosted:preview`            | Exit 0; 11/11 protected baseline smoke checks passed against the exact immutable Preview                                                                                       |
+| `pnpm test:hosted:preview:practice`   | Exit 0; 1/1 disposable scenario proved first-run guide persistence, Flashcards, one-page Test/review, Getting Started, private-data isolation, and no canonical review writes  |
+| Cleanup proof                         | Exit 0; canonical account deletion removed Auth and active disposable practice/content/guide state; the guarded query returned `rows: []`; recursive content Storage was empty |
+| Post-cleanup `pnpm db:verify:preview` | Exit 0; migration dry run remained empty, hosted invariants passed, schema diff stayed empty, generated types matched, and Storage remained empty                              |
+
+The acceptance harness was hardened to wait for actual rendered question/feedback states, open the
+collapsed Test behavior controls before selection, accept the valid single-question completion
+state, and cap every browser action at 20 seconds. Every diagnostic run still executed guarded
+cleanup and returned `rows: []`. Beta Supabase, Production Supabase, Vercel Production,
+`recallflash.com`, SMTP, OAuth, child-safety flags, and provider secrets were not changed. Phase 05
+has not started.
 
 ## Phase 03 Study experience redesign
 
@@ -105,13 +204,12 @@ once. Application HTTP errors and all other navigation failures still fail immed
 
 ### Redesign Hosted Preview checkpoint
 
-PR #13 merged the original redesign and GitHub deleted its remote branch before the Learn-polish
-follow-up could be published. The follow-up is now published separately in draft PR #14 after owner
-direction. The original protected Vercel Preview reached `READY`; guarded application acceptance
-remained pending because the local Vercel CLI OAuth credential was rejected before an
-automation-bypass value could be retrieved. Deployment Protection was not weakened and Chrome was
-not used as an authentication fallback without owner approval. Beta Supabase, Vercel Production,
-and `recallflash.com` remain untouched.
+PR #13 merged the original redesign. PR #14 then merged the Learn spacing, bounded review-card,
+and staged flip polish into `main` as commit `54d7946`. The original protected Vercel Preview
+reached `READY`; guarded application acceptance remained pending because the local Vercel CLI OAuth
+credential was rejected before an automation-bypass value could be retrieved. Deployment
+Protection was not weakened and Chrome was not used as an authentication fallback without owner
+approval. Beta Supabase, Vercel Production, and `recallflash.com` remain untouched.
 
 ## Phase 03 SRS and canonical review engine
 

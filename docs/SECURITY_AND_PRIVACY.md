@@ -485,3 +485,23 @@ session's viewable deck, note, and card IDs once per read; they retain the same 
 deck-status, learner-access, and revoked-device fail-closed rules while avoiding a security-definer
 authorization call per queue row. No analytics integration receives card answers or review
 history, and no new environment secret or direct database credential is introduced.
+
+## Phase 04 practice and guide controls
+
+Practice and guide tables are private, RLS-enabled, and browser read-only. Security-definer RPCs
+have explicit empty search paths, narrow execute grants, bounded JSON/text/array inputs, repeated
+actor/learner/device/session authorization, optimistic versions, and idempotency checks. Accepted
+answer rules cannot contain JavaScript. The deterministic math evaluator accepts only numbers,
+parentheses, and bounded arithmetic operators; semantic/cloud grading is disabled.
+
+Adult self profiles may retain bounded minimized response text. Managed and under-13 contexts are
+forced to discarded or hash-only retention at the database boundary even if a client asks for
+more. Practice results, tests, concept mastery, exam plans, personal bests, and guide progress are
+not public and are not available to deck publishers or anonymous previews. Product guides store no
+clickstream and use no third-party analytics.
+
+Browser speech synthesis is local. Pronunciation recording requires an explicit microphone action,
+stays in a browser object URL, is never posted by Phase 04, and is revoked on replacement/unmount.
+Text alternatives remain available without microphone or speech APIs. Ordinary practice cannot
+write canonical review state. The only bridge is a server-verified eligible Learn/Write recall,
+learner-selected rating, explicit confirmation, canonical Phase 03 API call, and append-only link.

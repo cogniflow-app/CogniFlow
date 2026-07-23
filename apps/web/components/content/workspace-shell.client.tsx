@@ -8,14 +8,19 @@ import { useState } from "react";
 import { GuardianExitAction } from "@/components/guardian-exit-action.client";
 import { SessionAction } from "@/components/session-action.client";
 import { WorkspaceAppearanceControls } from "@/components/workspace-appearance-controls.client";
+import { GuideSystem } from "@/components/guides/guide-system.client";
+import type { GuideProgressView } from "@/lib/guides/models";
 
 import { WorkspaceNavigation } from "./workspace-navigation.client";
 
 interface WorkspaceShellProps {
   readonly brandName: string;
+  readonly canCreate: boolean;
   readonly children: ReactNode;
+  readonly guideProgress: GuideProgressView | null;
   readonly learnerContext: string;
   readonly learnerName: string;
+  readonly reducedMotion: boolean;
   readonly selfMode: boolean;
 }
 
@@ -39,7 +44,9 @@ function WorkspaceRailContent({
   learnerName,
   onNavigate,
   selfMode,
-}: Omit<WorkspaceShellProps, "children"> & { readonly onNavigate?: (() => void) | undefined }) {
+}: Pick<WorkspaceShellProps, "brandName" | "learnerContext" | "learnerName" | "selfMode"> & {
+  readonly onNavigate?: (() => void) | undefined;
+}) {
   return (
     <>
       <div className="workspace-rail__top">
@@ -67,7 +74,8 @@ function WorkspaceRailContent({
 export function WorkspaceShell(props: WorkspaceShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
-  const focusMode = pathname.startsWith("/app/study/session/");
+  const focusMode =
+    pathname.startsWith("/app/study/session/") || pathname.startsWith("/app/practice/session/");
 
   if (focusMode) {
     return (
@@ -110,6 +118,11 @@ export function WorkspaceShell(props: WorkspaceShellProps) {
       <main className="workspace-main" id="main-content" tabIndex={-1}>
         {props.children}
       </main>
+      <GuideSystem
+        canCreate={props.canCreate}
+        initialProgress={props.guideProgress}
+        reducedMotion={props.reducedMotion}
+      />
     </div>
   );
 }

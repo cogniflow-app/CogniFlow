@@ -14,6 +14,7 @@ export default defineConfig({
     "**/a11y.spec.ts",
     "**/hosted.spec.ts",
     "**/hosted-content.spec.ts",
+    "**/hosted-practice.spec.ts",
     "**/hosted-srs.spec.ts",
   ],
   timeout: 30_000,

@@ -508,3 +508,32 @@ authorized set once for large queue, dashboard, and statistics reads. Migration 
 adds the exact-response replay receipt and service-only preflight/v2 commit wrapper without changing
 existing canonical evidence. Migration `20260722001000` aligns the replay function's volatility
 with its runtime authorization helper.
+
+## Phase 04 practice, planning, testing, and guide model
+
+Migrations `20260722002000_phase04_practice_schema.sql`,
+`20260722003000_phase04_practice_rpcs.sql`, and
+`20260722004000_phase04_planning_and_testing_rpcs.sql` are additive and leave every Phase 00–03
+object unchanged.
+
+- `practice_sessions` and ordered `practice_session_items` store the learner, actor, mode, bounded
+  versioned config, deterministic item set, state, progress, and timestamps.
+- Append-only `practice_attempts` stores minimized responses/hashes, deterministic grades,
+  content version, assistance state, duration, and qualification status. `answer_overrides` and
+  `practice_srs_qualifications` are append-only audited corrections/links.
+- `concept_mastery` is one versioned learner/card projection with recognition, recall, overall,
+  stage, evidence counts, last evidence, and content version. It is separate from `card_schedules`.
+- `accepted_answer_rules` stores creator-controlled bounded deterministic rules without executable
+  code. `practice_mode_preferences` stores learner/mode config with optimistic versions.
+- `learning_goals` and `exam_plans` store private adjustable planning inputs/projections.
+- `practice_test_definitions`, `practice_test_attempts`, and append-only
+  `practice_test_responses` persist seeded tests and scores. `personal_bests` stores scoped lower-is-
+  better completion records with a qualifying source.
+- `product_guide_progress` stores account or learner scoped key/version/status/current step and
+  timestamps plus bounded metadata. Real checklist evidence remains in its owning domain table.
+
+Every exposed table has RLS, account/learner/time indexes, and read-only browser grants. Writes use
+fixed-search-path RPCs bound to the current Auth session, registered device, actor, and learner.
+Account deletion minimizes or removes guide and practice projections while preserving only the
+bounded audit facts required by the existing deletion model. Exact formulas and field meanings are
+documented in [PRACTICE_AND_GUIDES.md](./PRACTICE_AND_GUIDES.md).
