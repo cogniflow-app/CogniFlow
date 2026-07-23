@@ -589,7 +589,10 @@ Save intended schema changes as a new migration, run `pnpm db:reset`, then `pnpm
 pnpm exec playwright install chromium
 ```
 
-On Linux CI use `pnpm exec playwright install --with-deps chromium`.
+GitHub-hosted `ubuntu-latest` runners already include Chromium's runtime libraries, so CI uses the
+same browser-only command and avoids making browser tests depend on an Ubuntu package-mirror
+refresh. Provision Playwright's documented operating-system packages in a custom Linux runner
+image before running this command rather than installing them during every test job.
 
 ### A clean install changes the lockfile
 
