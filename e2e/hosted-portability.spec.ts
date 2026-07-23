@@ -36,7 +36,14 @@ async function signInAndOnboard(
     readonly password: string;
   },
 ) {
-  await page.goto("/auth/sign-in?returnTo=%2Fapp%2Fportability");
+  await page.goto("/auth/sign-up?returnTo=%2Fapp%2Fportability");
+  await page.getByRole("combobox", { name: /which age range describes you/i }).click();
+  await page.getByRole("option", { name: "18 or older" }).click();
+  await page.getByRole("textbox", { name: "Email address" }).fill(input.email);
+  await page.getByLabel("Password").fill(input.password);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page).toHaveURL(/\/auth\/check-email$/u);
+  await page.getByRole("link", { name: "Return to sign in" }).click();
   await page.getByRole("textbox", { name: "Email address" }).fill(input.email);
   await page.getByLabel("Password").fill(input.password);
   await page.getByRole("button", { name: "Sign in" }).click();
