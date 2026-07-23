@@ -6,7 +6,8 @@ synchronized to `2b4e5beb700aa0199831bd024fa2f9fc739d2d0f` / all 53 migrations t
 `20260723000000_phase05_sync_schema.sql`. Production passes the guarded 11-check smoke suite; Beta
 passes migration, invariant, schema-diff, Storage, and generated-type verification. Phase 06 began
 from that clean verified baseline on `codex/phase-06-import-export-portability`; its changes remain
-Preview-only until review and merge.  
+Preview-only until review and merge. Phase 06 is implemented and verified locally and against the
+fixed Preview environment.  
 **Evidence date:** 2026-07-23  
 **Next phase:** Phase 07 has not started
 
@@ -111,9 +112,36 @@ seed inserts no application data. Generated database types match the reset schem
 | Portability performance                                   | 10,000-row CSV inspect/map under 5 s; 100,000-row text parse under 10 s; 10,000-note archive create/verify/restore/encrypt under 20 s                                                                                              |
 | Real visual QA                                            | Desktop and mobile import/export/backup/job/print flows, reduced motion, 200% text, and clean-account archive/real-Anki round trips; the mobile stepper was corrected after screenshot/axe inspection and its focused rerun passed |
 
-Hosted Phase 06 evidence is intentionally pending until this exact committed branch passes the
-Preview-only deployment, protected browser suites, canonical cleanup, and post-cleanup database
-verification below. Beta Supabase and Vercel Production remain unchanged.
+### Hosted Phase 06 evidence (2026-07-23 23:20 UTC)
+
+Commit `f339f88c566b29f7f0b1b54e0a542ab66ba57784` reached Ready as deployment
+`dpl_4pY7WynwN1DTekbKWtBdSiaVWzRA` at the exact protected Preview URL
+`https://cogniflow-n640klt0q-cogniflow-app-3471s-projects.vercel.app`. The branch alias was not
+used as evidence. Health and both guarded runners confirmed Vercel Preview uses fixed Preview
+Supabase project `cfwddajyjbueggpzfomh`.
+
+| Command or evidence                    | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm db:deploy:preview`               | Exit 0; applied only the eight Phase 06 migrations through `20260724007000_phase06_sql_expression_qualification_fix.sql` to fixed Preview; no seed or fixture was deployed                                                                                                                                                                                                                                                                                     |
+| Initial `pnpm db:verify:preview`       | Exit 0 after the append-only qualification correction; all 61 migrations are current, migration dry run is empty, Phase 06 schema lint errors are gone, hosted invariants pass, public/private schema diff is empty, generated types match, and both private Storage buckets are empty. Previously documented legacy function-volatility diagnostics remain warnings only.                                                                                     |
+| Exact Vercel deployment                | Commit and deployment above reached Ready with 96 application route/static entries; Preview ownership/protection attestation passed and Production aliases were rejected by the runners                                                                                                                                                                                                                                                                        |
+| `pnpm test:hosted:preview`             | Exit 0; 11/11 protected baseline checks passed in 10.0 seconds against the exact immutable deployment                                                                                                                                                                                                                                                                                                                                                          |
+| `pnpm test:hosted:preview:portability` | Exit 0; 1/1 in 51.4 seconds proved adult onboarding authorization, text/CSV import, JSON/Markdown/real-Anki export, real `.apkg` reimport, complete and encrypted archives, a separate clean-account restore, cross-account artifact denial, explicit artifact deletion, direct jobs, print, private no-cache behavior, and canonical account/Storage cleanup                                                                                                  |
+| Cleanup proof                          | Exit 0; the guarded parent retained provider credentials while Playwright received none, canonical deletion removed both disposable Auth identities plus active content/schedule/review/practice/portability state, cleanup deleted claimed Storage bytes before confirming metadata, the minimization query returned `rows: []`, both `lumen-content` and `lumen-portability` were empty, the temporary browser profile was removed, and Preview was unlinked |
+| Post-cleanup `pnpm db:verify:preview`  | Exit 0; remote migration dry run remains empty, hosted invariants pass, public/private schema diff remains empty, linked generated types match, both private Storage buckets remain empty, and Preview was unlinked                                                                                                                                                                                                                                            |
+
+The first hosted database lint exposed invalid qualification of PostgreSQL `LEAST`/`GREATEST`
+expressions in three Phase 06 routines. The already-applied migrations were preserved and
+`20260724007000_phase06_sql_expression_qualification_fix.sql` corrected them append-only; a fresh
+local reset, local lint, 1,029 pgTAP assertions, and the hosted verifier then passed. An initial
+browser diagnostic also proved the authorization boundary correctly rejects an Auth-only
+provisional account; the harness was corrected to exercise the real adult sign-up age gate before
+confirmation, and its `finally` cleanup returned `rows: []` before the successful rerun.
+
+Phase 06 adds no owner-only environment, provider, credential, Auth, SMTP, OAuth, domain, analytics,
+or paid-service setup action. Beta Supabase, Production Supabase, Vercel Production,
+`recallflash.com`, and every prior safety gate remain unchanged. The branch remains a draft and
+must not be merged until reviewed.
 
 ## Phase 05 offline PWA and synchronization
 
