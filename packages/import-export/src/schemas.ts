@@ -9,6 +9,7 @@ export const portabilityFormatSchema = z.enum([
   "quizlet_text",
   "csv",
   "tsv",
+  "xlsx",
   "lumen_json",
   "markdown_bundle",
   "anki_apkg",
@@ -18,6 +19,8 @@ export const portabilityFormatSchema = z.enum([
   "print_html",
 ]);
 export type PortabilityFormat = z.infer<typeof portabilityFormatSchema>;
+export const exportablePortabilityFormatSchema = portabilityFormatSchema.exclude(["xlsx"]);
+export type ExportablePortabilityFormat = z.infer<typeof exportablePortabilityFormatSchema>;
 
 export const portabilityJobStateSchema = z.enum([
   "uploaded",
@@ -431,6 +434,24 @@ export const delimiterMappingSchema = z
   .strict();
 export type DelimiterMapping = z.infer<typeof delimiterMappingSchema>;
 
+export const spreadsheetMappingSchema = z
+  .object({
+    backColumn: z.number().int().min(0).max(500),
+    customFieldColumns: z
+      .record(z.string().min(1).max(120), z.number().int().min(0).max(500))
+      .refine((value) => Object.keys(value).length <= 100, "Too many custom field mappings")
+      .optional(),
+    deckColumn: z.number().int().min(0).max(500).optional(),
+    externalIdColumn: z.number().int().min(0).max(500).optional(),
+    frontColumn: z.number().int().min(0).max(500),
+    hasHeader: z.boolean(),
+    sheetName: z.string().min(1).max(120),
+    sourceColumn: z.number().int().min(0).max(500).optional(),
+    tagsColumn: z.number().int().min(0).max(500).optional(),
+  })
+  .strict();
+export type SpreadsheetMapping = z.infer<typeof spreadsheetMappingSchema>;
+
 export const textMappingSchema = z
   .object({
     backLanguage: z.string().min(2).max(35).optional(),
@@ -469,6 +490,7 @@ export const importPlanSchema = z
     reviewHistoryPolicy: reviewHistoryPolicySchema.optional(),
     schedulePolicy: scheduleImportPolicySchema.optional(),
     source: portabilitySourceSchema,
+    spreadsheetMapping: spreadsheetMappingSchema.optional(),
     textMapping: textMappingSchema.optional(),
   })
   .strict();
@@ -478,7 +500,7 @@ export const exportRequestSchema = z
   .object({
     adapterCode: z.string().min(1).max(100),
     deckExternalIds: z.array(z.string().min(1).max(200)).max(10_000).default([]),
-    format: portabilityFormatSchema,
+    format: exportablePortabilityFormatSchema,
     includeHistory: z.boolean().default(false),
     includeMedia: z.boolean().default(false),
     includeProgress: z.boolean().default(false),
@@ -491,7 +513,7 @@ export const exportPlanSchema = z
   .object({
     adapterCode: z.string().min(1).max(100),
     fileName: z.string().min(1).max(255),
-    format: portabilityFormatSchema,
+    format: exportablePortabilityFormatSchema,
     graph: normalizedGraphSchema,
     includeHistory: z.boolean().default(false),
     includeMedia: z.boolean().default(false),
@@ -537,6 +559,31 @@ export const portabilityInspectionSchema = z
     sample: z
       .array(z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])))
       .max(100),
+    spreadsheet: z
+      .object({
+        selectedSheet: z.string().min(1).max(120),
+        sheets: z
+          .array(
+            z
+              .object({
+                columnCount: z.number().int().nonnegative().max(501),
+                estimatedItems: z.number().int().nonnegative().max(100_000),
+                mapping: spreadsheetMappingSchema,
+                name: z.string().min(1).max(120),
+                rowCount: z.number().int().nonnegative().max(100_001),
+                sample: z
+                  .array(
+                    z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                  )
+                  .max(10),
+              })
+              .strict(),
+          )
+          .min(1)
+          .max(32),
+      })
+      .strict()
+      .optional(),
     textMapping: textMappingSchema.optional(),
   })
   .strict();
@@ -547,7 +594,7 @@ export const exportArtifactSchema = z
     bytes: uint8ArraySchema,
     diagnostics: z.array(portabilityDiagnosticSchema).max(1000),
     fileName: z.string().min(1).max(255),
-    format: portabilityFormatSchema,
+    format: exportablePortabilityFormatSchema,
     loss: z.array(portabilityLossSchema).max(1000),
     mimeType: z.string().min(1).max(200),
     sha256: z.string().regex(/^[a-f0-9]{64}$/u),

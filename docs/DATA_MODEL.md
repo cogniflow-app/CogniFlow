@@ -565,3 +565,9 @@ payload fingerprints; item keys bind source fingerprints to canonical IDs for id
 Artifacts and temporary uploads are expiring/tombstoned, while job receipts remain durable audit
 evidence. Complete schemas and relationships are documented in
 [IMPORT_EXPORT_AND_PORTABILITY.md](./IMPORT_EXPORT_AND_PORTABILITY.md).
+
+`20260724008000_phase06_xlsx_import_format.sql` append-only extends `public.portability_format`
+with import-only `xlsx` and permits the official XLSX MIME type in the already-private
+`lumen-portability` bucket. Export job/artifact constraints preserve the import-only boundary. The
+selected worksheet and bounded column mapping live in the job's validated requested policy; no
+workbook bytes, formulas, external links, or cell text are copied into public job metadata.

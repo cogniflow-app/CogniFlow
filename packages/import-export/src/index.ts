@@ -13,4 +13,5 @@ export * from "./safety";
 export * from "./schemas";
 export * from "./shared";
 export * from "./text";
+export * from "./xlsx";
 export * from "./zip";

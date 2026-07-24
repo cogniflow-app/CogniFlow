@@ -1,12 +1,13 @@
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 
 import {
   createHostedAcceptancePassword,
+  HOSTED_AUTH_ADMIN_CREATE_SPACING_MS,
   provisionHostedAcceptanceFixture,
+  requestHostedAcceptanceUser,
   runHostedContentAcceptance,
 } from "./run-hosted-content-acceptance.mjs";
-
-const PREVIEW_PROJECT_REF = "cfwddajyjbueggpzfomh";
 
 export function createHostedRestoreIdentity(runId) {
   const compact = runId.replaceAll("-", "");
@@ -19,36 +20,33 @@ export function createHostedRestoreIdentity(runId) {
 export async function provisionHostedPortabilityFixtures(
   runId,
   secretKey,
-  { fetchImplementation = fetch, signal } = {},
+  { delayImplementation = delay, fetchImplementation = fetch, signal } = {},
 ) {
   await provisionHostedAcceptanceFixture(runId, secretKey, {
     fetchImplementation,
     signal,
   });
+  await delayImplementation(
+    HOSTED_AUTH_ADMIN_CREATE_SPACING_MS,
+    undefined,
+    signal ? { signal } : undefined,
+  );
   const identity = createHostedRestoreIdentity(runId);
-  const response = await fetchImplementation(
-    `https://${PREVIEW_PROJECT_REF}.supabase.co/auth/v1/admin/users`,
+  await requestHostedAcceptanceUser(
     {
-      body: JSON.stringify({
-        email: identity.email,
-        email_confirm: true,
-        password: identity.password,
-        user_metadata: { lumen_hosted_acceptance: runId },
-      }),
-      cache: "no-store",
-      headers: {
-        apikey: secretKey,
-        Authorization: `Bearer ${secretKey}`,
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-      redirect: "error",
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
-        : AbortSignal.timeout(10_000),
+      email: identity.email,
+      email_confirm: true,
+      password: identity.password,
+      user_metadata: { lumen_hosted_acceptance: runId },
+    },
+    secretKey,
+    {
+      delayImplementation,
+      failureMessage: "Preview restore-account fixture provisioning failed.",
+      fetchImplementation,
+      signal,
     },
   );
-  if (!response.ok) throw new Error("Preview restore-account fixture provisioning failed.");
 }
 
 export function runHostedPortabilityAcceptance(

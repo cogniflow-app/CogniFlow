@@ -537,6 +537,12 @@ bypasses all portability routes. ZIP, SQLite, JSON, template, CSS, MIME/magic, s
 encryption, log-minimization, expiration, and cleanup controls are specified in
 [IMPORT_EXPORT_AND_PORTABILITY.md](./IMPORT_EXPORT_AND_PORTABILITY.md).
 
+XLSX is treated as hostile OOXML/ZIP, not as executable spreadsheet state. Preflight bounds
+archive expansion, entries, sheets, cells, rows, columns, dimensions, and per-cell text before
+mapping. Macro-enabled workbooks fail closed; formulas are never evaluated; external workbook
+links are never followed; and embedded images, charts, and comments are omitted with visible loss.
+Only the owner-selected worksheet and cached scalar values reach the normalized content graph.
+
 Complete exports include only data the current owner is entitled to receive. Cross-account restore
 creates fresh identity/session/device state and never restores passwords, provider/server tokens,
 signed URLs, device bypass credentials, consent claims, or access relationships. Archive

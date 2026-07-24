@@ -5,12 +5,14 @@ import { delimitedAdapter } from "./delimited";
 import { jsonAdapter } from "./json";
 import { markdownAdapter } from "./markdown";
 import { textAdapter } from "./text";
+import { spreadsheetAdapter } from "./xlsx";
 
 export const importAdapters: readonly ImportAdapter[] = Object.freeze([
   archiveAdapter,
   ankiAdapter,
   jsonAdapter,
   markdownAdapter,
+  spreadsheetAdapter,
   delimitedAdapter,
   textAdapter,
 ]);
@@ -35,7 +37,9 @@ export async function detectImportAdapter(source: PortabilitySource) {
   const scored = await Promise.all(
     importAdapters.map(async (adapter) => ({
       adapter,
-      confidence: await adapter.detect(source),
+      // Keep format sniffers isolated: a text parser rejecting binary input
+      // must not prevent the XLSX sniffer from examining the same source.
+      confidence: await adapter.detect(source).catch(() => 0),
     })),
   );
   return (

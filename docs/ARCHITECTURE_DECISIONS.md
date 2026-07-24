@@ -717,14 +717,15 @@ no busy polling.
 
 ## ADR-0024: Versioned portability graph, hostile-file boundary, and leased jobs
 
-**Context.** Phase 06 must exchange simple study text, structured Lumen data, Markdown bundles,
-Anki packages, account archives, and printable study material without treating any foreign file as
-trusted application state. The same feature must work on the Vercel web runtime and in a portable
-worker, preserve current content/SRS/practice authorities, survive retries and cancellation, and
-make every unsupported or lossy conversion visible. Archive formats combine several dangerous
-boundaries: ZIP path traversal and decompression amplification, SQLite files containing attacker
-chosen schemas/data, spreadsheet formula injection, template HTML/CSS, media type spoofing, and
-encrypted payloads whose passwords must never be persisted.
+**Context.** Phase 06 must exchange simple study text, CSV/TSV and `.xlsx` spreadsheets, structured
+Lumen data, Markdown bundles, Anki packages, account archives, and printable study material without
+treating any foreign file as trusted application state. The same feature must work on the Vercel
+web runtime and in a portable worker, preserve current content/SRS/practice authorities, survive
+retries and cancellation, and make every unsupported or lossy conversion visible. Archive formats
+combine several dangerous boundaries: ZIP path traversal and decompression amplification, SQLite
+files containing attacker-chosen schemas/data, spreadsheet formula/macro/external-link behavior,
+template HTML/CSS, media type spoofing, and encrypted payloads whose passwords must never be
+persisted.
 
 **Decision.** `@lumen/import-export` owns a framework-independent, versioned normalized graph and
 adapter registry. Adapters implement detect, inspect, map, and execute/export contracts over
@@ -736,12 +737,19 @@ settings, provenance, diagnostics, and explicit loss. Every graph and adapter re
 schema version, stable lineage identifiers, and a round-trip capability/loss report. Unknown future
 versions fail closed; supported older versions pass through explicit migrations.
 
-Text, Quizlet-style paste, CSV/TSV, JSON, Markdown, internal backup, and Anki are separate adapters
-behind the same contracts. CSV/TSV parsing is a bounded state machine with BOM/encoding,
+Text, Quizlet-style paste, CSV/TSV, XLSX, JSON, Markdown, internal backup, and Anki are separate
+adapters behind the same contracts. CSV/TSV parsing is a bounded state machine with BOM/encoding,
 quoted multiline fields, delimiter/header inference, formula-safe export, custom mapping, external
 IDs, duplicate policy, and row diagnostics. JSON is parsed only into own-property closed schemas
 and rejects prototype-like keys at every depth. Markdown accepts bounded front matter and stores
 rich content through the existing sanitizer, never rendered source HTML.
+
+XLSX parsing uses pinned `read-excel-file` `9.3.4` only after the project ZIP preflight validates
+OOXML magic, paths, entry/expanded-byte limits, worksheet counts, populated-cell counts, and
+declared row/column dimensions. Macro-enabled content fails closed. Formula expressions are never
+executed; only saved cached values can map to text. External links are not followed, embedded
+objects are reported as loss, preview strings are capped, and the explicitly selected worksheet
+and column mapping are bound into the resumable job policy.
 
 ZIP handling uses pinned `fflate` `0.8.3` behind a project wrapper that validates names before
 decompression, rejects absolute/traversal/NUL/symlink-like entries, enforces entry, compressed,

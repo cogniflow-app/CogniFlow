@@ -2,11 +2,12 @@ import {
   conflictPolicySchema,
   delimiterMappingSchema,
   duplicatePolicySchema,
+  exportablePortabilityFormatSchema,
   mediaImportPolicySchema,
-  portabilityFormatSchema,
   progressImportPolicySchema,
   reviewHistoryPolicySchema,
   scheduleImportPolicySchema,
+  spreadsheetMappingSchema,
   textMappingSchema,
 } from "@lumen/import-export";
 import { z } from "zod";
@@ -34,6 +35,7 @@ export const portabilityImportOptionsSchema = z
     progressPolicy: progressImportPolicySchema.default("omit"),
     reviewHistoryPolicy: reviewHistoryPolicySchema.default("omit"),
     schedulePolicy: scheduleImportPolicySchema.default("content_only"),
+    spreadsheetMapping: spreadsheetMappingSchema.optional(),
     textMapping: textMappingSchema.optional(),
   })
   .strict();
@@ -44,7 +46,7 @@ export const portabilityExportInputSchema = z
     archivePassphrase: z.string().min(12).max(1024).optional(),
     deckIds: z.array(z.string().uuid()).max(100),
     fileName: z.string().min(1).max(255),
-    format: portabilityFormatSchema,
+    format: exportablePortabilityFormatSchema,
     includeHistory: z.boolean().default(false),
     includeMedia: z.boolean().default(false),
     includeProgress: z.boolean().default(false),

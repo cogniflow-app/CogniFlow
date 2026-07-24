@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { assertEmptyHostedStorage } from "./hosted-database.mjs";
 import { createHostedPlaywrightEnvironment } from "./hosted-child-environment.mjs";
@@ -25,6 +26,9 @@ const LINK_PATH = resolve("supabase/.temp/project-ref");
 const LOCK_PATH = resolve("supabase/.temp/hosted-database.lock");
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const { createHostedPreflightFile, destroyHostedPreflightFile } = hostedPreflightContract;
+export const HOSTED_AUTH_ADMIN_CREATE_SPACING_MS = 1_500;
+const HOSTED_AUTH_ADMIN_CREATE_ATTEMPTS = 3;
+const HOSTED_AUTH_ADMIN_RETRYABLE_STATUSES = new Set([403, 429]);
 
 function signalExitCode(signal) {
   return signal === "SIGINT" ? 130 : 143;
@@ -133,36 +137,23 @@ export function createOnceAsync(operation) {
 export async function provisionHostedAcceptanceFixture(
   runId,
   secretKey,
-  { fetchImplementation = fetch, signal } = {},
+  { delayImplementation = delay, fetchImplementation = fetch, signal } = {},
 ) {
   const identity = createHostedAcceptanceIdentity(runId);
-  if (typeof secretKey !== "string" || secretKey.length < 24) {
-    throw new Error("The Preview Auth fixture provisioner received an invalid server credential.");
-  }
-  const headers = {
-    apikey: secretKey,
-    Authorization: `Bearer ${secretKey}`,
-    "Content-Type": "application/json",
-  };
-  const response = await fetchImplementation(
-    `https://${PREVIEW_PROJECT_REF}.supabase.co/auth/v1/admin/users`,
+  const response = await requestHostedAcceptanceUser(
     {
-      body: JSON.stringify({
-        email: identity.email,
-        email_confirm: true,
-        password: createHostedAcceptancePassword(runId),
-        user_metadata: { lumen_hosted_acceptance: runId },
-      }),
-      cache: "no-store",
-      headers,
-      method: "POST",
-      redirect: "error",
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
-        : AbortSignal.timeout(10_000),
+      email: identity.email,
+      email_confirm: true,
+      password: createHostedAcceptancePassword(runId),
+      user_metadata: { lumen_hosted_acceptance: runId },
+    },
+    secretKey,
+    {
+      delayImplementation,
+      fetchImplementation,
+      signal,
     },
   );
-  if (!response.ok) throw new Error("Preview Auth fixture provisioning failed.");
   const serialized = await response.text();
   if (Buffer.byteLength(serialized, "utf8") > 65_536) {
     throw new Error("Preview Auth returned an oversized fixture response.");
@@ -182,6 +173,54 @@ export async function provisionHostedAcceptanceFixture(
   ) {
     throw new Error("Preview Auth returned an unexpected fixture identity.");
   }
+}
+
+export async function requestHostedAcceptanceUser(
+  requestBody,
+  secretKey,
+  {
+    delayImplementation = delay,
+    failureMessage = "Preview Auth fixture provisioning failed.",
+    fetchImplementation = fetch,
+    signal,
+  } = {},
+) {
+  if (typeof secretKey !== "string" || secretKey.length < 24) {
+    throw new Error("The Preview Auth fixture provisioner received an invalid server credential.");
+  }
+  const headers = {
+    apikey: secretKey,
+    Authorization: `Bearer ${secretKey}`,
+    "Content-Type": "application/json",
+  };
+  for (let attempt = 1; attempt <= HOSTED_AUTH_ADMIN_CREATE_ATTEMPTS; attempt += 1) {
+    const response = await fetchImplementation(
+      `https://${PREVIEW_PROJECT_REF}.supabase.co/auth/v1/admin/users`,
+      {
+        body: JSON.stringify(requestBody),
+        cache: "no-store",
+        headers,
+        method: "POST",
+        redirect: "error",
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
+          : AbortSignal.timeout(10_000),
+      },
+    );
+    if (response.ok) return response;
+    if (
+      attempt === HOSTED_AUTH_ADMIN_CREATE_ATTEMPTS ||
+      !HOSTED_AUTH_ADMIN_RETRYABLE_STATUSES.has(response.status)
+    ) {
+      throw new Error(failureMessage);
+    }
+    await delayImplementation(
+      HOSTED_AUTH_ADMIN_CREATE_SPACING_MS,
+      undefined,
+      signal ? { signal } : undefined,
+    );
+  }
+  throw new Error(failureMessage);
 }
 
 function runCommand(

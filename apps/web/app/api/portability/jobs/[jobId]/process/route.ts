@@ -158,6 +158,9 @@ export async function POST(
     progressPolicy: policy.progressPolicy ?? "omit",
     reviewHistoryPolicy: policy.reviewHistoryPolicy ?? "omit",
     schedulePolicy: policy.schedulePolicy ?? "content_only",
+    ...(ownRecord(policy.spreadsheetMapping).sheetName
+      ? { spreadsheetMapping: policy.spreadsheetMapping }
+      : {}),
     ...(ownRecord(policy.textMapping).fieldDelimiter ? { textMapping: policy.textMapping } : {}),
   });
   if (!options.success) {
@@ -234,6 +237,9 @@ export async function POST(
         : {}),
       duplicatePolicy: options.data.duplicatePolicy,
       ...(options.data.mapping ? { mapping: options.data.mapping } : {}),
+      ...(options.data.spreadsheetMapping
+        ? { spreadsheetMapping: options.data.spreadsheetMapping }
+        : {}),
       ...(options.data.textMapping ? { textMapping: options.data.textMapping } : {}),
       progressPolicy: options.data.progressPolicy,
     });

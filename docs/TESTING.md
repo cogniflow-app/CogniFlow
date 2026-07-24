@@ -563,10 +563,13 @@ Playwright child must never receive a Supabase service key.
 ## Phase 06 portability evidence
 
 The import/export package suite covers deterministic format mapping, 100,000-row bounded parsing,
-formula-safe diagnostics, Markdown/Anki media relationships, exact internal archive round-trip,
-encryption, and adversarial ZIP/SQLite/content cases. Worker tests cover claim/checkpoint,
-cancellation, crash/retry, exhausted retry, and operator bounds. Web tests cover every print
-layout/control, private no-cache headers, service-worker exclusions, and portability guides.
+formula-safe diagnostics, multi-worksheet XLSX selection, cached scalar values, custom fields,
+bounded workbook previews, and macro/sparse-dimension rejection, plus Markdown/Anki media
+relationships, exact internal archive round-trip, encryption, and adversarial ZIP/SQLite/content
+cases. Worker tests cover claim/checkpoint, cancellation, crash/retry, exhausted retry, and
+operator bounds. Web tests cover every print layout/control, long unbroken content across
+preview/review/practice/Match/test/print selectors, private no-cache headers, service-worker
+exclusions, and portability guides.
 `180_phase06_portability.test.sql` proves RLS, exact grants/search paths, owner/account isolation,
 private object resolution, payload-bound idempotency, leases, checkpoints, continuation yield,
 receipts, cancellation cleanup, expiry/manual deletion, and the private bucket contract. It also

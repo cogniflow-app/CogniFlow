@@ -22,6 +22,16 @@
         color-mix(in srgb, var(--color-brand) 17%, transparent),
         transparent 35%
       ),
+      radial-gradient(
+        circle at 72% 105%,
+        color-mix(in srgb, var(--color-game-accent-3) 14%, transparent),
+        transparent 38%
+      ),
+      radial-gradient(
+        circle at 8% 0%,
+        color-mix(in srgb, var(--color-game-accent-2) 8%, transparent),
+        transparent 30%
+      ),
       linear-gradient(
         145deg,
         color-mix(in srgb, var(--color-brand) 6%, var(--color-surface)),
@@ -188,15 +198,22 @@
   }
 
   .portability-format-card {
+    --portability-accent: var(--color-brand);
+
     display: grid;
     min-width: 0;
     min-height: 9.5rem;
     align-content: start;
     gap: 0.55rem;
     padding: 1rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid color-mix(in srgb, var(--portability-accent) 24%, var(--color-border));
+    border-block-start-width: 3px;
     border-radius: 1rem;
-    background: var(--color-surface);
+    background: linear-gradient(
+      155deg,
+      color-mix(in srgb, var(--portability-accent) 5%, var(--color-surface)),
+      var(--color-surface) 72%
+    );
     color: var(--color-text);
     text-align: left;
     transition:
@@ -205,22 +222,42 @@
       box-shadow var(--duration-fast) var(--easing-standard);
   }
 
+  .portability-format-card[data-accent="blue"] {
+    --portability-accent: var(--color-info);
+  }
+
+  .portability-format-card[data-accent="green"] {
+    --portability-accent: var(--color-success);
+  }
+
+  .portability-format-card[data-accent="teal"] {
+    --portability-accent: var(--color-game-accent-3);
+  }
+
+  .portability-format-card[data-accent="amber"] {
+    --portability-accent: var(--color-game-accent-4);
+  }
+
+  .portability-format-card[data-accent="rose"] {
+    --portability-accent: var(--color-game-accent-2);
+  }
+
   .portability-format-card:hover {
-    border-color: var(--color-border-strong);
+    border-color: color-mix(in srgb, var(--portability-accent) 58%, var(--color-border));
     box-shadow: var(--shadow-sm);
     transform: translateY(-2px);
   }
 
   .portability-format-card[data-selected="true"] {
-    border-color: var(--color-brand);
-    background: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface));
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-brand) 18%, transparent);
+    border-color: var(--portability-accent);
+    background: color-mix(in srgb, var(--portability-accent) 9%, var(--color-surface));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--portability-accent) 20%, transparent);
   }
 
   .portability-format-card > svg {
     width: 1.35rem;
     height: 1.35rem;
-    color: var(--color-brand);
+    color: var(--portability-accent);
   }
 
   .portability-format-card strong {
@@ -338,12 +375,40 @@
 
   .portability-preview__summary > div,
   .portability-review-grid article {
+    --portability-summary-accent: var(--color-brand);
+
     display: grid;
     min-width: 0;
     gap: 0.3rem;
     padding: 0.9rem;
+    border-block-start: 3px solid
+      color-mix(in srgb, var(--portability-summary-accent) 72%, var(--color-border));
     border-radius: 0.9rem;
-    background: var(--color-surface-sunken);
+    background: color-mix(
+      in srgb,
+      var(--portability-summary-accent) 6%,
+      var(--color-surface-sunken)
+    );
+  }
+
+  .portability-preview__summary > div:nth-child(1),
+  .portability-review-grid article:nth-child(1) {
+    --portability-summary-accent: var(--color-info);
+  }
+
+  .portability-preview__summary > div:nth-child(2),
+  .portability-review-grid article:nth-child(2) {
+    --portability-summary-accent: var(--color-success);
+  }
+
+  .portability-preview__summary > div:nth-child(3),
+  .portability-review-grid article:nth-child(3) {
+    --portability-summary-accent: var(--color-warning);
+  }
+
+  .portability-preview__summary > div:nth-child(4),
+  .portability-review-grid article:nth-child(4) {
+    --portability-summary-accent: var(--color-game-accent-2);
   }
 
   .portability-preview__summary span,
@@ -384,11 +449,13 @@
   .portability-table-scroll td {
     max-width: 22rem;
     padding: 0.65rem 0.9rem;
-    overflow: hidden;
     border-top: 1px solid var(--color-border);
     text-align: left;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .portability-table-scroll th {
@@ -438,13 +505,33 @@
     gap: 1rem;
   }
 
+  .portability-sheet-picker {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid color-mix(in srgb, var(--color-success) 28%, var(--color-border));
+    border-inline-start: 4px solid var(--color-success);
+    border-radius: 0.9rem;
+    background: color-mix(in srgb, var(--color-success) 6%, var(--color-surface));
+  }
+
   .portability-detected-setting {
+    --portability-setting-accent: var(--color-info);
+
     display: grid;
     align-content: center;
     gap: 0.2rem;
     padding: 1rem;
+    border-inline-start: 4px solid var(--portability-setting-accent);
     border-radius: 0.9rem;
-    background: var(--color-surface-sunken);
+    background: color-mix(
+      in srgb,
+      var(--portability-setting-accent) 6%,
+      var(--color-surface-sunken)
+    );
+  }
+
+  .portability-detected-setting[data-accent="green"] {
+    --portability-setting-accent: var(--color-success);
   }
 
   .portability-detected-setting span,
@@ -557,22 +644,45 @@
   }
 
   .portability-export-formats button {
+    --portability-export-accent: var(--color-brand);
+
     display: grid;
     min-width: 0;
     min-height: 6.6rem;
     align-content: start;
     gap: 0.35rem;
     padding: 0.8rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid color-mix(in srgb, var(--portability-export-accent) 24%, var(--color-border));
+    border-block-start-width: 3px;
     border-radius: 0.8rem;
-    background: var(--color-surface);
+    background: color-mix(in srgb, var(--portability-export-accent) 4%, var(--color-surface));
     color: var(--color-text);
     text-align: left;
   }
 
+  .portability-export-formats button:nth-child(2) {
+    --portability-export-accent: var(--color-game-accent-3);
+  }
+
+  .portability-export-formats button:nth-child(3) {
+    --portability-export-accent: var(--color-info);
+  }
+
+  .portability-export-formats button:nth-child(4) {
+    --portability-export-accent: var(--color-game-accent-4);
+  }
+
+  .portability-export-formats button:nth-child(5) {
+    --portability-export-accent: var(--color-game-accent-2);
+  }
+
+  .portability-export-formats button:nth-child(6) {
+    --portability-export-accent: var(--color-success);
+  }
+
   .portability-export-formats button[data-selected="true"] {
-    border-color: var(--color-brand);
-    background: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface));
+    border-color: var(--portability-export-accent);
+    background: color-mix(in srgb, var(--portability-export-accent) 9%, var(--color-surface));
   }
 
   .portability-export-formats span {
@@ -619,13 +729,25 @@
   }
 
   .portability-backup-grid article {
+    --portability-backup-accent: var(--color-success);
+
     display: grid;
     align-content: start;
     gap: 0.7rem;
     padding: clamp(1rem, 2vw, 1.5rem);
-    border: 1px solid var(--color-border);
+    border: 1px solid color-mix(in srgb, var(--portability-backup-accent) 28%, var(--color-border));
+    border-block-start: 3px solid var(--portability-backup-accent);
     border-radius: 1rem;
-    background: var(--color-surface);
+    background: color-mix(in srgb, var(--portability-backup-accent) 5%, var(--color-surface));
+  }
+
+  .portability-backup-grid article:nth-child(2) {
+    --portability-backup-accent: var(--color-brand);
+  }
+
+  .portability-backup-grid article:nth-child(2) .portability-backup-icon {
+    background: color-mix(in srgb, var(--color-brand) 12%, var(--color-surface));
+    color: var(--color-brand);
   }
 
   .portability-backup-grid h3,
@@ -658,12 +780,23 @@
   }
 
   .portability-jobs > article {
+    --portability-job-accent: var(--color-info);
+
     display: grid;
     gap: 0.7rem;
     padding: 1rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid color-mix(in srgb, var(--portability-job-accent) 22%, var(--color-border));
+    border-inline-start: 4px solid var(--portability-job-accent);
     border-radius: 0.9rem;
     background: var(--color-surface);
+  }
+
+  .portability-jobs > article:nth-child(3n + 2) {
+    --portability-job-accent: var(--color-success);
+  }
+
+  .portability-jobs > article:nth-child(3n) {
+    --portability-job-accent: var(--color-game-accent-2);
   }
 
   .portability-job__heading {
@@ -743,20 +876,35 @@
   }
 
   .portability-print-grid article {
+    --portability-print-accent: var(--color-info);
+
     display: grid;
     min-width: 0;
     align-content: start;
     gap: 0.65rem;
     padding: 1rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid color-mix(in srgb, var(--portability-print-accent) 24%, var(--color-border));
+    border-block-start: 3px solid var(--portability-print-accent);
     border-radius: 0.9rem;
-    background: var(--color-surface);
+    background: color-mix(in srgb, var(--portability-print-accent) 4%, var(--color-surface));
+  }
+
+  .portability-print-grid article:nth-child(2) {
+    --portability-print-accent: var(--color-game-accent-3);
+  }
+
+  .portability-print-grid article:nth-child(3) {
+    --portability-print-accent: var(--color-game-accent-4);
+  }
+
+  .portability-print-grid article:nth-child(4) {
+    --portability-print-accent: var(--color-game-accent-2);
   }
 
   .portability-print-grid article > svg {
     width: 1.4rem;
     height: 1.4rem;
-    color: var(--color-brand);
+    color: var(--portability-print-accent);
   }
 
   .portability-print-grid h3,
@@ -987,11 +1135,16 @@
 
   .print-sheet {
     width: min(calc(100% - 2rem), 210mm);
+    min-width: 0;
     min-height: 297mm;
     margin: 1rem auto;
     padding: 14mm;
     background: #fff;
     box-shadow: 0 12px 35px rgb(17 24 39 / 12%);
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .print-title {
@@ -1010,6 +1163,8 @@
     font:
       700 24pt/1.05 Georgia,
       serif;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
   }
 
   .print-title p {
@@ -1078,8 +1233,14 @@
 
   .print-guide h2,
   .print-guide p {
+    min-width: 0;
+    max-width: 100%;
     margin: 0;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .print-guide h2 {
@@ -1126,6 +1287,7 @@
   .print-card-front,
   .print-card-back {
     display: grid;
+    min-width: 0;
     align-content: center;
     justify-items: center;
     padding: 5mm;
@@ -1147,11 +1309,17 @@
 
   .print-card-front h2,
   .print-card-back p {
+    min-width: 0;
+    max-width: 100%;
     margin: 2mm 0 0;
     font:
       700 10pt/1.4 system-ui,
       sans-serif;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .print-card-back p {
@@ -1169,10 +1337,16 @@
   }
 
   .print-test h2 {
+    min-width: 0;
+    max-width: 100%;
     margin: 0 0 3mm;
     font:
       700 10pt/1.4 system-ui,
       sans-serif;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .print-test article > div {
@@ -1204,6 +1378,10 @@
     font:
       9pt/1.5 system-ui,
       sans-serif;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .print-report dl {

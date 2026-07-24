@@ -1056,8 +1056,12 @@
   }
 
   .card-preview__content {
+    min-width: 0;
     max-width: 34rem;
     overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .card-preview__content p {
@@ -1257,7 +1261,22 @@
 
   .study-rich-document {
     min-width: 0;
+    max-width: 100%;
     overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
+  }
+
+  .study-rich-document :where(p, li, blockquote, figcaption, td, th, strong, em, a) {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .study-rich-document :where(pre, code, .rich-math) {
+    hyphens: none;
+    text-wrap: wrap;
   }
 
   .study-rich-document :where(img, video, iframe) {
@@ -1742,8 +1761,13 @@
   }
 
   .note-browser-row h3 {
+    min-width: 0;
     margin: 0.45rem 0;
     font-size: 1rem;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .sibling-chips {

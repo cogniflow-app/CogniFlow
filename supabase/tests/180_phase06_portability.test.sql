@@ -15,6 +15,49 @@ select has_table('private', 'portability_job_receipts', 'terminal receipts exist
 select has_table('private', 'portability_diagnostic_artifacts', 'private expiring diagnostics exist');
 
 select ok(
+  exists(
+    select 1
+    from pg_catalog.pg_enum as enum_value
+    join pg_catalog.pg_type as enum_type on enum_type.oid = enum_value.enumtypid
+    join pg_catalog.pg_namespace as namespace on namespace.oid = enum_type.typnamespace
+    where namespace.nspname = 'public'
+      and enum_type.typname = 'portability_format'
+      and enum_value.enumlabel = 'xlsx'
+  ),
+  'XLSX is a first-class import job format'
+);
+
+select ok(
+  exists(
+    select 1
+    from storage.buckets as bucket
+    cross join lateral pg_catalog.unnest(bucket.allowed_mime_types) as allowed_mime_type
+    where bucket.id = 'lumen-portability'
+      and allowed_mime_type =
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ),
+  'the private portability bucket accepts XLSX uploads'
+);
+
+select ok(
+  exists(
+    select 1
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.export_jobs'::regclass
+      and conname = 'export_jobs_xlsx_import_only'
+      and contype = 'c'
+  )
+  and exists(
+    select 1
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.export_artifacts'::regclass
+      and conname = 'export_artifacts_xlsx_import_only'
+      and contype = 'c'
+  ),
+  'XLSX remains import-only at both export table boundaries'
+);
+
+select ok(
   (select relrowsecurity from pg_catalog.pg_class where oid = 'public.import_jobs'::regclass)
   and (select relrowsecurity from pg_catalog.pg_class where oid = 'public.export_jobs'::regclass)
   and (select relrowsecurity from pg_catalog.pg_class where oid = 'public.export_artifacts'::regclass),
