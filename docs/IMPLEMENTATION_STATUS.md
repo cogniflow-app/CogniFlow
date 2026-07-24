@@ -157,6 +157,26 @@ isolated on `agent/xlsx-import-content-reflow` and must remain Preview-only unti
 review. This follow-up has not mutated Beta Supabase, Vercel Production, `recallflash.com`, or any
 prior safety gate.
 
+### XLSX, palette, and content-reflow follow-up evidence (2026-07-24 02:56 UTC)
+
+Commit `954879c6cc1a11799a607532180b232f220040e2` reached Ready as deployment
+`dpl_3VwVSjrZFQLCKw1eJFw77Gc3YN8A` at the exact protected Preview URL
+`https://cogniflow-qklhiylx3-cogniflow-app-3471s-projects.vercel.app`. The branch alias was not
+used as evidence. Only migration `20260724008000_phase06_xlsx_import_format.sql` was added to fixed
+Preview project `cfwddajyjbueggpzfomh`; Beta Supabase and Vercel Production were not changed.
+
+| Command or evidence                    | Result                                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Initial `pnpm db:verify:preview`       | Exit 0; all 62 migrations are current, migration dry run is empty, hosted invariants pass, public/private schema diff is empty, generated types match, and both private Storage buckets are empty. Previously documented legacy function-volatility diagnostics remain warnings only.                                                                                                  |
+| Exact Vercel deployment                | Commit and deployment above reached Ready with 96 application route/static entries; Preview ownership/protection attestation passed and Production aliases were rejected by the runners.                                                                                                                                                                                               |
+| `pnpm test:hosted:preview`             | Exit 0; 11/11 protected baseline checks passed in 10.5 seconds against the exact immutable deployment.                                                                                                                                                                                                                                                                                 |
+| `pnpm test:hosted:preview:portability` | Exit 0; 1/1 in 57.4 seconds repeated the complete guarded portability journey and added real XLSX workbook inspection, explicit worksheet selection, mapped import, and imported-content verification. The journey again proved cross-account artifact denial, explicit deletion, private no-cache behavior, canonical account deletion, and physical Storage cleanup.                 |
+| Cleanup proof                          | Exit 0; the guarded parent retained provider credentials while Playwright received none, both disposable Auth identities and their application data were deleted, claimed Storage bytes were removed before metadata confirmation, the minimization query returned `rows: []`, both `lumen-content` and `lumen-portability` were empty, and the temporary browser profile was removed. |
+| Post-cleanup `pnpm db:verify:preview`  | Exit 0; remote migration dry run remains empty, hosted invariants pass, public/private schema diff remains empty, linked generated types match, both private Storage buckets remain empty, and Preview was unlinked.                                                                                                                                                                   |
+
+The follow-up remains isolated in draft PR #19. It adds no owner-only environment, provider,
+credential, Auth, SMTP, OAuth, domain, analytics, or paid-service setup action.
+
 ## Phase 05 offline PWA and synchronization
 
 Branch `codex/phase-05-offline-pwa-sync` began from clean fetched `origin/main` at `c682123`.
