@@ -18,6 +18,10 @@ import {
   resolveHostedContentBaseUrl,
   runHostedContentAcceptance,
 } from "../scripts/run-hosted-content-acceptance.mjs";
+import {
+  createHostedRestoreIdentity,
+  provisionHostedPortabilityFixtures,
+} from "../scripts/run-hosted-portability-acceptance.mjs";
 import { assertHostedPreflightAttestation } from "../scripts/vercel-deployment-ownership.mjs";
 
 const runId = "6d0cf9b2-165e-45d4-8d47-3624e42b9084";
@@ -332,6 +336,54 @@ describe("hosted content acceptance guard", () => {
     expect(requests[0]?.headers.get("authorization")).toBe(
       "Bearer preview-server-key-that-is-long-enough",
     );
+  });
+
+  it("paces the two portability Auth fixtures across the provider create window", async () => {
+    const controller = new AbortController();
+    const events: string[] = [];
+    const requests: Array<{ body: unknown; headers: Headers }> = [];
+    const secretKey = "preview-server-key-that-is-long-enough";
+    const delayImplementation = vi.fn(async () => {
+      events.push("delay");
+    });
+
+    await provisionHostedPortabilityFixtures(runId, secretKey, {
+      delayImplementation,
+      fetchImplementation: async (_input, init) => {
+        events.push("fetch");
+        requests.push({
+          body: JSON.parse(String(init?.body)),
+          headers: new Headers(init?.headers),
+        });
+        if (requests.length === 1) {
+          return Response.json(
+            {
+              email: createHostedAcceptanceIdentity(runId).email,
+              id: "41000000-0000-4000-8000-000000000001",
+              user_metadata: { lumen_hosted_acceptance: runId },
+            },
+            { status: 201 },
+          );
+        }
+        return Response.json({ id: "41000000-0000-4000-8000-000000000002" }, { status: 201 });
+      },
+      signal: controller.signal,
+    });
+
+    expect(events).toEqual(["fetch", "delay", "fetch"]);
+    expect(delayImplementation).toHaveBeenCalledWith(1_500, undefined, {
+      signal: controller.signal,
+    });
+    expect(requests).toHaveLength(2);
+    expect(requests[1]?.body).toEqual({
+      email: createHostedRestoreIdentity(runId).email,
+      email_confirm: true,
+      password: createHostedRestoreIdentity(runId).password,
+      user_metadata: { lumen_hosted_acceptance: runId },
+    });
+    expect(
+      requests.every(({ headers }) => headers.get("authorization") === `Bearer ${secretKey}`),
+    ).toBe(true);
   });
 
   it("rejects a mismatched Admin Auth provisioning response without exposing the key", async () => {

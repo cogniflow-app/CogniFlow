@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 
 import {
   createHostedAcceptancePassword,
@@ -7,6 +8,7 @@ import {
 } from "./run-hosted-content-acceptance.mjs";
 
 const PREVIEW_PROJECT_REF = "cfwddajyjbueggpzfomh";
+const HOSTED_AUTH_ADMIN_CREATE_SPACING_MS = 1_500;
 
 export function createHostedRestoreIdentity(runId) {
   const compact = runId.replaceAll("-", "");
@@ -19,12 +21,17 @@ export function createHostedRestoreIdentity(runId) {
 export async function provisionHostedPortabilityFixtures(
   runId,
   secretKey,
-  { fetchImplementation = fetch, signal } = {},
+  { delayImplementation = delay, fetchImplementation = fetch, signal } = {},
 ) {
   await provisionHostedAcceptanceFixture(runId, secretKey, {
     fetchImplementation,
     signal,
   });
+  await delayImplementation(
+    HOSTED_AUTH_ADMIN_CREATE_SPACING_MS,
+    undefined,
+    signal ? { signal } : undefined,
+  );
   const identity = createHostedRestoreIdentity(runId);
   const response = await fetchImplementation(
     `https://${PREVIEW_PROJECT_REF}.supabase.co/auth/v1/admin/users`,
