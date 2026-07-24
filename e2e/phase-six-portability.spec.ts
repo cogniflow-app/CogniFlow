@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
+import { createSyntheticXlsxFixture } from "../packages/import-export/tests/xlsx-fixture";
 import { provisionAndSignInLocalAuthor } from "./support/local-account";
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -39,6 +40,8 @@ test("an owner imports text, exports open formats/backups, inspects jobs, and op
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
+  const longTerm = "Pneumonoultramicroscopicsilicovolcanoconiosis".repeat(2);
+  const longDefinition = "Mitochondrialadenosinetriphosphatesynthase".repeat(2);
   await provisionAndSignInLocalAuthor(page, {
     displayName: "Portability owner",
     emailPrefix: `phase06-${testInfo.project.name}`,
@@ -51,12 +54,12 @@ test("an owner imports text, exports open formats/backups, inspects jobs, and op
   await expect(page.getByText("No scraping. No shared credentials.")).toBeVisible();
   await page
     .getByRole("textbox", { name: "Paste term and definition pairs" })
-    .fill("ATP\tCellular energy carrier\nDNA\tGenetic material");
+    .fill(`${longTerm}\t${longDefinition}\nDNA\tGenetic material`);
   await page.getByRole("button", { name: "Inspect source" }).click();
   await expect(
     page.getByRole("heading", { level: 2, name: "This is what Lumen found" }),
   ).toBeVisible();
-  await expect(page.getByText("ATP", { exact: true })).toBeVisible();
+  await expect(page.getByText(longTerm, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continue to mapping" }).click();
   await expect(
     page.getByRole("heading", { level: 2, name: "Choose how this import behaves" }),
@@ -125,9 +128,96 @@ test("an owner imports text, exports open formats/backups, inspects jobs, and op
   await page.getByRole("link", { name: "Open print preview →" }).first().click();
   await expect(page.getByRole("region", { name: "Print controls" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Study guide" })).toBeVisible();
+  await expect(page.getByText(longTerm, { exact: true })).toBeVisible();
+  await page.screenshot({
+    animations: "disabled",
+    fullPage: true,
+    path: testInfo.outputPath("long-content-study-guide.png"),
+  });
   await expect(page.getByLabel("Paper size")).toBeVisible();
   await expect(page.getByLabel("Orientation")).toBeVisible();
   await expectNoHorizontalOverflow(page);
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await expectNoHorizontalOverflow(page);
+});
+
+test("an owner previews and imports a selected Excel or Google Sheets worksheet", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium-desktop",
+    "XLSX workbook flow runs once on desktop",
+  );
+  test.setTimeout(90_000);
+  await provisionAndSignInLocalAuthor(page, {
+    displayName: "Spreadsheet owner",
+    emailPrefix: "phase06-xlsx",
+    handlePrefix: "xlsx_owner",
+    returnTo: "/app/portability",
+  });
+  await dismissInvitation(page);
+  await page.screenshot({
+    animations: "disabled",
+    fullPage: true,
+    path: testInfo.outputPath("portability-source-palette.png"),
+  });
+
+  const xlsx = createSyntheticXlsxFixture([
+    {
+      name: "Biology",
+      rows: [
+        ["Term", "Definition"],
+        ["ATP", "Cellular energy carrier"],
+      ],
+    },
+    {
+      name: "Chemistry",
+      rows: [
+        ["Question", "Answer", "Hint"],
+        ["Atomic number of oxygen?", 8, "Periodic table"],
+        [
+          "Pneumonoultramicroscopicsilicovolcanoconiosis".repeat(2),
+          "Mitochondrialadenosinetriphosphatesynthase".repeat(2),
+          "Long-content wrapping",
+        ],
+      ],
+    },
+  ]);
+  await page.getByRole("button", { name: "Excel or Google Sheets" }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    buffer: Buffer.from(xlsx),
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    name: "synthetic-google-sheets.xlsx",
+  });
+  await page.getByRole("button", { name: "Inspect source" }).click();
+  await expect(page.getByRole("combobox", { name: "Worksheet to import" })).toBeVisible();
+  await page.getByRole("combobox", { name: "Worksheet to import" }).click();
+  await page.getByRole("option", { name: /Chemistry · 2 rows/u }).click();
+  await expect(page.getByText("Atomic number of oxygen?", { exact: true })).toBeVisible();
+  await page.screenshot({
+    animations: "disabled",
+    fullPage: true,
+    path: testInfo.outputPath("xlsx-worksheet-preview.png"),
+  });
+  await expectNoHorizontalOverflow(page);
+  const largeTextStyle = await page.addStyleTag({
+    content: "html { font-size: 200% !important; }",
+  });
+  await expectNoHorizontalOverflow(page);
+  await largeTextStyle.evaluate((element) => element.remove());
+  await page.getByRole("button", { name: "Continue to mapping" }).click();
+  await expect(page.getByText("Chemistry", { exact: true })).toBeVisible();
+  await expect(page.getByText(/3 columns · Front column 1 · Back column 2/u)).toBeVisible();
+  await page.getByRole("button", { name: "Review import" }).click();
+  const importResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/portability/import") && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Import now" }).click();
+  expect((await importResponse).status()).toBe(201);
+  await expect(page.getByText(/2 entries created 2 study cards/u)).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await expectNoSevereAxeViolations(page);
   await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
   await expectNoHorizontalOverflow(page);
 });

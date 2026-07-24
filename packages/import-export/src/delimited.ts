@@ -8,6 +8,7 @@ import type {
   ImportProgress,
   NormalizedGraph,
   PortabilityDiagnostic,
+  PortabilityFormat,
   PortabilitySource,
 } from "./schemas";
 import { delimiterMappingSchema, portabilitySourceSchema } from "./schemas";
@@ -143,7 +144,7 @@ export function inferDelimiter(source: string): "," | "\t" | ";" | "|" {
 const frontHeaders = new Set(["front", "term", "question", "prompt", "word"]);
 const backHeaders = new Set(["back", "definition", "answer", "meaning"]);
 
-function inferMapping(
+export function inferDelimitedMapping(
   rows: readonly (readonly string[])[],
   delimiter: DelimiterMapping["delimiter"],
 ) {
@@ -197,11 +198,15 @@ function cell(row: readonly string[], index: number | undefined) {
   return index === undefined ? "" : (row[index] ?? "").normalize("NFKC").trim();
 }
 
-function graphFromRows(
+export function graphFromDelimitedRows(
   source: PortabilitySource,
   rows: readonly (readonly string[])[],
   mapping: DelimiterMapping,
   adapterCode: string,
+  options: {
+    readonly deckTitle?: string;
+    readonly format?: PortabilityFormat;
+  } = {},
 ): NormalizedGraph {
   const dataRows = mapping.hasHeader ? rows.slice(1) : rows;
   const diagnostics: PortabilityDiagnostic[] = [];
@@ -253,10 +258,11 @@ function graphFromRows(
   return simpleGraph({
     adapter: adapterCode,
     deckTitle:
+      options.deckTitle ??
       dataRows.map((row) => cell(row, mapping.deckColumn)).find(Boolean) ??
       deckTitleFromFile(source.fileName),
     diagnostics,
-    format: mapping.delimiter === "\t" ? "tsv" : "csv",
+    format: options.format ?? (mapping.delimiter === "\t" ? "tsv" : "csv"),
     notes,
     ...(source.fileName ? { sourceName: source.fileName } : {}),
   });
@@ -363,7 +369,7 @@ const delimitedAdapterDefinition: ImportAdapter & ExportAdapter = {
     const text = sourceText(parsedSource);
     const delimiter = inferDelimiter(text);
     const rows = parseDelimited(text, { delimiter });
-    const mapping = inferMapping(rows, delimiter);
+    const mapping = inferDelimitedMapping(rows, delimiter);
     return {
       adapterCode: "delimited",
       capabilities: DELIMITED_CAPABILITIES,
@@ -393,8 +399,10 @@ const delimitedAdapterDefinition: ImportAdapter & ExportAdapter = {
     const text = sourceText(parsedSource);
     const delimiter = plan.mapping?.delimiter ?? inferDelimiter(text);
     const rows = parseDelimited(text, { delimiter });
-    const mapping = plan.mapping ?? inferMapping(rows, delimiter);
-    return graphFromRows(parsedSource, rows, mapping, "delimited");
+    const mapping = plan.mapping ?? inferDelimitedMapping(rows, delimiter);
+    return graphFromDelimitedRows(parsedSource, rows, mapping, "delimited", {
+      ...(plan.destinationDeckTitle ? { deckTitle: plan.destinationDeckTitle } : {}),
+    });
   },
 };
 

@@ -72,6 +72,27 @@ interface Inspection {
     readonly tagsColumn?: number;
   };
   readonly sample: readonly Readonly<Record<string, string | number | boolean | null>>[];
+  readonly spreadsheet?: {
+    readonly selectedSheet: string;
+    readonly sheets: readonly {
+      readonly columnCount: number;
+      readonly estimatedItems: number;
+      readonly mapping: {
+        readonly backColumn: number;
+        readonly customFieldColumns?: Readonly<Record<string, number>>;
+        readonly deckColumn?: number;
+        readonly externalIdColumn?: number;
+        readonly frontColumn: number;
+        readonly hasHeader: boolean;
+        readonly sheetName: string;
+        readonly sourceColumn?: number;
+        readonly tagsColumn?: number;
+      };
+      readonly name: string;
+      readonly rowCount: number;
+      readonly sample: readonly Readonly<Record<string, string | number | boolean | null>>[];
+    }[];
+  };
   readonly textMapping?: {
     readonly backLanguage?: string;
     readonly cardDelimiter: string;
@@ -127,6 +148,7 @@ const sourceChoices = [
     adapter: "quizlet_text",
     accept: "",
     description: "Paste terms and definitions you are authorized to use.",
+    accent: "violet",
     label: "Quizlet-style text",
     mode: "paste",
   },
@@ -134,10 +156,20 @@ const sourceChoices = [
     adapter: "delimited",
     accept: ".csv,.tsv,text/csv,text/tab-separated-values",
     description: "Map columns, tags, and stable source IDs.",
+    accent: "teal",
     label: "CSV or TSV",
     mode: "file",
   },
   {
+    accent: "green",
+    adapter: "xlsx",
+    accept: ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    description: "Choose a worksheet from an Excel file or Google Sheets download.",
+    label: "Excel or Google Sheets",
+    mode: "file",
+  },
+  {
+    accent: "blue",
     adapter: "lumen_json",
     accept: ".json,application/json",
     description: "Use the versioned Lumen graph representation.",
@@ -145,6 +177,7 @@ const sourceChoices = [
     mode: "file",
   },
   {
+    accent: "amber",
     adapter: "markdown_bundle",
     accept: ".md,.markdown,.zip,text/markdown,application/zip",
     description: "Readable Markdown or an authorized media bundle.",
@@ -152,6 +185,7 @@ const sourceChoices = [
     mode: "file",
   },
   {
+    accent: "rose",
     adapter: "anki_package",
     accept: ".apkg,.colpkg,application/zip",
     description: "Inspect synthetic or user-owned Anki packages safely.",
@@ -159,6 +193,7 @@ const sourceChoices = [
     mode: "file",
   },
   {
+    accent: "violet",
     adapter: "lumen_archive",
     accept: ".lumen,application/zip",
     description: "Preview a full-fidelity Lumen backup before restoring.",
@@ -178,6 +213,7 @@ const exportFormats = [
 type ExportChoice = (typeof exportFormats)[number];
 
 function readableFormat(value: string) {
+  if (value === "xlsx") return "Excel workbook";
   return value.replaceAll("_", " ").replace(/\b\w/gu, (character) => character.toUpperCase());
 }
 
@@ -273,6 +309,24 @@ function SourcePreview({ inspection }: { readonly inspection: Inspection }) {
           </ul>
         </details>
       )}
+      {inspection.loss.length > 0 && (
+        <details className="portability-warning-list">
+          <summary>
+            <WarningIcon aria-hidden="true" /> Review {inspection.loss.length} compatibility change
+            {inspection.loss.length === 1 ? "" : "s"}
+          </summary>
+          <ul>
+            {inspection.loss.slice(0, 20).map((item, index) => (
+              <li key={`${item.feature}-${String(index)}`}>
+                <strong>{readableFormat(item.feature)}</strong>
+                <span>
+                  {item.message} ({readableFormat(item.policy)})
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }
@@ -305,6 +359,7 @@ export function PortabilityCenter({
   const [textTags, setTextTags] = useState("");
   const [restorePassphrase, setRestorePassphrase] = useState("");
   const [restoreConflictPolicy, setRestoreConflictPolicy] = useState("create_independent");
+  const [spreadsheetSheetName, setSpreadsheetSheetName] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -322,6 +377,19 @@ export function PortabilityCenter({
   const [jobs, setJobs] = useState<readonly JobView[]>([]);
   const [jobsLoading, setJobsLoading] = useState(initialTab === "jobs");
   const activeChoice = sourceChoices.find((choice) => choice.adapter === sourceAdapter);
+  const selectedSpreadsheetSheet =
+    inspection?.spreadsheet?.sheets.find((sheet) => sheet.name === spreadsheetSheetName) ??
+    inspection?.spreadsheet?.sheets[0];
+  const displayedInspection =
+    inspection && selectedSpreadsheetSheet
+      ? {
+          ...inspection,
+          estimatedItems: selectedSpreadsheetSheet.estimatedItems,
+          sample: selectedSpreadsheetSheet.sample,
+        }
+      : inspection;
+  const estimatedImportItems =
+    selectedSpreadsheetSheet?.estimatedItems ?? inspection?.estimatedItems ?? 0;
 
   const loadJobs = useCallback(async () => {
     setJobsLoading(true);
@@ -384,6 +452,11 @@ export function PortabilityCenter({
         throw new Error(result.message ?? "The source could not be inspected.");
       }
       setInspection(result.inspection);
+      setSpreadsheetSheetName(
+        result.inspection.spreadsheet?.selectedSheet ??
+          result.inspection.spreadsheet?.sheets[0]?.name ??
+          "",
+      );
       if (result.inspection.textMapping) {
         setTextFieldDelimiter(
           result.inspection.textMapping.fieldDelimiter === "\t"
@@ -455,6 +528,9 @@ export function PortabilityCenter({
           ...(inspection.mapping ? { mapping: inspection.mapping } : {}),
           mediaPolicy,
           progressPolicy,
+          ...(selectedSpreadsheetSheet
+            ? { spreadsheetMapping: selectedSpreadsheetSheet.mapping }
+            : {}),
           ...(inspection.textMapping
             ? {
                 textMapping: {
@@ -582,6 +658,7 @@ export function PortabilityCenter({
               <button
                 aria-pressed={sourceAdapter === choice.adapter}
                 className="portability-format-card"
+                data-accent={choice.accent}
                 data-selected={sourceAdapter === choice.adapter}
                 key={choice.label}
                 onClick={() => {
@@ -589,6 +666,7 @@ export function PortabilityCenter({
                   setSourceMode(choice.mode);
                   setFile(null);
                   setInspection(null);
+                  setSpreadsheetSheetName("");
                 }}
                 type="button"
               >
@@ -669,7 +747,24 @@ export function PortabilityCenter({
               <p>Only the preview below is rendered. Large sources remain bounded.</p>
             </div>
           </div>
-          <SourcePreview inspection={inspection} />
+          {inspection.spreadsheet && (
+            <div className="portability-sheet-picker">
+              <FormField
+                description={`${inspection.spreadsheet.sheets.length} worksheet${inspection.spreadsheet.sheets.length === 1 ? "" : "s"} found. One worksheet is imported at a time.`}
+                label="Worksheet to import"
+              >
+                <Select
+                  onValueChange={setSpreadsheetSheetName}
+                  options={inspection.spreadsheet.sheets.map((sheet) => ({
+                    label: `${sheet.name} · ${sheet.estimatedItems.toLocaleString()} rows`,
+                    value: sheet.name,
+                  }))}
+                  value={selectedSpreadsheetSheet?.name ?? ""}
+                />
+              </FormField>
+            </div>
+          )}
+          {displayedInspection && <SourcePreview inspection={displayedInspection} />}
           <div className="portability-action-bar">
             <Button onClick={() => setImportStep("choose")} variant="ghost">
               Back
@@ -788,6 +883,18 @@ export function PortabilityCenter({
                 </small>
               </div>
             )}
+            {selectedSpreadsheetSheet && (
+              <div className="portability-detected-setting" data-accent="green">
+                <span>Selected worksheet</span>
+                <strong>{selectedSpreadsheetSheet.name}</strong>
+                <small>
+                  {selectedSpreadsheetSheet.rowCount.toLocaleString()} rows ·{" "}
+                  {selectedSpreadsheetSheet.columnCount.toLocaleString()} columns · Front column{" "}
+                  {selectedSpreadsheetSheet.mapping.frontColumn + 1} · Back column{" "}
+                  {selectedSpreadsheetSheet.mapping.backColumn + 1}
+                </small>
+              </div>
+            )}
             {inspection.textMapping && (
               <>
                 <FormField
@@ -855,7 +962,7 @@ export function PortabilityCenter({
               <p className="eyebrow">Step 4 · Review</p>
               <h2 id="import-heading">Ready when you are</h2>
               <p>
-                Import {inspection.estimatedItems.toLocaleString()} card entries into a new{" "}
+                Import {estimatedImportItems.toLocaleString()} card entries into a new{" "}
                 <strong>
                   {destinationDeckId === "new"
                     ? destinationTitle
@@ -871,7 +978,7 @@ export function PortabilityCenter({
           <div className="portability-review-grid">
             <article>
               <span>Additions</span>
-              <strong>{inspection.estimatedItems.toLocaleString()}</strong>
+              <strong>{estimatedImportItems.toLocaleString()}</strong>
               <p>Imported card entries</p>
             </article>
             <article>
@@ -970,6 +1077,7 @@ export function PortabilityCenter({
                 setPastedText("");
                 setRestorePassphrase("");
                 setDestinationDeckId("new");
+                setSpreadsheetSheetName("");
               }}
               variant="secondary"
             >

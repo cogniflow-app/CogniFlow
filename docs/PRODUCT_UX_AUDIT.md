@@ -274,6 +274,17 @@ deletion without paths or lease details. Print has keyboard-labelled paper, orie
 controls and removes application chrome. Contextual guides are restartable and are never
 auto-started for existing users.
 
+The source chooser includes a distinct Excel/Google Sheets option with worksheet selection,
+per-sheet sample/count feedback, and visible formula/object compatibility notes. Restrained
+violet, teal, green, blue, amber, and rose accents distinguish source, summary, export, backup,
+job, and print cards without making color the only state signal.
+
+User-authored content follows one non-clipping typography policy across editor/card previews,
+public and review flashcards, practice prompts/choices, both Match views, tests, import previews,
+study guides, cut-out flashcards, answer keys, and reports. Containers may grow or scroll, long
+unbroken terms wrap with language-aware hyphenation where available, and readable prose uses
+balanced/pretty wrapping instead of single-line ellipsis.
+
 The visual acceptance matrix covers the empty/source/mapping/running/result/job/export/backup/print
 states at desktop, tablet, and phone widths in light/dark/serious/reduced-motion modes, plus 200%
 text. Exact evidence is recorded after the final browser run. Format behavior and copy are in

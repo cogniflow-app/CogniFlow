@@ -649,7 +649,9 @@ offline state. Detailed recovery is in [OFFLINE_PWA_AND_SYNC.md](./OFFLINE_PWA_A
 
 No third-party account or paid service is needed. Start Docker/local Supabase, then run
 `pnpm db:reset`, `pnpm db:types`, and `pnpm test:db`. `pnpm --filter @lumen/import-export test`
-uses only generated synthetic text, JSON, Markdown, archive, media, and SQLite/Anki fixtures.
+uses only generated synthetic text, XLSX/OOXML, JSON, Markdown, archive, media, and SQLite/Anki
+fixtures. Excel and Google Sheets files need no API, OAuth grant, or desktop application: download
+or save an authorized workbook as `.xlsx`, then select one worksheet in the import wizard.
 Temporary files live in the local private Storage emulator and are removed by job completion or
 `pnpm --filter @lumen/worker portability`. Never place personal exports, archive
 passphrases, or hosted credentials in the repository. Format details are in

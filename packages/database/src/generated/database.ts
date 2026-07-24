@@ -8263,6 +8263,7 @@ export type Database = {
         | "quizlet_text"
         | "csv"
         | "tsv"
+        | "xlsx"
         | "lumen_json"
         | "markdown_bundle"
         | "anki_apkg"
@@ -8576,6 +8577,7 @@ export const Constants = {
         "quizlet_text",
         "csv",
         "tsv",
+        "xlsx",
         "lumen_json",
         "markdown_bundle",
         "anki_apkg",

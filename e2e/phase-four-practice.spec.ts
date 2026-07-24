@@ -192,8 +192,10 @@ test("Match uses a shuffled card board and Test submits one mixed answer sheet",
   );
   await page.getByRole("button", { name: "Create deck and add cards" }).click();
   const deckId = ((await (await deckResponse).json()) as { data: { id: string } }).data.id;
+  const longTerm = "Pneumonoultramicroscopicsilicovolcanoconiosis".repeat(2);
+  const longDefinition = "Mitochondrialadenosinetriphosphatesynthase".repeat(2);
   const pairs = [
-    ["Cell energy organelle", "Mitochondrion"],
+    [longTerm, longDefinition],
     ["Genetic material organelle", "Nucleus"],
     ["Protein assembly structure", "Ribosome"],
   ] as const;
@@ -226,6 +228,12 @@ test("Match uses a shuffled card board and Test submits one mixed answer sheet",
   await expect(
     page.getByRole("group", { name: "Shuffled matching cards" }).getByRole("button"),
   ).toHaveCount(6);
+  await expectNoHorizontalOverflow(page);
+  const largeTextStyle = await page.addStyleTag({
+    content: "html { font-size: 200% !important; }",
+  });
+  await expectNoHorizontalOverflow(page);
+  await largeTextStyle.evaluate((element) => element.remove());
   const matchAxe = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();

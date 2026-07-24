@@ -12,6 +12,7 @@ Phase 06 adds owner-controlled import, export, disaster-recovery backup, clean-a
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Quizlet-style/plain text                     | Yes, pasted text with configurable field/card separators, header, direction, languages, and tags | Yes                                                  | No                                              | One front/back projection                                                                                                         | No                                                | Not exact; structured fields, media, and progress are reported as omitted                                                                                                                           |
 | CSV/TSV                                      | Yes, comma/tab/semicolon/pipe detection and explicit mapping                                     | Yes                                                  | No                                              | Custom columns import as custom fields; export projects front/back                                                                | No                                                | Not exact for custom templates or extra fields; formula-like cells are neutralized                                                                                                                  |
+| Excel / Google Sheets `.xlsx`                | Yes, bounded workbook inspection and explicit worksheet selection                                | No                                                   | Embedded objects are omitted                    | Front/back columns are inferred; headers, tags, source IDs, and custom columns map to fields                                      | No                                                | Formula expressions never execute and are not preserved; saved cached values import when present. External links are ignored, and embedded images/charts/comments are reported as omitted           |
 | JSON                                         | Yes, normalized schema v1 and common Q/A arrays/objects                                          | Yes                                                  | Descriptors in normalized JSON, not media bytes | Normalized note types, fields, templates, and generated cards                                                                     | Yes in normalized schema                          | Exact for valid normalized v1 JSON; generic Q/A JSON is a documented safe mapping                                                                                                                   |
 | Markdown bundle                              | Yes, readable Markdown/frontmatter/cloze and machine graph                                       | Yes                                                  | Verified bytes in `media/files/<sha256>`        | Machine graph is exact; readable Markdown projects front/back                                                                     | Preserved in machine graph                        | Exact for the machine graph and verified media; readable-only imports cannot recover omitted structure                                                                                              |
 | Anki `.apkg` / plain-SQLite `.colpkg` subset | Yes, synthetic and user-owned packages                                                           | `.apkg`                                              | Verified image/audio media map                  | Basic, reversed, optional reversed, typed-answer, cloze, custom fields, tags, CSS/FrontSide/conditionals through sanitized models | User-selectable compatible schedule/review import | Best effort, not universal Anki fidelity; add-ons, executable template behavior, and unsupported interactive cards are stripped, rejected, flattened, closest-mapped, or omitted with explicit loss |
@@ -25,6 +26,11 @@ Schema version 1 distinguishes folders, decks, note types, fields, templates, no
 ## Inspection and import workflow
 
 The owner selects or pastes a source, then Lumen validates MIME/magic/size, detects a format, inspects a bounded sample, shows mapping and loss, collects duplicate/progress/media/conflict choices, and creates a payload-bound job. The trusted content service performs writes. Per-item receipts bind source fingerprints to canonical IDs so retries do not duplicate completed work.
+
+Excel and Google Sheets downloads use the same workflow. Lumen inspects every bounded worksheet,
+shows row/column counts and a capped sample, and imports only the worksheet the owner selects.
+Worksheet names and mappings are persisted in the payload-bound job so a resumed chunk cannot
+silently switch sheets.
 
 Files up to 64 MiB are accepted. Sources over 1 MiB use 500-note durable chunks. Each request reacquires a bounded lease, reparses the checksum-verified private object, skips completed item receipts, checkpoints progress, and yields without consuming a retry attempt. The browser can reload; the Jobs surface can resume or cancel. Ordinary errors expose only safe categories, never source content.
 
@@ -67,6 +73,10 @@ Imported HTML is converted through safe text/content boundaries. Templates and C
 - Normalized path: 512 UTF-8 bytes; absolute, drive, traversal, control-character, duplicate-normalized, symlink-like, and unsafe separator paths are rejected.
 - Compression ratio: 200:1.
 - Delimited input: 100,001 rows, 501 columns, and 1,000,000 characters per field.
+- `.xlsx`: 32 worksheets, 100,001 rows per worksheet, 250,000 rows total, 501 columns,
+  1,000,000 populated cells, 1,000,000 characters per cell, 1,024 ZIP entries, and 128 MiB
+  expanded workbook bytes. Inspection renders at most ten rows per worksheet and 500 characters
+  per preview cell while import preserves the validated full cell.
 - Normalized deck: 100,000 notes; UI previews at most ten sample rows/decks.
 - Progress/evidence writes: 500 items per database call.
 
@@ -88,6 +98,12 @@ Recovery order is: inspect sanitized job state; retry only a retryable job; allo
 
 ## Test evidence
 
-Synthetic tests cover quoted/multiline/BOM/Unicode/custom-field delimited input, deterministic IDs, generic JSON, Markdown frontmatter/cloze/media, exact archive domain/media round-trip, secret rejection, checksum/count/resource tampering, encryption failure neutrality, ZIP traversal/size/count/ratio limits, real SQLite Anki export/reimport, sibling/card-type/media/progress behavior, unsupported-card policies, corrupted/missing packages, cancellation, worker retry/crash behavior, private no-cache headers, and print modes/settings.
+Synthetic tests cover quoted/multiline/BOM/Unicode/custom-field delimited input, multi-worksheet
+`.xlsx` detection/selection/custom fields/cached formulas, bounded previews, macro and sparse-sheet
+rejection, deterministic IDs, generic JSON, Markdown frontmatter/cloze/media, exact archive
+domain/media round-trip, secret rejection, checksum/count/resource tampering, encryption failure
+neutrality, ZIP traversal/size/count/ratio limits, real SQLite Anki export/reimport,
+sibling/card-type/media/progress behavior, unsupported-card policies, corrupted/missing packages,
+cancellation, worker retry/crash behavior, private no-cache headers, and print modes/settings.
 
 The performance fixture parses 100,000 two-field text rows without rendering them. Hosted measurements and exact command totals are recorded in `IMPLEMENTATION_STATUS.md` and the Phase 06 pull request after Preview acceptance.

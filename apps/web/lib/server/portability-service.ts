@@ -108,8 +108,11 @@ export function detectPortabilityMime(source: PortabilitySource): string {
   if (source.bytes && hasPrefix(source.bytes, ENCRYPTED_MAGIC)) {
     return "application/octet-stream";
   }
-  if (source.bytes && hasPrefix(source.bytes, ZIP_MAGIC)) return "application/zip";
   const suffix = extension(source.fileName);
+  if (source.bytes && hasPrefix(source.bytes, ZIP_MAGIC) && suffix === "xlsx") {
+    return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  }
+  if (source.bytes && hasPrefix(source.bytes, ZIP_MAGIC)) return "application/zip";
   if (suffix === "json") return "application/json";
   if (suffix === "csv") return "text/csv";
   if (suffix === "tsv") return "text/tab-separated-values";
@@ -127,7 +130,7 @@ export function assertPortabilitySource(source: PortabilitySource) {
   const suffix = extension(parsed.fileName);
   if (
     parsed.bytes &&
-    ["apkg", "colpkg", "lumen", "zip"].includes(suffix) &&
+    ["apkg", "colpkg", "lumen", "xlsx", "zip"].includes(suffix) &&
     !hasPrefix(parsed.bytes, ZIP_MAGIC) &&
     !hasPrefix(parsed.bytes, ENCRYPTED_MAGIC)
   ) {
@@ -156,6 +159,7 @@ export async function mapPortabilitySource(
     readonly duplicatePolicy: ImportPlan["duplicatePolicy"];
     readonly mapping?: ImportPlan["mapping"];
     readonly progressPolicy: ImportPlan["progressPolicy"];
+    readonly spreadsheetMapping?: ImportPlan["spreadsheetMapping"];
     readonly textMapping?: ImportPlan["textMapping"];
   },
 ) {
@@ -169,6 +173,7 @@ export async function mapPortabilitySource(
     ...(input.mapping ? { mapping: input.mapping } : {}),
     progressPolicy: input.progressPolicy,
     source: checked.source,
+    ...(input.spreadsheetMapping ? { spreadsheetMapping: input.spreadsheetMapping } : {}),
     ...(input.textMapping ? { textMapping: input.textMapping } : {}),
   });
 }

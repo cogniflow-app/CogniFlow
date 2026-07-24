@@ -487,9 +487,11 @@
     z-index: 10;
     top: 0;
     display: grid;
-    grid-template-columns: minmax(12rem, 0.7fr) minmax(18rem, 1fr) minmax(18rem, 0.7fr);
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) minmax(0, 0.7fr);
     align-items: center;
     gap: 1rem;
+    width: 100%;
+    max-width: 100%;
     min-height: 4.75rem;
     padding: 0.65rem clamp(1rem, 2.5vw, 2.5rem);
     border-bottom: 1px solid var(--color-border);
@@ -549,6 +551,7 @@
   }
 
   .practice-session-bar__actions {
+    flex-wrap: wrap;
     justify-content: flex-end;
   }
 
@@ -698,11 +701,15 @@
   }
 
   .practice-flip-card__face p {
+    min-width: 0;
     max-width: 42rem;
     margin: 0;
     font-size: clamp(1.35rem, 3vw, 2.2rem);
     line-height: 1.35;
     overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .practice-flip-card__face > span {
@@ -736,11 +743,15 @@
   }
 
   .practice-question-card__prompt p {
+    min-width: 0;
     max-width: 44rem;
     margin: 0;
     font-size: clamp(1.2rem, 2.5vw, 1.75rem);
     line-height: 1.4;
     overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .practice-answer-form,
@@ -777,6 +788,7 @@
 
   .practice-choices label {
     display: flex;
+    min-width: 0;
     align-items: center;
     gap: 0.7rem;
     min-height: 4rem;
@@ -784,6 +796,14 @@
     border: 1px solid var(--color-border);
     border-radius: 0.8rem;
     cursor: pointer;
+  }
+
+  .practice-choices label > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .practice-choices label.is-selected {
@@ -1047,8 +1067,10 @@
 
   .practice-complete {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     min-height: 100dvh;
-    place-content: center;
+    align-content: center;
+    justify-items: center;
     padding: clamp(1.5rem, 5vw, 4rem);
     background:
       radial-gradient(
@@ -1058,6 +1080,13 @@
       ),
       var(--color-surface-sunken);
     text-align: center;
+  }
+
+  .practice-complete > *,
+  .practice-question-review *,
+  .practice-complete__actions > * {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .practice-complete__mark {
@@ -1076,6 +1105,10 @@
   .practice-complete > p {
     max-width: 44rem;
     margin-inline: auto;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .practice-complete__stats {
@@ -1119,7 +1152,9 @@
 
   .practice-complete__actions {
     display: flex;
+    width: 100%;
     justify-content: center;
+    flex-wrap: wrap;
     gap: 0.65rem;
   }
 
@@ -1146,6 +1181,7 @@
   }
 
   .practice-question-review li {
+    min-width: 0;
     padding: 1rem;
     border: 1px solid var(--color-border);
     border-radius: 0.85rem;
@@ -1194,6 +1230,17 @@
   .practice-question-review dd {
     margin-top: 0.2rem;
     overflow-wrap: anywhere;
+  }
+
+  .practice-question-review li > p,
+  .practice-question-review dd,
+  .practice-question-review small,
+  .practice-question-review header strong,
+  .practice-question-review header span {
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .button-link {
@@ -1374,10 +1421,14 @@
   }
 
   .practice-match-tile > span {
+    min-width: 0;
     font-size: clamp(0.95rem, 1.5vw, 1.08rem);
     font-weight: 720;
     line-height: 1.42;
     overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .practice-match-tile[data-side="answer"] {
@@ -1426,7 +1477,16 @@
 
   .practice-match-list > label > span {
     display: grid;
+    min-width: 0;
     gap: 0.2rem;
+  }
+
+  .practice-match-list > label > span > strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .practice-match-list small {
@@ -1581,11 +1641,15 @@
   }
 
   .practice-test-question h2 {
+    min-width: 0;
     margin: 1rem 0;
     font-size: clamp(1.05rem, 2vw, 1.3rem);
     line-height: 1.48;
     white-space: pre-line;
     overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .practice-test-options {
@@ -1606,6 +1670,7 @@
 
   .practice-test-options label {
     display: flex;
+    min-width: 0;
     min-height: 3.3rem;
     align-items: center;
     gap: 0.75rem;
@@ -1614,6 +1679,14 @@
     border-radius: 0.75rem;
     background: color-mix(in srgb, var(--color-surface-sunken) 54%, var(--color-surface));
     cursor: pointer;
+  }
+
+  .practice-test-options label > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-wrap: pretty;
+    word-break: normal;
   }
 
   .practice-test-options label:has(input:checked) {
@@ -1856,6 +1929,13 @@
     .practice-primary-actions,
     .practice-complete__actions {
       flex-wrap: wrap;
+    }
+    .practice-complete__actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .practice-complete__actions > * {
+      width: 100%;
     }
     .practice-feedback__heading {
       grid-template-columns: auto 1fr;

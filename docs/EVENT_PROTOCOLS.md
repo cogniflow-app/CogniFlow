@@ -371,3 +371,8 @@ Changed-payload idempotency replay fails. Cancellation is observed before and be
 Terminal completion writes one receipt and removes the queue entry. Raw source data and private
 learning payloads never enter queue/attempt logs. See
 [IMPORT_EXPORT_AND_PORTABILITY.md](./IMPORT_EXPORT_AND_PORTABILITY.md).
+
+For `.xlsx`, the requested policy includes the validated worksheet name plus inferred/selected
+front, back, tag, source-ID, deck, and custom-field column indexes. Resume reparses the
+checksum-verified workbook and requires that exact worksheet; it never falls back to a different
+sheet if the mapping is unavailable.

@@ -142,6 +142,7 @@ export async function POST(request: NextRequest) {
           progressPolicy: options.progressPolicy,
           reviewHistoryPolicy: options.reviewHistoryPolicy,
           schedulePolicy: options.schedulePolicy,
+          spreadsheetMapping: options.spreadsheetMapping ?? null,
           textMapping: options.textMapping ?? null,
         },
         p_source_byte_size: checked.byteSize,
@@ -203,6 +204,7 @@ export async function POST(request: NextRequest) {
         : {}),
       duplicatePolicy: effectiveDuplicatePolicy,
       ...(options.mapping ? { mapping: options.mapping } : {}),
+      ...(options.spreadsheetMapping ? { spreadsheetMapping: options.spreadsheetMapping } : {}),
       ...(options.textMapping ? { textMapping: options.textMapping } : {}),
       progressPolicy: options.progressPolicy,
     });

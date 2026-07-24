@@ -9,6 +9,10 @@ import { PrintableDeckDocument } from "../components/portability/printable-deck.
 
 const root = resolve(import.meta.dirname, "../../..");
 const printCss = readFileSync(resolve(root, "apps/web/app/phase-six.css"), "utf8");
+const contentCss = readFileSync(resolve(root, "apps/web/app/phase-two.css"), "utf8");
+const previewCss = readFileSync(resolve(root, "apps/web/app/product-redesign.css"), "utf8");
+const reviewCss = readFileSync(resolve(root, "apps/web/app/phase-three.css"), "utf8");
+const practiceCss = readFileSync(resolve(root, "apps/web/app/phase-four.css"), "utf8");
 const artifactRoute = readFileSync(
   resolve(root, "apps/web/app/api/portability/artifacts/[artifactId]/route.ts"),
   "utf8",
@@ -21,11 +25,12 @@ const deck = {
   title: "Synthetic biology",
   updatedAt: "2026-07-23T12:00:00.000Z",
 };
+const longWord = "Pneumonoultramicroscopicsilicovolcanoconiosis".repeat(3);
 const cards = [
   { answer: "Energy carrier", front: "ATP", id: "card-1" },
   {
-    answer: "A long answer ".repeat(50),
-    front: "A long prompt ".repeat(40),
+    answer: `${longWord} ${"A long answer ".repeat(50)}`,
+    front: `${longWord} ${"A long prompt ".repeat(40)}`,
     id: "card-2",
   },
 ];
@@ -75,6 +80,26 @@ describe("printable portability documents", () => {
     expect(printCss).toContain(".portability-print-toolbar");
     expect(printCss).toMatch(/break-inside:\s*avoid/u);
     expect(printCss).toMatch(/page-break-inside:\s*avoid/u);
+    expect(printCss).toMatch(/\.print-sheet\s*\{[^}]*overflow-wrap:\s*anywhere/su);
+    expect(printCss).toMatch(/\.print-guide h2,[^}]*hyphens:\s*auto/su);
+    expect(printCss).toMatch(/\.print-card-front h2,[^}]*text-wrap:\s*pretty/su);
+    expect(printCss).toMatch(/\.print-test h2\s*\{[^}]*word-break:\s*normal/su);
+  });
+
+  it("uses one non-clipping content policy across previews, review, Match, and tests", () => {
+    expect(contentCss).toMatch(/\.study-rich-document\s*\{[^}]*overflow-wrap:\s*anywhere/su);
+    expect(contentCss).toMatch(/\.note-browser-row h3\s*\{[^}]*hyphens:\s*auto/su);
+    expect(previewCss).toMatch(/\.generated-card-row span\s*\{[^}]*white-space:\s*normal/su);
+    expect(previewCss).toMatch(/\.flashcard-face__content\s*\{[^}]*text-wrap:\s*pretty/su);
+    expect(reviewCss).toMatch(/\.review-card__content\s*\{[^}]*word-break:\s*normal/su);
+    expect(practiceCss).toMatch(/\.practice-match-tile > span\s*\{[^}]*hyphens:\s*auto/su);
+    expect(practiceCss).toMatch(/\.practice-test-question h2\s*\{[^}]*text-wrap:\s*pretty/su);
+    expect(practiceCss).toMatch(
+      /\.practice-question-review li > p,[\s\S]*?overflow-wrap:\s*anywhere/su,
+    );
+    expect(practiceCss).toMatch(
+      /\.practice-complete\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/su,
+    );
   });
 });
 

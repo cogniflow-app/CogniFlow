@@ -1,13 +1,12 @@
 # Implementation status
 
 **Current phase:** Phase 06 — Import, export, and portability  
-**Status:** Phase 05 is merged through PR #17. `main`, Vercel Production, and Beta Supabase are
-synchronized to `2b4e5beb700aa0199831bd024fa2f9fc739d2d0f` / all 53 migrations through
-`20260723000000_phase05_sync_schema.sql`. Production passes the guarded 11-check smoke suite; Beta
-passes migration, invariant, schema-diff, Storage, and generated-type verification. Phase 06 began
-from that clean verified baseline on `codex/phase-06-import-export-portability`; its changes remain
-Preview-only until review and merge. Phase 06 is implemented and verified locally and against the
-fixed Preview environment.  
+**Status:** Phase 06 merged through PR #18 at
+`bced8ea8986b58684d0f85fe6773921dadb14389`. Its original implementation was verified locally and
+against the fixed Preview environment before merge. The post-merge XLSX import, palette, and
+long-content reflow follow-up is implemented on `agent/xlsx-import-content-reflow`; it remains
+Preview-only until separate review and merge. This follow-up does not promote or otherwise mutate
+Beta Supabase or Vercel Production.  
 **Evidence date:** 2026-07-23  
 **Next phase:** Phase 07 has not started
 
@@ -44,15 +43,18 @@ application change has been sent to Beta or Production.
   spanning folders, decks, note types, templates, notes/cards, media, content history, learner
   schedules/reviews, practice/mastery, settings, publication metadata, provenance, diagnostics,
   and explicit loss. Stable lineage IDs and canonical JSON make retries deterministic.
-- Added bounded adapters for pasted/Quizlet-style text, CSV/TSV, generic and versioned JSON,
-  Markdown bundles, real Anki SQLite `.apkg` packages, and lossless Lumen archives. Import offers
-  inspect/map/preview before execution, duplicate and progress policies, row diagnostics, and
-  resumable 500-item mutation chunks; no third-party login, scraping, or credential collection is
-  present.
+- Added bounded adapters for pasted/Quizlet-style text, CSV/TSV, Excel/Google Sheets `.xlsx`,
+  generic and versioned JSON, Markdown bundles, real Anki SQLite `.apkg` packages, and lossless
+  Lumen archives. Import offers inspect/map/preview before execution, explicit XLSX worksheet
+  selection, duplicate and progress policies, row diagnostics, and resumable 500-item mutation
+  chunks; no third-party login, scraping, or credential collection is present.
 - Added canonical ZIP validation, checksum closure, content-addressed media, strict JSON/Markdown
   boundaries, formula-safe delimited export, bounded in-memory read-only Anki SQLite handling, and
   authenticated `LUMENENC1` archive encryption. Passphrases remain request-local and are never
   persisted or logged.
+- Added hostile-OOXML preflight and pinned `read-excel-file` `9.3.4`; macro-enabled workbooks and
+  unsafe sparse dimensions fail closed, formulas never execute, external links are ignored, and
+  embedded-object/formula loss is visible before importing cached scalar values.
 - Added owner-RLS import/export jobs, private queue leases/checkpoints/receipts, payload-bound
   idempotency, cancellation/retry/resume, artifact expiry/deletion, and a private
   `lumen-portability` Storage bucket. Physical cleanup now uses claim, Storage delete, then
@@ -62,6 +64,10 @@ application change has been sent to Beta or Production.
   links, private no-cache download/API behavior, service-worker exclusions, contextual guides,
   privacy-export integration, clean-account additive restore, complete account archive support,
   and printable cards/list/table layouts with accessibility and low-stimulation behavior.
+- Added a restrained multi-accent portability palette and one long-content layout policy across
+  authoring/generated previews, public/review/actual flashcards, practice prompts and choices,
+  Match board/list, tests, import samples, study guides, cut-out cards, answer keys, and reports.
+  Browser acceptance covers unbroken terms at 200% text without horizontal page overflow.
 - Added a portable bounded worker/manual cleanup runner and a guarded Preview acceptance harness.
   The hosted parent provisions separate source and clean-restore adult accounts, retains all
   provider credentials, tests cross-account artifact isolation, performs canonical account
@@ -86,31 +92,32 @@ rules are in [IMPORT_EXPORT_AND_PORTABILITY.md](./IMPORT_EXPORT_AND_PORTABILITY.
 | `20260724005000_phase06_account_audit_export.sql`             | Service-only complete account audit/export projection used by lossless archives                                                                                          |
 | `20260724006000_phase06_storage_cleanup_confirmation.sql`     | Two-phase object cleanup claim/confirm contract so metadata becomes deleted only after successful physical Storage removal; account deletion safely expedites tombstones |
 | `20260724007000_phase06_sql_expression_qualification_fix.sql` | Append-only correction for three restore/queue routines that incorrectly qualified PostgreSQL `LEAST`/`GREATEST` SQL expressions as catalog functions                    |
+| `20260724008000_phase06_xlsx_import_format.sql`               | Import-only XLSX enum/storage support, export-table guards, and official XLSX MIME admission in the private portability bucket                                           |
 
-Every earlier migration is unchanged. A fresh reset applies all 61 migrations in order and the
+Every earlier migration is unchanged. A fresh reset applies all 62 migrations in order and the
 seed inserts no application data. Generated database types match the reset schema.
 
 ### Phase 06 local evidence
 
-| Command or evidence                                       | Result                                                                                                                                                                                                                             |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install --frozen-lockfile`                          | Exit 0; all 14 workspace projects are current under Node `24.18.0` / pnpm `11.13.0`                                                                                                                                                |
-| `pnpm format:check` / `pnpm secret:scan`                  | Exit 0; formatting accepted and no credential finding                                                                                                                                                                              |
-| `pnpm lint` / `pnpm typecheck`                            | Exit 0; dependency boundaries and all strict TypeScript workspaces pass                                                                                                                                                            |
-| `pnpm test`                                               | Exit 0; 100 files / 794 tests; coverage 71.01% statements, 58.15% branches, 70.96% functions, 73.94% lines                                                                                                                         |
-| `pnpm --filter @lumen/import-export test`                 | Exit 0; 35 deterministic adapter/archive/encryption/Anki/adversarial/performance tests                                                                                                                                             |
-| `pnpm --filter @lumen/worker test`                        | Exit 0; 16 job claim/checkpoint/cancel/crash/retry/exhaustion/bounds/Storage-cleanup tests                                                                                                                                         |
-| `pnpm db:reset` / `pnpm test:db`                          | Exit 0; fresh 61-migration reset; 24 files / 1,029 pgTAP assertions plus SRS concurrency (1 commit, 1 typed stale conflict, 1 immutable log, 27.617 ms)                                                                            |
-| `pnpm db:types:check`                                     | Exit 0 after canonical regeneration; committed generated types match the reset schema                                                                                                                                              |
-| `pnpm build:verify` / verification-wrapped portable build | Exit 0; optimized Next.js produces 96 route/static entries and OpenNext emits `.open-next/worker.js`; the real browser Anki round trip proves the traced `sql.js` WASM boundary                                                    |
-| `pnpm test:pwa`                                           | Exit 0; 4/4 production-mode service-worker/offline matrix scenarios pass, including portability no-cache exclusions                                                                                                                |
-| `pnpm test:e2e`                                           | Exit 0; 40 passed / 23 intentional cross-project skips across desktop, mobile, reduced-motion, authoring, practice, study, identity, portability, and layout workflows                                                             |
-| `pnpm test:a11y`                                          | Exit 0; 30/30 axe, keyboard, focus, theme, serious/reduced-motion, offline-dashboard, and authenticated checks pass                                                                                                                |
-| `pnpm test:lighthouse`                                    | Exit 0; all configured Lighthouse assertions pass                                                                                                                                                                                  |
-| `pnpm test:load`                                          | Exit 0; 15/15 checks, 0% request failures, request-duration p95 7.76 ms                                                                                                                                                            |
-| `pnpm verify`                                             | Exit 0; the aggregate CI-equivalent gate reran every practical local check above against the final Phase 06 tree                                                                                                                   |
-| Portability performance                                   | 10,000-row CSV inspect/map under 5 s; 100,000-row text parse under 10 s; 10,000-note archive create/verify/restore/encrypt under 20 s                                                                                              |
-| Real visual QA                                            | Desktop and mobile import/export/backup/job/print flows, reduced motion, 200% text, and clean-account archive/real-Anki round trips; the mobile stepper was corrected after screenshot/axe inspection and its focused rerun passed |
+| Command or evidence                                       | Result                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`                          | Exit 0; all 14 workspace projects are current under Node `24.18.0` / pnpm `11.13.0`                                                                                                                                                                                    |
+| `pnpm format:check` / `pnpm secret:scan`                  | Exit 0; formatting accepted and no credential finding                                                                                                                                                                                                                  |
+| `pnpm lint` / `pnpm typecheck`                            | Exit 0; dependency boundaries and all strict TypeScript workspaces pass                                                                                                                                                                                                |
+| `pnpm test`                                               | Exit 0; 101 files / 800 tests; coverage 71.31% statements, 58.32% branches, 71.64% functions, 74.15% lines                                                                                                                                                             |
+| `pnpm --filter @lumen/import-export test`                 | Exit 0; 40 deterministic spreadsheet/delimited/archive/encryption/Anki/adversarial/performance tests                                                                                                                                                                   |
+| `pnpm --filter @lumen/worker test`                        | Exit 0; 16 job claim/checkpoint/cancel/crash/retry/exhaustion/bounds/Storage-cleanup tests                                                                                                                                                                             |
+| `pnpm db:reset` / `pnpm test:db`                          | Exit 0; fresh 62-migration reset; 24 files / 1,032 pgTAP assertions plus SRS concurrency (1 commit, 1 typed stale conflict, 1 immutable log, 25.482 ms)                                                                                                                |
+| `pnpm db:types:check`                                     | Exit 0 after canonical regeneration; committed generated types match the reset schema                                                                                                                                                                                  |
+| `pnpm build:verify` / verification-wrapped portable build | Exit 0; optimized Next.js produces 96 route/static entries and OpenNext emits `.open-next/worker.js`; the real browser Anki round trip proves the traced `sql.js` WASM boundary                                                                                        |
+| `pnpm test:pwa`                                           | Exit 0; 4/4 production-mode service-worker/offline matrix scenarios pass, including portability no-cache exclusions                                                                                                                                                    |
+| `pnpm test:e2e`                                           | Exit 0; 41 passed / 25 intentional cross-project skips across desktop, mobile, reduced-motion, authoring, practice, study, identity, portability, and layout workflows                                                                                                 |
+| `pnpm test:a11y`                                          | Exit 0; 30/30 axe, keyboard, focus, theme, serious/reduced-motion, offline-dashboard, and authenticated checks pass                                                                                                                                                    |
+| `pnpm test:lighthouse`                                    | Exit 0; all configured Lighthouse assertions pass                                                                                                                                                                                                                      |
+| `pnpm test:load`                                          | Exit 0; 15/15 checks, 0% request failures, request-duration p95 8.76 ms                                                                                                                                                                                                |
+| `pnpm verify`                                             | Exit 0; the aggregate CI-equivalent gate reran every practical local check above against the final Phase 06 tree                                                                                                                                                       |
+| Portability performance                                   | 10,000-row CSV inspect/map under 5 s; 100,000-row text parse under 10 s; 10,000-note archive create/verify/restore/encrypt under 20 s                                                                                                                                  |
+| Real visual QA                                            | Desktop XLSX worksheet selection, the multi-accent portability palette, long-content import/print/study-guide output, and desktop/mobile Match/Test at 200% text; all wrap without page overflow and the mobile test-summary correction passed its exact focused rerun |
 
 ### Hosted Phase 06 evidence (2026-07-23 23:20 UTC)
 
@@ -145,9 +152,10 @@ focused desktop and reduced-motion import/export/print workflow passes 2/2 with 
 200% text overflow assertions.
 
 Phase 06 adds no owner-only environment, provider, credential, Auth, SMTP, OAuth, domain, analytics,
-or paid-service setup action. Beta Supabase, Production Supabase, Vercel Production,
-`recallflash.com`, and every prior safety gate remain unchanged. The branch remains a draft and
-must not be merged until reviewed.
+or paid-service setup action. PR #18 later merged to `main`; the XLSX/palette/reflow follow-up is
+isolated on `agent/xlsx-import-content-reflow` and must remain Preview-only until its separate
+review. This follow-up has not mutated Beta Supabase, Vercel Production, `recallflash.com`, or any
+prior safety gate.
 
 ## Phase 05 offline PWA and synchronization
 

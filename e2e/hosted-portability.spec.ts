@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
+import { createSyntheticXlsxFixture } from "../packages/import-export/tests/xlsx-fixture";
+
 const runId = process.env.HOSTED_ACCEPTANCE_RUN_ID;
 const fixtureConfirmationFile = process.env.HOSTED_FIXTURE_CONFIRMATION_FILE;
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL;
@@ -97,7 +99,7 @@ async function importFile(
     readonly buffer: Buffer;
     readonly mimeType: string;
     readonly name: string;
-    readonly source: "Anki package" | "CSV or TSV" | "Lumen backup";
+    readonly source: "Anki package" | "CSV or TSV" | "Excel or Google Sheets" | "Lumen backup";
   },
 ) {
   await page.goto("/app/portability");
@@ -169,6 +171,24 @@ test("Preview round-trips portable formats and cleans private artifacts", async 
     mimeType: "text/csv",
     name: "synthetic-phase06.csv",
     source: "CSV or TSV",
+  });
+
+  await importFile(page, {
+    buffer: Buffer.from(
+      createSyntheticXlsxFixture([
+        {
+          name: "Cards",
+          rows: [
+            ["Term", "Definition", "Tags"],
+            ["Osmosis", "Movement of water across a membrane", "biology"],
+            ["Enzyme", "A biological catalyst", "biology"],
+          ],
+        },
+      ]),
+    ),
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    name: "synthetic-google-sheets.xlsx",
+    source: "Excel or Google Sheets",
   });
 
   const json = await generateDeckExport(page, "JSON");
