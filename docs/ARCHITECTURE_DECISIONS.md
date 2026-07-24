@@ -714,3 +714,93 @@ no busy polling.
   window. Unsupported future versions fail safely and retain recoverable user work.
 - Phase 06 import/export and Phase 07 collaboration/Yjs remain unstarted; Phase 05 provides only the
   stable local-ID and structured-merge seams they will consume.
+
+## ADR-0024: Versioned portability graph, hostile-file boundary, and leased jobs
+
+**Context.** Phase 06 must exchange simple study text, structured Lumen data, Markdown bundles,
+Anki packages, account archives, and printable study material without treating any foreign file as
+trusted application state. The same feature must work on the Vercel web runtime and in a portable
+worker, preserve current content/SRS/practice authorities, survive retries and cancellation, and
+make every unsupported or lossy conversion visible. Archive formats combine several dangerous
+boundaries: ZIP path traversal and decompression amplification, SQLite files containing attacker
+chosen schemas/data, spreadsheet formula injection, template HTML/CSS, media type spoofing, and
+encrypted payloads whose passwords must never be persisted.
+
+**Decision.** `@lumen/import-export` owns a framework-independent, versioned normalized graph and
+adapter registry. Adapters implement detect, inspect, map, and execute/export contracts over
+validated byte/text sources and typed sinks; they do not import Next.js, Supabase, Storage, or a
+native SQLite binding. The normalized graph represents folders, decks, note types, fields,
+templates, notes, generated-card identity, tags, media descriptors, immutable revisions/versions,
+permitted publication metadata, learner schedules/review history, separate practice/mastery,
+settings, provenance, diagnostics, and explicit loss. Every graph and adapter result carries a
+schema version, stable lineage identifiers, and a round-trip capability/loss report. Unknown future
+versions fail closed; supported older versions pass through explicit migrations.
+
+Text, Quizlet-style paste, CSV/TSV, JSON, Markdown, internal backup, and Anki are separate adapters
+behind the same contracts. CSV/TSV parsing is a bounded state machine with BOM/encoding,
+quoted multiline fields, delimiter/header inference, formula-safe export, custom mapping, external
+IDs, duplicate policy, and row diagnostics. JSON is parsed only into own-property closed schemas
+and rejects prototype-like keys at every depth. Markdown accepts bounded front matter and stores
+rich content through the existing sanitizer, never rendered source HTML.
+
+ZIP handling uses pinned `fflate` `0.8.3` behind a project wrapper that validates names before
+decompression, rejects absolute/traversal/NUL/symlink-like entries, enforces entry, compressed,
+per-file, expanded-byte, and compression-ratio ceilings, rejects ambiguous duplicate canonical
+paths, and never extracts to a caller-selected filesystem path. Anki collection bytes are opened
+in memory with pinned `sql.js` `1.14.1`, an Emscripten WebAssembly build of SQLite. The adapter
+executes only checked-in, read-only `SELECT` statements against recognized tables/columns; it
+never executes SQL or JavaScript from the package. `collection.anki2` and plain SQLite
+`collection.anki21` packages are supported. Unsupported compressed/new collection members fail
+with an actionable compatibility diagnostic rather than being guessed. Anki field/template HTML
+and CSS pass through the existing safe rich-document/template boundaries. Scheduling and revlogs
+are imported only under an explicit learner-scoped progress policy; otherwise they are reported as
+omitted. Export produces a real legacy-compatible SQLite collection plus media manifest inside an
+`.apkg`; internal Lumen archives remain the lossless backup format.
+
+The internal archive is a canonical ZIP with `manifest.json`, a checksum inventory, versioned JSONL
+resources, and content-addressed media. Optional encryption wraps the complete archive in an
+authenticated `LUMENENC1` envelope using Web Crypto PBKDF2-HMAC-SHA-256 with a random 128-bit salt,
+600,000 iterations, and AES-256-GCM with a random 96-bit nonce. The version/KDF/cipher parameters
+are authenticated additional data. Passphrases exist only in request/worker memory and are never
+stored in rows, receipts, URLs, logs, telemetry, or diagnostics. Wrong-password and tamper failures
+share a neutral error. Restore validates authentication, manifest/checksum closure, graph schema,
+ownership policy, size limits, and every domain object before any canonical mutation.
+
+Durable database jobs are the control plane. Public owner-readable rows expose only sanitized
+status/counts/warnings/loss/errors and artifact metadata. Private rows hold opaque Storage locators,
+upload quarantine, bounded item/checkpoint records, command fingerprints/receipts, attempts, and
+expiring leases. Browser roles cannot mutate job, queue, artifact, or private Storage state
+directly. Authenticated `current_*` RPCs derive the self account/profile/device, bind idempotency to
+the complete command, and support cancel/retry/resume. Service-only fixed-search-path RPCs claim
+bounded work, checkpoint, and complete/retry it. A crashed worker releases work through lease
+expiry; exact retries replay receipts; cancellation is cooperative between atomic batches. Small
+interactive jobs may ask the same worker service to process one bounded batch immediately, but use
+the identical lease/checkpoint/receipt protocol rather than a second synchronous authority.
+
+Uploaded source files and generated artifacts use a dedicated private migration-owned Storage
+bucket and opaque owner-independent paths. The authenticated server validates extension,
+declared/detected MIME, magic bytes, byte size, checksum, and expiry before quarantine release.
+Downloads are short-lived, reauthorized, `private, no-store`, attachment-only responses; service
+worker policy excludes all portability pages, APIs, uploads, artifacts, and print routes. Expiry
+and account deletion revoke availability and enqueue physical removal. Cleanup is two phase:
+service-only claim returns an opaque eligible path without finalizing it, the runner deletes that
+exact Storage object, and a separate service-only confirmation marks metadata deleted. Failure
+therefore remains retryable. Account export completes the existing `data_export_jobs`
+privacy-request boundary by linking it to the same lossless archive engine; account restore is
+always additive/merge-preview by default and never silently replaces a different account or
+canonical FSRS history.
+
+**Consequences.**
+
+- Import inspection, mapping, canonical mutation, backup, account export, and Anki support share one
+  normalized model without coupling domain code to a web framework or provider.
+- “Round trip” is a measured adapter capability with a machine-readable loss report, not a promise
+  that CSV, Markdown, Anki, and Lumen can represent the same features.
+- Hostile archives cannot choose filesystem paths, execute SQL/templates/scripts, allocate
+  unbounded expansion, or become trusted schedule/mastery state.
+- Large work is resumable and auditable without requiring a paid queue; deploying/scheduling the
+  portable worker remains an explicit owner operation.
+- The unencrypted internal archive is portable but contains private study data. Encryption protects
+  the archive at rest in transit/storage, not a compromised browser, worker process, or unlocked
+  account session.
+- Phase 07 collaboration and realtime game work remain out of scope.

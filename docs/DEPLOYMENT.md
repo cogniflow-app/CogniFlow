@@ -415,3 +415,13 @@ A worker update is user-applied after critical work is durable. Rollback of appl
 not roll back IndexedDB; schema changes therefore require backward-compatible additive upgrade
 logic. Recovery and cache-clearing steps are in
 [OFFLINE_PWA_AND_SYNC.md](./OFFLINE_PWA_AND_SYNC.md).
+
+## Phase 06 Preview promotion
+
+After full local acceptance, commit the exact branch state, run `pnpm db:deploy:preview` and
+`pnpm db:verify:preview`, deploy that same commit to Vercel Preview, confirm the Preview-to-Preview
+database binding, and run protected hosted portability acceptance. The guarded parent owns
+provider credentials; browser children receive none. Acceptance must use synthetic content and
+clean Auth identities, content/progress/jobs/artifacts/uploads/publications, and Storage objects,
+then re-verify Preview and an empty temporary Storage root. Do not promote Phase 06 to Beta or
+Production from the PR.

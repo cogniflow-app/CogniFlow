@@ -16,6 +16,7 @@ import {
 } from "./vercel-deployment-ownership.mjs";
 
 const PREVIEW_PROJECT_REF = "cfwddajyjbueggpzfomh";
+const PREVIEW_SUPABASE_ORIGIN = `https://${PREVIEW_PROJECT_REF}.supabase.co`;
 const PRODUCTION_ORIGINS = new Set([
   "https://cogniflow-pearl.vercel.app",
   "https://recallflash.com",
@@ -414,6 +415,98 @@ $cleanup$;
 `;
 }
 
+function parsePortabilityCleanupRows(value) {
+  if (!Array.isArray(value) || value.length > 500) {
+    throw new Error("Preview portability cleanup returned an invalid bounded response.");
+  }
+  return value.map((row) => {
+    if (
+      !row ||
+      typeof row !== "object" ||
+      (row.object_kind !== "artifact" && row.object_kind !== "upload") ||
+      typeof row.object_id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+        row.object_id,
+      ) ||
+      row.storage_bucket !== "lumen-portability" ||
+      typeof row.storage_path !== "string" ||
+      row.storage_path.length < 1 ||
+      row.storage_path.length > 500 ||
+      row.storage_path.startsWith("/") ||
+      row.storage_path.includes("\\") ||
+      row.storage_path.split("/").some((segment) => segment === "." || segment === "..")
+    ) {
+      throw new Error("Preview portability cleanup returned an invalid object reference.");
+    }
+    return row;
+  });
+}
+
+export async function cleanupPreviewPortabilityStorage(
+  secretKey,
+  { fetchImplementation = fetch } = {},
+) {
+  if (typeof secretKey !== "string" || secretKey.length < 24) {
+    throw new Error("Preview portability cleanup requires the parent-held server credential.");
+  }
+  const headers = {
+    apikey: secretKey,
+    Authorization: `Bearer ${secretKey}`,
+    "Content-Type": "application/json",
+  };
+
+  for (let round = 0; round < 20; round += 1) {
+    const claim = await fetchImplementation(
+      `${PREVIEW_SUPABASE_ORIGIN}/rest/v1/rpc/admin_claim_portability_object_cleanup`,
+      {
+        body: JSON.stringify({ p_limit: 500 }),
+        cache: "no-store",
+        headers,
+        method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    if (!claim.ok) throw new Error("Preview portability cleanup claim failed.");
+    const rows = parsePortabilityCleanupRows(await claim.json());
+    if (rows.length === 0) return;
+
+    for (const row of rows) {
+      const removal = await fetchImplementation(
+        `${PREVIEW_SUPABASE_ORIGIN}/storage/v1/object/lumen-portability`,
+        {
+          body: JSON.stringify({ prefixes: [row.storage_path] }),
+          cache: "no-store",
+          headers,
+          method: "DELETE",
+          redirect: "error",
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      if (!removal.ok) throw new Error("Preview portability Storage removal failed.");
+      const confirmation = await fetchImplementation(
+        `${PREVIEW_SUPABASE_ORIGIN}/rest/v1/rpc/admin_confirm_portability_object_deleted`,
+        {
+          body: JSON.stringify({
+            p_object_id: row.object_id,
+            p_object_kind: row.object_kind,
+          }),
+          cache: "no-store",
+          headers,
+          method: "POST",
+          redirect: "error",
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      if (!confirmation.ok || (await confirmation.json()) !== true) {
+        throw new Error("Preview portability cleanup confirmation failed.");
+      }
+    }
+  }
+
+  throw new Error("Preview portability cleanup exceeded its bounded retry rounds.");
+}
+
 async function acquireLock() {
   await mkdir(dirname(LOCK_PATH), { recursive: true });
   const handle = await open(LOCK_PATH, "wx").catch((error) => {
@@ -428,7 +521,7 @@ async function acquireLock() {
   };
 }
 
-export async function cleanupPreviewFixture(runId, environment = process.env) {
+export async function cleanupPreviewFixture(runId, environment = process.env, secretKey) {
   const release = await acquireLock();
   let linked = false;
   let failure;
@@ -447,7 +540,8 @@ export async function cleanupPreviewFixture(runId, environment = process.env) {
       ["exec", "supabase", "db", "query", "--linked", createHostedAcceptanceCleanupSql(runId)],
       { env: environment },
     );
-    const inventory = await runCommand(
+    await cleanupPreviewPortabilityStorage(secretKey);
+    const contentInventory = await runCommand(
       "pnpm",
       [
         "exec",
@@ -463,7 +557,24 @@ export async function cleanupPreviewFixture(runId, environment = process.env) {
       ],
       { capture: true, env: environment },
     );
-    assertEmptyHostedStorage(inventory.stdout);
+    assertEmptyHostedStorage(contentInventory.stdout);
+    const portabilityInventory = await runCommand(
+      "pnpm",
+      [
+        "exec",
+        "supabase",
+        "storage",
+        "ls",
+        "--experimental",
+        "--linked",
+        "--recursive",
+        "--output-format",
+        "json",
+        "ss:///lumen-portability/",
+      ],
+      { capture: true, env: environment },
+    );
+    assertEmptyHostedStorage(portabilityInventory.stdout);
   } catch (error) {
     failure = error;
   } finally {
@@ -522,7 +633,6 @@ export async function runHostedContentAcceptance(
     delete downstreamEnvironment.VERCEL_TOKEN;
     delete downstreamEnvironment.VERCEL_AUTOMATION_BYPASS_SECRET;
     const runId = randomUUIDImplementation();
-    cleanupOnce = createOnceAsync(() => cleanupImplementation(runId, downstreamEnvironment));
     const keyInventory = await runCommandImplementation(
       "pnpm",
       [
@@ -540,6 +650,9 @@ export async function runHostedContentAcceptance(
     );
     signalController.throwIfSignaled();
     const secretKey = parsePreviewSecretKey(keyInventory.stdout);
+    cleanupOnce = createOnceAsync(() =>
+      cleanupImplementation(runId, downstreamEnvironment, secretKey),
+    );
     sandbox = createChildEnvironmentImplementation(
       downstreamEnvironment,
       ({ temporaryDirectory }) => {

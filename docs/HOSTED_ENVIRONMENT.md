@@ -322,3 +322,12 @@ browser test, IndexedDB, Cache Storage, or Playwright.
 Preview remains bound to Preview Supabase and Production/Beta remains bound to its independent
 project. Only the committed additive Phase 05 migration may be promoted to Preview while the pull
 request is open. No new owner dashboard configuration is required.
+
+## Phase 06
+
+Phase 06 reuses the existing Preview/Production projects and adds the private
+`lumen-portability` bucket through migrations. No new provider, paid worker, PDF service, secret,
+SMTP, OAuth, or Auth configuration is required. The application still needs its existing
+server-only Supabase secret for service RPCs and private Storage operations; it must never reach
+the browser. While the PR is open, only the five additive Phase 06 migrations may be applied to
+Preview. Beta and Production remain unchanged.

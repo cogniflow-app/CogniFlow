@@ -993,6 +993,7 @@ export type Database = {
           error_code: string | null;
           expires_at: string | null;
           id: string;
+          portability_export_job_id: string | null;
           privacy_request_id: string;
           requested_at: string;
           result_available: boolean;
@@ -1005,6 +1006,7 @@ export type Database = {
           error_code?: string | null;
           expires_at?: string | null;
           id?: string;
+          portability_export_job_id?: string | null;
           privacy_request_id: string;
           requested_at?: string;
           result_available?: boolean;
@@ -1017,6 +1019,7 @@ export type Database = {
           error_code?: string | null;
           expires_at?: string | null;
           id?: string;
+          portability_export_job_id?: string | null;
           privacy_request_id?: string;
           requested_at?: string;
           result_available?: boolean;
@@ -1029,6 +1032,13 @@ export type Database = {
             columns: ["account_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "data_export_jobs_portability_export_job_id_fkey";
+            columns: ["portability_export_job_id"];
+            isOneToOne: false;
+            referencedRelation: "export_jobs";
             referencedColumns: ["id"];
           },
           {
@@ -1675,6 +1685,165 @@ export type Database = {
           },
         ];
       };
+      export_artifacts: {
+        Row: {
+          account_id: string;
+          available: boolean;
+          byte_size: number;
+          created_at: string;
+          deleted_at: string | null;
+          display_name: string;
+          expires_at: string;
+          export_job_id: string;
+          format: Database["public"]["Enums"]["portability_format"];
+          id: string;
+          loss_summary: Json;
+          mime_type: string;
+          sha256: string;
+          warning_count: number;
+        };
+        Insert: {
+          account_id: string;
+          available?: boolean;
+          byte_size: number;
+          created_at?: string;
+          deleted_at?: string | null;
+          display_name: string;
+          expires_at: string;
+          export_job_id: string;
+          format: Database["public"]["Enums"]["portability_format"];
+          id?: string;
+          loss_summary?: Json;
+          mime_type: string;
+          sha256: string;
+          warning_count?: number;
+        };
+        Update: {
+          account_id?: string;
+          available?: boolean;
+          byte_size?: number;
+          created_at?: string;
+          deleted_at?: string | null;
+          display_name?: string;
+          expires_at?: string;
+          export_job_id?: string;
+          format?: Database["public"]["Enums"]["portability_format"];
+          id?: string;
+          loss_summary?: Json;
+          mime_type?: string;
+          sha256?: string;
+          warning_count?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "export_artifacts_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "export_artifacts_export_job_id_fkey";
+            columns: ["export_job_id"];
+            isOneToOne: false;
+            referencedRelation: "export_jobs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      export_jobs: {
+        Row: {
+          account_id: string;
+          adapter_code: string;
+          cancelled_at: string | null;
+          completed_at: string | null;
+          current_phase: string;
+          error_count: number;
+          expires_at: string;
+          export_format: Database["public"]["Enums"]["portability_format"];
+          export_scope: Json;
+          id: string;
+          idempotency_key: string;
+          learner_profile_id: string | null;
+          payload_fingerprint: string;
+          processed_count: number;
+          requested_at: string;
+          requested_options: Json;
+          safe_error_code: string | null;
+          safe_error_summary: string | null;
+          started_at: string | null;
+          status: Database["public"]["Enums"]["portability_job_status"];
+          total_count: number | null;
+          updated_at: string;
+          warning_count: number;
+        };
+        Insert: {
+          account_id: string;
+          adapter_code: string;
+          cancelled_at?: string | null;
+          completed_at?: string | null;
+          current_phase?: string;
+          error_count?: number;
+          expires_at?: string;
+          export_format: Database["public"]["Enums"]["portability_format"];
+          export_scope: Json;
+          id?: string;
+          idempotency_key: string;
+          learner_profile_id?: string | null;
+          payload_fingerprint: string;
+          processed_count?: number;
+          requested_at?: string;
+          requested_options?: Json;
+          safe_error_code?: string | null;
+          safe_error_summary?: string | null;
+          started_at?: string | null;
+          status?: Database["public"]["Enums"]["portability_job_status"];
+          total_count?: number | null;
+          updated_at?: string;
+          warning_count?: number;
+        };
+        Update: {
+          account_id?: string;
+          adapter_code?: string;
+          cancelled_at?: string | null;
+          completed_at?: string | null;
+          current_phase?: string;
+          error_count?: number;
+          expires_at?: string;
+          export_format?: Database["public"]["Enums"]["portability_format"];
+          export_scope?: Json;
+          id?: string;
+          idempotency_key?: string;
+          learner_profile_id?: string | null;
+          payload_fingerprint?: string;
+          processed_count?: number;
+          requested_at?: string;
+          requested_options?: Json;
+          safe_error_code?: string | null;
+          safe_error_summary?: string | null;
+          started_at?: string | null;
+          status?: Database["public"]["Enums"]["portability_job_status"];
+          total_count?: number | null;
+          updated_at?: string;
+          warning_count?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "export_jobs_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "export_jobs_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       folder_items: {
         Row: {
           created_at: string;
@@ -1925,6 +2094,111 @@ export type Database = {
             columns: ["note_id"];
             isOneToOne: false;
             referencedRelation: "notes";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      import_jobs: {
+        Row: {
+          account_id: string;
+          adapter_code: string;
+          cancelled_at: string | null;
+          completed_at: string | null;
+          current_phase: string;
+          error_count: number;
+          expires_at: string;
+          id: string;
+          idempotency_key: string;
+          inspection_summary: Json;
+          kind: Database["public"]["Enums"]["portability_job_kind"];
+          learner_profile_id: string | null;
+          payload_fingerprint: string;
+          processed_count: number;
+          requested_at: string;
+          requested_policy: Json;
+          safe_error_code: string | null;
+          safe_error_summary: string | null;
+          source_byte_size: number;
+          source_display_name: string;
+          source_format: Database["public"]["Enums"]["portability_format"];
+          source_sha256: string;
+          started_at: string | null;
+          status: Database["public"]["Enums"]["portability_job_status"];
+          total_count: number | null;
+          updated_at: string;
+          warning_count: number;
+        };
+        Insert: {
+          account_id: string;
+          adapter_code: string;
+          cancelled_at?: string | null;
+          completed_at?: string | null;
+          current_phase?: string;
+          error_count?: number;
+          expires_at?: string;
+          id?: string;
+          idempotency_key: string;
+          inspection_summary?: Json;
+          kind?: Database["public"]["Enums"]["portability_job_kind"];
+          learner_profile_id?: string | null;
+          payload_fingerprint: string;
+          processed_count?: number;
+          requested_at?: string;
+          requested_policy?: Json;
+          safe_error_code?: string | null;
+          safe_error_summary?: string | null;
+          source_byte_size: number;
+          source_display_name: string;
+          source_format: Database["public"]["Enums"]["portability_format"];
+          source_sha256: string;
+          started_at?: string | null;
+          status?: Database["public"]["Enums"]["portability_job_status"];
+          total_count?: number | null;
+          updated_at?: string;
+          warning_count?: number;
+        };
+        Update: {
+          account_id?: string;
+          adapter_code?: string;
+          cancelled_at?: string | null;
+          completed_at?: string | null;
+          current_phase?: string;
+          error_count?: number;
+          expires_at?: string;
+          id?: string;
+          idempotency_key?: string;
+          inspection_summary?: Json;
+          kind?: Database["public"]["Enums"]["portability_job_kind"];
+          learner_profile_id?: string | null;
+          payload_fingerprint?: string;
+          processed_count?: number;
+          requested_at?: string;
+          requested_policy?: Json;
+          safe_error_code?: string | null;
+          safe_error_summary?: string | null;
+          source_byte_size?: number;
+          source_display_name?: string;
+          source_format?: Database["public"]["Enums"]["portability_format"];
+          source_sha256?: string;
+          started_at?: string | null;
+          status?: Database["public"]["Enums"]["portability_job_status"];
+          total_count?: number | null;
+          updated_at?: string;
+          warning_count?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "import_jobs_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "import_jobs_learner_profile_id_fkey";
+            columns: ["learner_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "learner_profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -5001,6 +5275,15 @@ export type Database = {
         };
         Returns: Json;
       };
+      admin_begin_portability_job: {
+        Args: {
+          p_job_id: string;
+          p_job_kind: Database["public"]["Enums"]["portability_job_kind"];
+          p_lease_seconds?: number;
+          p_worker_id: string;
+        };
+        Returns: string;
+      };
       admin_begin_sync_operation: {
         Args: {
           p_actor_account_id: string;
@@ -5058,11 +5341,52 @@ export type Database = {
         };
         Returns: boolean;
       };
+      admin_checkpoint_portability_job: {
+        Args: {
+          p_checkpoint_key: string;
+          p_checkpoint_ordinal: number;
+          p_error_count: number;
+          p_job_id: string;
+          p_job_kind: Database["public"]["Enums"]["portability_job_kind"];
+          p_lease_token: string;
+          p_payload_fingerprint: string;
+          p_phase: string;
+          p_processed_count: number;
+          p_result_summary?: Json;
+          p_total_count: number;
+          p_warning_count: number;
+        };
+        Returns: Json;
+      };
       admin_claim_due_media_deletions: {
         Args: { p_lease_seconds?: number; p_limit: number; p_worker_id: string };
         Returns: {
           lease_token: string;
           media_asset_id: string;
+          storage_bucket: string;
+          storage_path: string;
+        }[];
+      };
+      admin_claim_portability_jobs: {
+        Args: {
+          p_lease_seconds?: number;
+          p_limit?: number;
+          p_worker_id: string;
+        };
+        Returns: {
+          attempt_number: number;
+          job_id: string;
+          job_kind: Database["public"]["Enums"]["portability_job_kind"];
+          lease_token: string;
+          phase: string;
+          queue_id: string;
+        }[];
+      };
+      admin_claim_portability_object_cleanup: {
+        Args: { p_limit?: number };
+        Returns: {
+          object_id: string;
+          object_kind: string;
           storage_bucket: string;
           storage_path: string;
         }[];
@@ -5190,6 +5514,19 @@ export type Database = {
         };
         Returns: Json;
       };
+      admin_complete_portability_job: {
+        Args: {
+          p_error_count: number;
+          p_job_id: string;
+          p_job_kind: Database["public"]["Enums"]["portability_job_kind"];
+          p_lease_token: string;
+          p_result: Database["public"]["Enums"]["portability_job_status"];
+          p_safe_error_code?: string;
+          p_safe_error_summary?: string;
+          p_warning_count: number;
+        };
+        Returns: Json;
+      };
       admin_complete_sync_operation: {
         Args: {
           p_actor_account_id: string;
@@ -5217,6 +5554,10 @@ export type Database = {
           p_pin: string;
           p_reauthentication_proof_hash: string;
         };
+        Returns: boolean;
+      };
+      admin_confirm_portability_object_deleted: {
+        Args: { p_object_id: string; p_object_kind: string };
         Returns: boolean;
       };
       admin_consume_rate_limit: {
@@ -5418,6 +5759,13 @@ export type Database = {
         };
         Returns: Json;
       };
+      admin_delete_portability_artifact: {
+        Args: { p_account_id: string; p_artifact_id: string };
+        Returns: {
+          storage_bucket: string;
+          storage_path: string;
+        }[];
+      };
       admin_delete_srs_preset: {
         Args: {
           p_actor_account_id: string;
@@ -5445,6 +5793,15 @@ export type Database = {
       admin_ensure_account: {
         Args: { p_actor_account_id: string };
         Returns: string;
+      };
+      admin_expire_portability_objects: {
+        Args: { p_limit?: number };
+        Returns: {
+          object_id: string;
+          object_kind: string;
+          storage_bucket: string;
+          storage_path: string;
+        }[];
       };
       admin_finalize_media_asset: {
         Args: {
@@ -5508,6 +5865,36 @@ export type Database = {
           learner_profile_id: string;
           profile_session_id: string;
           token_matches: boolean;
+        }[];
+      };
+      admin_get_portability_artifact_object: {
+        Args: { p_account_id: string; p_artifact_id: string };
+        Returns: {
+          byte_size: number;
+          display_name: string;
+          mime_type: string;
+          sha256: string;
+          storage_bucket: string;
+          storage_path: string;
+        }[];
+      };
+      admin_get_portability_audit_events: {
+        Args: { p_account_id: string };
+        Returns: Json;
+      };
+      admin_get_portability_card_id_map: {
+        Args: { p_account_id: string; p_import_job_id: string };
+        Returns: Json;
+      };
+      admin_get_portability_upload_object: {
+        Args: { p_account_id: string; p_import_job_id: string };
+        Returns: {
+          byte_size: number;
+          declared_mime_type: string;
+          detected_mime_type: string;
+          sha256: string;
+          storage_bucket: string;
+          storage_path: string;
         }[];
       };
       admin_get_public_deck_media_storage: {
@@ -5675,6 +6062,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      admin_mark_portability_upload_deleted: {
+        Args: { p_account_id: string; p_import_job_id: string };
+        Returns: boolean;
+      };
       admin_preview_srs_algorithm_migration: {
         Args: {
           p_actor_account_id: string;
@@ -5766,6 +6157,19 @@ export type Database = {
         };
         Returns: Json;
       };
+      admin_record_portability_job_item: {
+        Args: {
+          p_canonical_id: string;
+          p_item_key: string;
+          p_job_id: string;
+          p_job_kind: Database["public"]["Enums"]["portability_job_kind"];
+          p_lease_token: string;
+          p_result: string;
+          p_safe_warning_codes?: string[];
+          p_source_fingerprint: string;
+        };
+        Returns: Json;
+      };
       admin_record_practice_attempt: {
         Args: {
           p_actor_account_id: string;
@@ -5848,6 +6252,56 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      admin_register_export_artifact: {
+        Args: {
+          p_account_id: string;
+          p_byte_size: number;
+          p_display_name: string;
+          p_expires_at: string;
+          p_export_job_id: string;
+          p_format: Database["public"]["Enums"]["portability_format"];
+          p_loss_summary: Json;
+          p_mime_type: string;
+          p_sha256: string;
+          p_storage_path: string;
+          p_warning_count: number;
+        };
+        Returns: {
+          account_id: string;
+          available: boolean;
+          byte_size: number;
+          created_at: string;
+          deleted_at: string | null;
+          display_name: string;
+          expires_at: string;
+          export_job_id: string;
+          format: Database["public"]["Enums"]["portability_format"];
+          id: string;
+          loss_summary: Json;
+          mime_type: string;
+          sha256: string;
+          warning_count: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "export_artifacts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      admin_register_portability_upload: {
+        Args: {
+          p_account_id: string;
+          p_byte_size: number;
+          p_declared_mime_type: string;
+          p_detected_mime_type: string;
+          p_expires_at: string;
+          p_import_job_id: string;
+          p_sha256: string;
+          p_storage_path: string;
+        };
+        Returns: string;
       };
       admin_register_request_device: {
         Args: {
@@ -5939,6 +6393,33 @@ export type Database = {
           learner_status: Database["public"]["Enums"]["learner_profile_status"];
           profile_session_id: string;
         }[];
+      };
+      admin_restore_portability_evidence_chunk: {
+        Args: {
+          p_account_id: string;
+          p_card_id_map: Json;
+          p_chunk_ordinal: number;
+          p_import_job_id: string;
+          p_learner_profile_id: string;
+          p_lease_token: string;
+          p_mastery: Json;
+          p_practice: Json;
+          p_progress_policy: string;
+        };
+        Returns: Json;
+      };
+      admin_restore_portability_progress_chunk: {
+        Args: {
+          p_account_id: string;
+          p_card_id_map: Json;
+          p_import_job_id: string;
+          p_learner_profile_id: string;
+          p_lease_token: string;
+          p_progress_policy: string;
+          p_reviews: Json;
+          p_schedules: Json;
+        };
+        Returns: Json;
       };
       admin_revoke_consent: {
         Args: {
@@ -6288,6 +6769,15 @@ export type Database = {
           owner_account_id: string;
         }[];
       };
+      admin_yield_portability_job: {
+        Args: {
+          p_job_id: string;
+          p_job_kind: Database["public"]["Enums"]["portability_job_kind"];
+          p_lease_token: string;
+          p_next_phase: string;
+        };
+        Returns: Json;
+      };
       complete_current_account_onboarding: {
         Args: {
           p_age_band: Database["public"]["Enums"]["age_band"];
@@ -6449,6 +6939,13 @@ export type Database = {
         };
         Returns: boolean;
       };
+      current_cancel_portability_job: {
+        Args: {
+          p_job_id: string;
+          p_job_kind: Database["public"]["Enums"]["portability_job_kind"];
+        };
+        Returns: Json;
+      };
       current_complete_account_onboarding: {
         Args: {
           p_age_band: Database["public"]["Enums"]["age_band"];
@@ -6565,6 +7062,48 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      current_create_export_job: {
+        Args: {
+          p_adapter_code: string;
+          p_export_format: Database["public"]["Enums"]["portability_format"];
+          p_export_scope: Json;
+          p_idempotency_key: string;
+          p_learner_profile_id: string;
+          p_payload_fingerprint: string;
+          p_requested_options: Json;
+        };
+        Returns: {
+          account_id: string;
+          adapter_code: string;
+          cancelled_at: string | null;
+          completed_at: string | null;
+          current_phase: string;
+          error_count: number;
+          expires_at: string;
+          export_format: Database["public"]["Enums"]["portability_format"];
+          export_scope: Json;
+          id: string;
+          idempotency_key: string;
+          learner_profile_id: string | null;
+          payload_fingerprint: string;
+          processed_count: number;
+          requested_at: string;
+          requested_options: Json;
+          safe_error_code: string | null;
+          safe_error_summary: string | null;
+          started_at: string | null;
+          status: Database["public"]["Enums"]["portability_job_status"];
+          total_count: number | null;
+          updated_at: string;
+          warning_count: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "export_jobs";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       current_create_folder: {
         Args: { p_idempotency_key: string; p_name: string; p_parent_id: string };
         Returns: {
@@ -6582,6 +7121,55 @@ export type Database = {
         SetofOptions: {
           from: "*";
           to: "folders";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      current_create_import_job: {
+        Args: {
+          p_adapter_code: string;
+          p_idempotency_key: string;
+          p_kind: Database["public"]["Enums"]["portability_job_kind"];
+          p_learner_profile_id: string;
+          p_payload_fingerprint: string;
+          p_requested_policy: Json;
+          p_source_byte_size: number;
+          p_source_display_name: string;
+          p_source_format: Database["public"]["Enums"]["portability_format"];
+          p_source_sha256: string;
+        };
+        Returns: {
+          account_id: string;
+          adapter_code: string;
+          cancelled_at: string | null;
+          completed_at: string | null;
+          current_phase: string;
+          error_count: number;
+          expires_at: string;
+          id: string;
+          idempotency_key: string;
+          inspection_summary: Json;
+          kind: Database["public"]["Enums"]["portability_job_kind"];
+          learner_profile_id: string | null;
+          payload_fingerprint: string;
+          processed_count: number;
+          requested_at: string;
+          requested_policy: Json;
+          safe_error_code: string | null;
+          safe_error_summary: string | null;
+          source_byte_size: number;
+          source_display_name: string;
+          source_format: Database["public"]["Enums"]["portability_format"];
+          source_sha256: string;
+          started_at: string | null;
+          status: Database["public"]["Enums"]["portability_job_status"];
+          total_count: number | null;
+          updated_at: string;
+          warning_count: number;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "import_jobs";
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -7083,6 +7671,13 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      current_retry_portability_job: {
+        Args: {
+          p_job_id: string;
+          p_job_kind: Database["public"]["Enums"]["portability_job_kind"];
+        };
+        Returns: Json;
       };
       current_revoke_consent: {
         Args: {
@@ -7663,6 +8258,35 @@ export type Database = {
       new_review_mix: "before" | "after" | "interleave";
       note_field_type: "rich_text" | "plain_text" | "boolean" | "number" | "list" | "media";
       occlusion_mode: "hide_one_reveal_others" | "hide_all_reveal_one";
+      portability_format:
+        | "plain_text"
+        | "quizlet_text"
+        | "csv"
+        | "tsv"
+        | "lumen_json"
+        | "markdown_bundle"
+        | "anki_apkg"
+        | "anki_colpkg"
+        | "lumen_archive"
+        | "encrypted_lumen_archive"
+        | "print_html";
+      portability_job_kind: "import" | "export" | "restore";
+      portability_job_status:
+        | "uploaded"
+        | "inspecting"
+        | "awaiting_mapping"
+        | "ready"
+        | "queued"
+        | "running"
+        | "pausing"
+        | "paused"
+        | "cancelling"
+        | "cancelled"
+        | "completed"
+        | "completed_with_warnings"
+        | "failed"
+        | "retryable"
+        | "expired";
       practice_item_status: "pending" | "shown" | "answered" | "skipped";
       practice_mode:
         "flashcards" | "learn" | "write" | "test" | "match" | "spell" | "pronunciation" | "diagram";
@@ -7947,6 +8571,37 @@ export const Constants = {
       new_review_mix: ["before", "after", "interleave"],
       note_field_type: ["rich_text", "plain_text", "boolean", "number", "list", "media"],
       occlusion_mode: ["hide_one_reveal_others", "hide_all_reveal_one"],
+      portability_format: [
+        "plain_text",
+        "quizlet_text",
+        "csv",
+        "tsv",
+        "lumen_json",
+        "markdown_bundle",
+        "anki_apkg",
+        "anki_colpkg",
+        "lumen_archive",
+        "encrypted_lumen_archive",
+        "print_html",
+      ],
+      portability_job_kind: ["import", "export", "restore"],
+      portability_job_status: [
+        "uploaded",
+        "inspecting",
+        "awaiting_mapping",
+        "ready",
+        "queued",
+        "running",
+        "pausing",
+        "paused",
+        "cancelling",
+        "cancelled",
+        "completed",
+        "completed_with_warnings",
+        "failed",
+        "retryable",
+        "expired",
+      ],
       practice_item_status: ["pending", "shown", "answered", "skipped"],
       practice_mode: [
         "flashcards",

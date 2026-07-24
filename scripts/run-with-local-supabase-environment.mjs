@@ -1,6 +1,9 @@
 import { spawn } from "node:child_process";
 
-import { readLocalSupabaseEnvironment } from "./local-supabase-environment.mjs";
+import {
+  ensureLocalSupabaseGateway,
+  readLocalSupabaseEnvironment,
+} from "./local-supabase-environment.mjs";
 
 const [requestedExecutable, ...arguments_] = process.argv.slice(2);
 
@@ -9,6 +12,7 @@ if (!requestedExecutable) {
 }
 
 const localSupabaseEnvironment = await readLocalSupabaseEnvironment();
+await ensureLocalSupabaseGateway(localSupabaseEnvironment);
 const executable =
   process.platform === "win32" && requestedExecutable === "pnpm" ? "pnpm.cmd" : requestedExecutable;
 const child = spawn(executable, arguments_, {

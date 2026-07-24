@@ -1,5 +1,5 @@
-/* Lumen Phase 05 service worker. Private projections belong in IndexedDB. */
-const VERSION = "phase05-v1";
+/* Lumen Phase 06 service worker. Private projections belong in IndexedDB. */
+const VERSION = "phase06-v1";
 const STATIC_CACHE = `lumen-static-${VERSION}`;
 const PUBLIC_CACHE = `lumen-public-${VERSION}`;
 const OFFLINE_SHELL = "/offline";
@@ -16,6 +16,13 @@ const NEVER_CACHE_PATHS = [
   "/onboarding",
   "/app/settings",
   "/app/parent",
+  "/app/portability",
+  "/api/portability",
+  "/portability/upload",
+  "/portability/artifact",
+  "/portability/diagnostic",
+  "/portability/backup",
+  "/portability/restore",
   "/privacy/export",
   "/account/delete",
 ];

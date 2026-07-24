@@ -37,6 +37,41 @@ const glossary = Object.freeze([
     "Activity that can build practice history or mastery but leaves due dates alone.",
   ],
   ["Updates schedule", "An action that changes when a card returns in SRS Review."],
+  [
+    "Import",
+    "Bring authorized study material into private Lumen content after inspection and mapping.",
+  ],
+  [
+    "Export",
+    "Create an expiring private artifact in a useful open or application-specific format.",
+  ],
+  ["Backup", "A full-fidelity versioned Lumen archive intended for disaster recovery."],
+  [
+    "Restore",
+    "Import a Lumen backup with explicit conflicts and fresh canonical IDs where needed.",
+  ],
+  ["Duplicate", "An incoming card entry that exactly matches content or trusted source identity."],
+  [
+    "Update existing",
+    "Replace only a deliberately matched object, never one chosen by weak similarity.",
+  ],
+  [
+    "Flatten",
+    "Convert an interactive card into a simpler static representation with a visible loss report.",
+  ],
+  [
+    "Compatibility loss",
+    "A feature, behavior, or history field a target format cannot preserve exactly.",
+  ],
+  ["Artifact expiration", "The time after which a private generated download becomes unavailable."],
+  [
+    "Schedule preservation",
+    "Import compatible learner-private scheduling instead of starting every card as New.",
+  ],
+  [
+    "Review-history preservation",
+    "Carry trustworthy immutable review events while retaining learner ownership.",
+  ],
 ] as const);
 
 const modeEffects = Object.freeze([

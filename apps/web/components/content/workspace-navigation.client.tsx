@@ -6,6 +6,7 @@ import {
   ListIcon,
   LockIcon,
   PlayIcon,
+  UploadIcon,
   UserIcon,
   UsersIcon,
 } from "@lumen/ui";
@@ -32,6 +33,7 @@ const studyItems: readonly WorkspaceNavigationItem[] = [
 ] as const;
 
 const accountItems: readonly WorkspaceNavigationItem[] = [
+  { href: "/app/portability", icon: UploadIcon, label: "Import & export" },
   { href: "/app/settings/profile", icon: UserIcon, label: "Profile" },
   { href: "/app/settings/scheduling", icon: PlayIcon, label: "Scheduling" },
   { href: "/app/settings/learners", icon: UsersIcon, label: "Learner profiles" },

@@ -12,7 +12,18 @@ export interface ApiErrorBody {
     | "NOT_FOUND"
     | "QUOTA_EXCEEDED"
     | "OFFLINE"
-    | "INTERNAL";
+    | "INTERNAL"
+    | "SOURCE_TOO_LARGE"
+    | "FILE_TYPE_MISMATCH"
+    | "INVALID_SOURCE"
+    | "IMPORT_FAILED"
+    | "EXPORT_FAILED"
+    | "JOBS_UNAVAILABLE"
+    | "INVALID_JOB"
+    | "INVALID_COMMAND"
+    | "JOB_COMMAND_FAILED"
+    | "ARTIFACT_UNAVAILABLE"
+    | "ARTIFACT_DELETE_RETRY";
   readonly message: string;
   readonly retryable: boolean;
   readonly retryAfterMs?: number;

@@ -445,7 +445,11 @@ async function verifyHostedDatabase(expectedVersions) {
     ["storage", "ls", "--experimental", "--linked", "--output-format", "json", "ss:///"],
     { capture: true, label: "Hosted storage bucket inventory" },
   );
-  assertHostedStoragePaths(storageRoot, ["lumen-content-media/"], "Hosted storage bucket");
+  assertHostedStoragePaths(
+    storageRoot,
+    ["lumen-content-media/", "lumen-portability/"],
+    "Hosted storage bucket",
+  );
   const contentObjects = await runSupabase(
     [
       "storage",
@@ -460,6 +464,20 @@ async function verifyHostedDatabase(expectedVersions) {
     { capture: true, label: "Hosted content-media object inventory" },
   );
   assertEmptyHostedStorage(contentObjects);
+  const portabilityObjects = await runSupabase(
+    [
+      "storage",
+      "ls",
+      "--experimental",
+      "--linked",
+      "--recursive",
+      "--output-format",
+      "json",
+      "ss:///lumen-portability/",
+    ],
+    { capture: true, label: "Hosted portability object inventory" },
+  );
+  assertEmptyHostedStorage(portabilityObjects);
   const diff = await runSupabase(
     ["db", "diff", "--linked", "--schema", "public,private", "--output-format", "json"],
     { capture: true, label: "Hosted schema diff" },

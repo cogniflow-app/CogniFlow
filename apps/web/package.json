@@ -21,6 +21,7 @@
     "@lumen/database": "workspace:*",
     "@lumen/domain": "workspace:*",
     "@lumen/grading": "workspace:*",
+    "@lumen/import-export": "workspace:*",
     "@lumen/learning-engine": "workspace:*",
     "@lumen/offline": "workspace:*",
     "@lumen/srs": "workspace:*",

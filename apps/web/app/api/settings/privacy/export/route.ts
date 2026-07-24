@@ -31,7 +31,15 @@ export async function POST(request: NextRequest) {
       p_idempotency_key: crypto.randomUUID(),
     });
     if (error || !data) throw new Error("EXPORT_REQUEST_FAILED");
-    return database.applyCookies(apiSuccess({ exportJobId: data, status: "queued" }, 202));
+    return database.applyCookies(
+      apiSuccess(
+        {
+          exportJobId: data,
+          status: "queued",
+        },
+        202,
+      ),
+    );
   } catch (error) {
     const rateLimited = error instanceof Error && error.message.includes("rate limit");
     return apiError(rateLimited ? 429 : 400, {

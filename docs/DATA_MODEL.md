@@ -555,3 +555,13 @@ Foreign-key cascades attach every row to existing account, learner, and device d
 receipt-status, device, learner, and RLS authorization paths are indexed. The browser-only
 IndexedDB schema and retention rules are documented in
 [OFFLINE_PWA_AND_SYNC.md](./OFFLINE_PWA_AND_SYNC.md).
+
+## Phase 06 portability model
+
+`public.import_jobs`, `public.export_jobs`, and `public.export_artifacts` expose only sanitized,
+owner-RLS metadata. Private upload/artifact paths, queue leases, attempts, checkpoints, item
+receipts, terminal receipts, and diagnostic object metadata live in `private`. Jobs bind source and
+payload fingerprints; item keys bind source fingerprints to canonical IDs for idempotent replay.
+Artifacts and temporary uploads are expiring/tombstoned, while job receipts remain durable audit
+evidence. Complete schemas and relationships are documented in
+[IMPORT_EXPORT_AND_PORTABILITY.md](./IMPORT_EXPORT_AND_PORTABILITY.md).
