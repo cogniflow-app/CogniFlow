@@ -723,10 +723,11 @@ the section remains as the historical Phase 05 procedure.
 
 ## Phase 06 Preview deployment and acceptance
 
-Phase 06 adds the eight additive migrations from
+Phase 06 core adds eight additive migrations from
 `20260724000000_phase06_portability_schema.sql` through
-`20260724007000_phase06_sql_expression_qualification_fix.sql`. They may reach only fixed Preview
-project `cfwddajyjbueggpzfomh`, and only after the complete local gate passes and the exact
+`20260724007000_phase06_sql_expression_qualification_fix.sql`; the XLSX follow-up adds
+`20260724008000_phase06_xlsx_import_format.sql`. They may reach only fixed Preview project
+`cfwddajyjbueggpzfomh`, and only after the complete local gate passes and the exact
 migrations/application source are committed. Do not edit or reorder the corrective migration
 chain. The deploy guard requires a clean tracked migration directory:
 
@@ -736,13 +737,14 @@ pnpm db:verify:preview
 ```
 
 Do not use `db:deploy:beta`, reset, seed deployment, migration repair, configuration push, or any
-Production deploy for Phase 06. The verifier must prove all 61 migrations, an empty push dry run,
+Production deploy for Phase 06. The verifier must prove all 62 migrations, an empty push dry run,
 hosted invariants, clean public/private schema diff, generated-type parity, exactly the reviewed
 private `lumen-content-media` and `lumen-portability` buckets, and no recursive object before
 application acceptance.
 
-Push the exact commit only to `codex/phase-06-import-export-portability`, wait for its immutable
-protected Vercel Preview to report Ready, and require `/api/health` to report
+For the post-merge XLSX/palette/reflow follow-up, push the exact commit only to
+`agent/xlsx-import-content-reflow`, wait for its immutable protected Vercel Preview to report Ready,
+and require `/api/health` to report
 `deploymentProfile: vercel_beta`, `vercelEnvironment: preview`, and Preview Supabase project
 `cfwddajyjbueggpzfomh`. Then run:
 
@@ -754,9 +756,9 @@ HOSTED_PREVIEW_URL=https://<exact-ready-preview>.vercel.app pnpm test:hosted:pre
 The portability wrapper reuses the fixed-project ownership attestation and credential-scrubbed
 browser boundary. Its parent provisions two disposable reserved-address adult accounts: a source
 account and a distinct clean restore account carrying the same run metadata. Playwright receives
-neither a Supabase service key nor a Vercel bypass secret. Acceptance covers text, CSV, JSON,
-Markdown, real Anki export/reimport, full and encrypted archives, clean-account additive restore,
-cross-account artifact denial, artifact deletion, jobs, and print.
+neither a Supabase service key nor a Vercel bypass secret. Acceptance covers text, CSV, XLSX
+worksheet import, JSON, Markdown, real Anki export/reimport, full and encrypted archives,
+clean-account additive restore, cross-account artifact denial, artifact deletion, jobs, and print.
 
 The `finally` cleanup path canonically deletes both accounts, claims eligible private portability
 objects, deletes each physical Storage object, confirms only successful deletions, and verifies no
