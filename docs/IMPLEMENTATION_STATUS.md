@@ -70,9 +70,11 @@ application change has been sent to Beta or Production.
   Browser acceptance covers unbroken terms at 200% text without horizontal page overflow.
 - Added a portable bounded worker/manual cleanup runner and a guarded Preview acceptance harness.
   The hosted parent provisions separate source and clean-restore adult accounts, retains all
-  provider credentials, spaces those admin-created fixtures across the provider create window,
-  tests cross-account artifact isolation, performs canonical account deletion, deletes claimed
-  Storage objects before confirming metadata, and proves both private buckets empty.
+  provider credentials, spaces those admin-created fixtures across the provider create window, and
+  applies a bounded abort-aware retry only to the provider's intermittent `403`/`429` create-window
+  responses. It tests cross-account artifact isolation, performs canonical account deletion,
+  deletes claimed Storage objects before confirming metadata, and proves both private buckets
+  empty.
 - Hardened the local verification wrapper against post-reset Supabase gateway DNS drift with a
   loopback-only health probe and an exact-project gateway restart. This recovery cannot target a
   hosted project or alter provider configuration.
@@ -104,7 +106,7 @@ seed inserts no application data. Generated database types match the reset schem
 | `pnpm install --frozen-lockfile`                          | Exit 0; all 14 workspace projects are current under Node `24.18.0` / pnpm `11.13.0`                                                                                                                                                                                    |
 | `pnpm format:check` / `pnpm secret:scan`                  | Exit 0; formatting accepted and no credential finding                                                                                                                                                                                                                  |
 | `pnpm lint` / `pnpm typecheck`                            | Exit 0; dependency boundaries and all strict TypeScript workspaces pass                                                                                                                                                                                                |
-| `pnpm test`                                               | Exit 0; 101 files / 801 tests; coverage 71.30% statements, 58.31% branches, 71.64% functions, 74.14% lines                                                                                                                                                             |
+| `pnpm test`                                               | Exit 0; 101 files / 802 tests; coverage 71.30% statements, 58.31% branches, 71.64% functions, 74.14% lines                                                                                                                                                             |
 | `pnpm --filter @lumen/import-export test`                 | Exit 0; 40 deterministic spreadsheet/delimited/archive/encryption/Anki/adversarial/performance tests                                                                                                                                                                   |
 | `pnpm --filter @lumen/worker test`                        | Exit 0; 16 job claim/checkpoint/cancel/crash/retry/exhaustion/bounds/Storage-cleanup tests                                                                                                                                                                             |
 | `pnpm db:reset` / `pnpm test:db`                          | Exit 0; fresh 62-migration reset; 24 files / 1,032 pgTAP assertions plus SRS concurrency (1 commit, 1 typed stale conflict, 1 immutable log, 25.482 ms)                                                                                                                |
@@ -178,8 +180,10 @@ The follow-up remains isolated in draft PR #19. It adds no owner-only environmen
 credential, Auth, SMTP, OAuth, domain, analytics, or paid-service setup action.
 During the final immutable-deployment repeat, a status-only diagnostic reproduced Preview Auth
 returning `200` then `403` for two immediate admin fixture creates and `200`/`200` when separated by
-1.5 seconds. The guarded parent now enforces that abort-aware spacing; its regression test verifies
-the exact order without exposing the server key.
+1.5 seconds; a later isolated fresh create also confirmed that the `403` window is intermittent.
+The guarded parent now enforces that abort-aware spacing plus a three-attempt retry restricted to
+`403`/`429`; regression tests verify the exact order, bounded retry, fail-fast behavior for other
+responses, and server-key containment.
 
 ## Phase 05 offline PWA and synchronization
 

@@ -386,6 +386,44 @@ describe("hosted content acceptance guard", () => {
     ).toBe(true);
   });
 
+  it("retries only a bounded provider create-window response without exposing details", async () => {
+    const secretKey = "preview-server-key-that-must-not-appear";
+    const delayImplementation = vi.fn(async () => undefined);
+    const fetchImplementation = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("provider details", { status: 403 }))
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            email: createHostedAcceptanceIdentity(runId).email,
+            id: "41000000-0000-4000-8000-000000000001",
+            user_metadata: { lumen_hosted_acceptance: runId },
+          },
+          { status: 201 },
+        ),
+      );
+
+    await expect(
+      provisionHostedAcceptanceFixture(runId, secretKey, {
+        delayImplementation,
+        fetchImplementation,
+      }),
+    ).resolves.toBeUndefined();
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+    expect(delayImplementation).toHaveBeenCalledOnce();
+    expect(delayImplementation).toHaveBeenCalledWith(1_500, undefined, undefined);
+
+    const failFastFetch = vi.fn(async () => new Response("provider details", { status: 401 }));
+    await expect(
+      provisionHostedAcceptanceFixture(runId, secretKey, {
+        delayImplementation,
+        fetchImplementation: failFastFetch,
+      }),
+    ).rejects.toThrow("Preview Auth fixture provisioning failed.");
+    expect(failFastFetch).toHaveBeenCalledOnce();
+    expect(delayImplementation).toHaveBeenCalledOnce();
+  });
+
   it("rejects a mismatched Admin Auth provisioning response without exposing the key", async () => {
     const secretKey = "preview-server-key-that-must-not-appear";
     await expect(
